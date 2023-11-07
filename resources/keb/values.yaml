@@ -158,6 +158,7 @@ allowNetworkingParameters: "false"
 exposeSchemaWithRegionRequired: "false"
 regionParameterIsRequired: "false"
 allowModulesParameters: "false"
+
 osbUpdateProcessingEnabled: "false"
 
 gardener:
