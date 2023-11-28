@@ -47,7 +47,7 @@ func (p *PassthroughPoller) Invoke(logic func() (bool, error)) error {
 type TimerPoller struct {
 	PollInterval time.Duration
 	PollTimeout  time.Duration
-	Log func(args ...any)
+	Log          func(args ...any)
 }
 
 func (p *TimerPoller) Invoke(logic func() (bool, error)) error {

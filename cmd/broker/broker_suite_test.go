@@ -240,7 +240,6 @@ func NewBrokerSuiteTest(t *testing.T, version ...string) *BrokerSuiteTest {
 	}
 	ts.poller = &broker.TimerPoller{PollInterval: 3 * time.Millisecond, PollTimeout: 5 * time.Second, Log: ts.t.Log}
 
-
 	ts.CreateAPI(inputFactory, cfg, db, provisioningQueue, deprovisioningQueue, updateQueue, logs)
 
 	notificationFakeClient := notification.NewFakeClient()
