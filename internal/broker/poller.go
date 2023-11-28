@@ -55,6 +55,6 @@ func (p *TimerPoller) Invoke(logic func() (bool, error)) error {
 	result := wait.PollImmediate(p.PollInterval, p.PollTimeout, func() (bool, error) {
 		return logic()
 	})
-	p.Log(fmt.Sprintf("Waiting for the status took: %v", time.Since(start)))
+	p.Log(fmt.Sprintf("Waiting for the logic execution took: %v", time.Since(start)))
 	return result
 }
