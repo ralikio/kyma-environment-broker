@@ -1,4 +1,5 @@
 global:
+  defaultTenant: 3e64ebae-38b5-46a0-b1ed-9ccee153a0ae
   ingress:
     domainName: localhost
   images:
@@ -20,9 +21,6 @@ global:
     kyma_environment_runtime_reconciler:
       dir:
       version: "v20231124-93964e82"
-    kyma_environments_subscription_cleanup_job:
-      dir:
-      version: "v20231116-c9c1ec66"
   kyma_environment_broker:
     enabled: false
     serviceAccountName: "kcp-kyma-environment-broker"
