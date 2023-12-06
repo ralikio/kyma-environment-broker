@@ -4,7 +4,7 @@ metadata:
   name: {{ include "kyma-env-broker.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Chart.Name }}
+    app: {{ include "kyma-env-broker.name" . }}
     release: {{ .Release.Name }}
   annotations:
     argocd.argoproj.io/sync-options: Prune=false
@@ -35,7 +35,7 @@ metadata:
   name: {{ include "kyma-env-broker.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Chart.Name }}
+    app: {{ include "kyma-env-broker.name" . }}
     release: {{ .Release.Name }}
   annotations:
     argocd.argoproj.io/sync-options: Prune=false
