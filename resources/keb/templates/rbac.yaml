@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ include "kyma-env-broker.name" . }}
-    release: {{ .Release.Name }}
+    release: {{ .Values.namePrefix }}
   annotations:
     argocd.argoproj.io/sync-options: Prune=false
 rules:
@@ -36,7 +36,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ include "kyma-env-broker.name" . }}
-    release: {{ .Release.Name }}
+    release: {{ .Values.namePrefix }}
   annotations:
     argocd.argoproj.io/sync-options: Prune=false
 subjects:
