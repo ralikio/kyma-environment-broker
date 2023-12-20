@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	schema "github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
@@ -68,7 +69,7 @@ func (c *FakeClient) FinishProvisionerOperation(id string, state schema.Operatio
 	op := c.operations[id]
 	op.State = state
 	c.operations[id] = op
-	fmt.Println("WW LOG provisioner operation with id " + *op.ID + " finished with state" + op.State.String())
+	fmt.Println(time.Now().UTC().Format(time.RFC3339) + " WW LOG provisioner operation with id " + *op.ID + " finished with state" + op.State.String())
 
 }
 

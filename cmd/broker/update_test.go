@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	reconcilerApi "github.com/kyma-incubator/reconciler/pkg/keb"
@@ -170,7 +171,7 @@ func TestExpiration(t *testing.T) {
 	suite.WaitForOperationState(opID, domain.Succeeded)
 
 	lastOpID := suite.LastOperation(iid).ID
-	suite.Log("WW LOG: Last operation from database: " + lastOpID)
+	suite.Log(time.Now().UTC().Format(time.RFC3339) + " WW LOG: Last operation from database: " + lastOpID)
 
 	// when
 	// OSB update:
@@ -189,12 +190,12 @@ func TestExpiration(t *testing.T) {
    }`)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	waitedOpID := suite.WaitForLastOperation(iid, domain.InProgress)
-	suite.Log("WW LOG: Tests waiting for 'last' operation: " + waitedOpID)
+	suite.Log(time.Now().UTC().Format(time.RFC3339) + " WW LOG: Tests waiting for 'last' operation: " + waitedOpID)
 	opID = suite.LastOperation(iid).ID
 
 	decodedOpID := suite.DecodeOperationID(resp)
 	lastOpID = suite.LastOperation(iid).ID
-	suite.Log("WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
+	suite.Log(time.Now().UTC().Format(time.RFC3339) + " WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
 
 	suite.FailDeprovisioningByReconciler(opID)
 	suite.FailDeprovisioningOperationByProvisioner(opID)
@@ -221,7 +222,7 @@ func TestExpiration(t *testing.T) {
 
 	decodedOpID = suite.DecodeOperationID(resp)
 	lastOpID = suite.LastOperation(iid).ID
-	suite.Log("WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
+	suite.Log(time.Now().UTC().Format(time.RFC3339) + " WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
 
 	// when
 	// OSB update: retrigger suspension when lat suspension failed
@@ -241,13 +242,13 @@ func TestExpiration(t *testing.T) {
 
 	decodedOpID = suite.DecodeOperationID(resp)
 	lastOpID = suite.LastOperation(iid).ID
-	suite.Log("WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
+	suite.Log(time.Now().UTC().Format(time.RFC3339) + " WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
 
 	// expired instance does not support an update
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	// we expect new suspension in progress operation (the last operation before is failed)
 	waitedOpID = suite.WaitForLastOperation(iid, domain.InProgress)
-	suite.Log("WW LOG: Tests waiting for 'last' operation: " + waitedOpID)
+	suite.Log(time.Now().UTC().Format(time.RFC3339) + " WW LOG: Tests waiting for 'last' operation: " + waitedOpID)
 	suite.AssertKymaResourceExists(opID)
 	suite.AssertKymaLabelsExist(opID, map[string]string{
 		"kyma-project.io/region":          "eu-west-1",

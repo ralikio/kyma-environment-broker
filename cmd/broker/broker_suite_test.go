@@ -419,7 +419,7 @@ func (s *BrokerSuiteTest) WaitForLastOperation(iid string, state domain.LastOper
 	var op *internal.Operation
 	err := s.poller.Invoke(func() (done bool, err error) {
 		op, _ = s.db.Operations().GetLastOperation(iid)
-		fmt.Println("WW LOG: found last operation excluding pending: " + op.ID + " in state " + string(op.State))
+		fmt.Println(time.Now().UTC().Format(time.RFC3339) + " WW LOG: found last operation excluding pending: " + op.ID + " in state " + string(op.State))
 
 		return op.State == state, nil
 	})
