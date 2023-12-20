@@ -253,8 +253,6 @@ func TestExpiration(t *testing.T) {
 		"kyma-project.io/region":          "eu-west-1",
 		"kyma-project.io/platform-region": "cf-eu10",
 	})
-
-	assert.FailNow(t, "Failed")
 }
 
 func TestExpirationOfNonTrial(t *testing.T) {
