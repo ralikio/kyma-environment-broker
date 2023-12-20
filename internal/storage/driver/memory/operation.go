@@ -452,7 +452,6 @@ func (s *operations) getLastOperationIncludingPending(instanceID string) (*inter
 	return &rows[0], nil
 }
 
-
 func (s *operations) GetOperationByID(operationID string) (*internal.Operation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

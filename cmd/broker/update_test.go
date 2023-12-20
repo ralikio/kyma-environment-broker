@@ -191,8 +191,8 @@ func TestExpiration(t *testing.T) {
 	waitedOpID := suite.WaitForLastOperation(iid, domain.InProgress)
 	suite.Log("WW LOG: Tests waiting for 'last' operation: " + waitedOpID)
 	opID = suite.LastOperation(iid).ID
-	
-    decodedOpID := suite.DecodeOperationID(resp)
+
+	decodedOpID := suite.DecodeOperationID(resp)
 	lastOpID = suite.LastOperation(iid).ID
 	suite.Log("WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
 
@@ -219,7 +219,7 @@ func TestExpiration(t *testing.T) {
 	// expired instance does not support an update
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-    decodedOpID = suite.DecodeOperationID(resp)
+	decodedOpID = suite.DecodeOperationID(resp)
 	lastOpID = suite.LastOperation(iid).ID
 	suite.Log("WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
 
@@ -239,7 +239,7 @@ func TestExpiration(t *testing.T) {
 		}
    }`)
 
-    decodedOpID = suite.DecodeOperationID(resp)
+	decodedOpID = suite.DecodeOperationID(resp)
 	lastOpID = suite.LastOperation(iid).ID
 	suite.Log("WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
 
