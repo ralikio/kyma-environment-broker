@@ -169,6 +169,9 @@ func TestExpiration(t *testing.T) {
 	suite.processProvisioningAndReconcilingByOperationID(opID)
 	suite.WaitForOperationState(opID, domain.Succeeded)
 
+	lastOpID := suite.LastOperation(iid).ID
+	suite.Log("WW LOG: Last operation from database: " + lastOpID)
+
 	// when
 	// OSB update:
 	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", iid),
@@ -185,8 +188,14 @@ func TestExpiration(t *testing.T) {
 		}
    }`)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	suite.WaitForLastOperation(iid, domain.InProgress)
+	waitedOpID := suite.WaitForLastOperation(iid, domain.InProgress)
+	suite.Log("WW LOG: Tests waiting for 'last' operation: " + waitedOpID)
 	opID = suite.LastOperation(iid).ID
+	
+    decodedOpID := suite.DecodeOperationID(resp)
+	lastOpID = suite.LastOperation(iid).ID
+	suite.Log("WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
+
 	suite.FailDeprovisioningByReconciler(opID)
 	suite.FailDeprovisioningOperationByProvisioner(opID)
 	instance := suite.GetInstance(iid)
@@ -210,6 +219,10 @@ func TestExpiration(t *testing.T) {
 	// expired instance does not support an update
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
+    decodedOpID = suite.DecodeOperationID(resp)
+	lastOpID = suite.LastOperation(iid).ID
+	suite.Log("WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
+
 	// when
 	// OSB update: retrigger suspension when lat suspension failed
 	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", iid),
@@ -225,16 +238,23 @@ func TestExpiration(t *testing.T) {
 			
 		}
    }`)
+
+    decodedOpID = suite.DecodeOperationID(resp)
+	lastOpID = suite.LastOperation(iid).ID
+	suite.Log("WW LOG: Response opID is: " + decodedOpID + " and last opID is " + lastOpID)
+
 	// expired instance does not support an update
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	// we expect new suspension in progress operation (the last operation before is failed)
-	suite.WaitForLastOperation(iid, domain.InProgress)
+	waitedOpID = suite.WaitForLastOperation(iid, domain.InProgress)
+	suite.Log("WW LOG: Tests waiting for 'last' operation: " + waitedOpID)
 	suite.AssertKymaResourceExists(opID)
 	suite.AssertKymaLabelsExist(opID, map[string]string{
 		"kyma-project.io/region":          "eu-west-1",
 		"kyma-project.io/platform-region": "cf-eu10",
 	})
 
+	assert.FailNow(t, "Failed")
 }
 
 func TestExpirationOfNonTrial(t *testing.T) {

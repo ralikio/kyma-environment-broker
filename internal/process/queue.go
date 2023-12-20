@@ -36,10 +36,12 @@ func NewQueue(executor Executor, log logrus.FieldLogger) *Queue {
 
 func (q *Queue) Add(processId string) {
 	q.queue.Add(processId)
+	q.log.Infof("Processing queue is %s", q.queue)
 }
 
 func (q *Queue) AddAfter(processId string, duration time.Duration) {
 	q.queue.AddAfter(processId, duration)
+	q.log.Infof("Processing queue is %s", q.queue)
 }
 
 func (q *Queue) ShutDown() {

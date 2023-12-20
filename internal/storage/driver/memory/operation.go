@@ -49,6 +49,7 @@ func (s *operations) InsertProvisioningOperation(operation internal.Provisioning
 	}
 
 	s.operations[id] = operation.Operation
+	s.logOperations()
 	return nil
 }
 
@@ -62,6 +63,7 @@ func (s *operations) InsertOperation(operation internal.Operation) error {
 	}
 
 	s.operations[id] = operation
+	s.logOperations()
 	return nil
 }
 
@@ -201,6 +203,7 @@ func (s *operations) InsertDeprovisioningOperation(operation internal.Deprovisio
 	}
 
 	s.operations[id] = operation.Operation
+	s.logOperations()
 	return nil
 }
 
@@ -295,6 +298,7 @@ func (s *operations) InsertUpgradeKymaOperation(operation internal.UpgradeKymaOp
 	}
 
 	s.operations[id] = operation.Operation
+	s.logOperations()
 	return nil
 }
 
@@ -349,6 +353,7 @@ func (s *operations) InsertUpgradeClusterOperation(operation internal.UpgradeClu
 	}
 
 	s.upgradeClusterOperations[id] = operation
+	s.logOperations()
 	return nil
 }
 
@@ -410,8 +415,43 @@ func (s *operations) GetLastOperation(instanceID string) (*internal.Operation, e
 		return rows[i].CreatedAt.After(rows[j].CreatedAt)
 	})
 
+	withPending, _ := s.getLastOperationIncludingPending(instanceID)
+	fmt.Println("WW LOG: found last operation including pending: " + withPending.ID + " in state " + string(withPending.State))
+
 	return &rows[0], nil
 }
+
+func (s *operations) getLastOperationIncludingPending(instanceID string) (*internal.Operation, error) {
+
+	var rows []internal.Operation
+
+	for _, op := range s.operations {
+		if op.InstanceID == instanceID {
+			rows = append(rows, op)
+		}
+	}
+	for _, op := range s.upgradeClusterOperations {
+		if op.InstanceID == instanceID {
+			rows = append(rows, op.Operation)
+		}
+	}
+	for _, op := range s.updateOperations {
+		if op.InstanceID == instanceID {
+			rows = append(rows, op.Operation)
+		}
+	}
+
+	if len(rows) == 0 {
+		return nil, dberr.NotFound("instance operation with instance_id %s not found", instanceID)
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].CreatedAt.After(rows[j].CreatedAt)
+	})
+
+	return &rows[0], nil
+}
+
 
 func (s *operations) GetOperationByID(operationID string) (*internal.Operation, error) {
 	s.mu.Lock()
@@ -724,6 +764,7 @@ func (s *operations) InsertUpdatingOperation(operation internal.UpdatingOperatio
 	}
 
 	s.updateOperations[id] = operation
+	s.logOperations()
 	return nil
 }
 
@@ -940,4 +981,12 @@ func (s *operations) filterUpgradeClusterByInstanceID(instanceID string, filter 
 
 func (s *operations) equalFilter(a, b string) bool {
 	return a == b
+}
+
+func (s *operations) logOperations() {
+	operationsLog := ""
+	for _, op := range s.operations {
+		operationsLog += " " + op.ID + "[" + string(op.State) + "]"
+	}
+	fmt.Println("WW LOG: operations are: " + operationsLog)
 }
