@@ -68,6 +68,8 @@ func (c *FakeClient) FinishProvisionerOperation(id string, state schema.Operatio
 	op := c.operations[id]
 	op.State = state
 	c.operations[id] = op
+	fmt.Println("WW LOG provisioner operation with id " + *op.ID + " finished with state" + op.State.String())
+
 }
 
 func (c *FakeClient) FindOperationByRuntimeIDAndType(runtimeID string, operationType schema.OperationType) schema.OperationStatus {
