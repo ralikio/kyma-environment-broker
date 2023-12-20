@@ -416,7 +416,7 @@ func (s *operations) GetLastOperation(instanceID string) (*internal.Operation, e
 	})
 
 	withPending, _ := s.getLastOperationIncludingPending(instanceID)
-	fmt.Println("WW LOG: found last operation including pending: " + withPending.ID + " in state " + string(withPending.State))
+	fmt.Println(time.Now().UTC().Format(time.RFC3339) + " WW LOG: found last operation including pending: " + withPending.ID + " in state " + string(withPending.State))
 
 	return &rows[0], nil
 }
@@ -455,6 +455,8 @@ func (s *operations) getLastOperationIncludingPending(instanceID string) (*inter
 func (s *operations) GetOperationByID(operationID string) (*internal.Operation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	fmt.Println(time.Now().UTC().Format(time.RFC3339) + " WW LOG: GetOperationByID " + operationID)
 
 	var res *internal.Operation
 
@@ -987,5 +989,5 @@ func (s *operations) logOperations() {
 	for _, op := range s.operations {
 		operationsLog += " " + op.ID + "[" + string(op.State) + "]"
 	}
-	fmt.Println("WW LOG: operations are: " + operationsLog)
+	fmt.Println(time.Now().UTC().Format(time.RFC3339) + " WW LOG: operations are: " + operationsLog)
 }
