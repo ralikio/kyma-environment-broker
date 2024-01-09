@@ -12,13 +12,8 @@ KEB binary allows you to override some configuration parameters. You can specify
 | Name | Description | Default value |
 |-----|---------|:--------:|
 | **APP_PORT** | Specifies the port on which the HTTP server listens. | `8080` |
-| **APP_PROVISIONING_DEFAULT_GARDENER_SHOOT_PURPOSE** | Specifies the purpose of the created cluster. The possible values are: `development`, `evaluation`, `production`, `testing`. | `development` |
-| **APP_PROVISIONING_URL** | Specifies a URL to the Runtime Provisioner's API. | None |
-| **APP_PROVISIONING_SECRET_NAME** | Specifies the name of the Secret which holds credentials to the Runtime Provisioner's API. | None |
-| **APP_PROVISIONING_GARDENER_PROJECT_NAME** | Defines the Gardener project name. | `true` |
-| **APP_PROVISIONING_GCP_SECRET_NAME** | Defines the name of the Secret which holds credentials to GCP. | None |
-| **APP_PROVISIONING_AWS_SECRET_NAME** | Defines the name of the Secret which holds credentials to AWS. | None |
-| **APP_PROVISIONING_AZURE_SECRET_NAME** | Defines the name of the Secret which holds credentials to Azure. | None |
+| **APP_PROVISIONER_DEFAULT_GARDENER_SHOOT_PURPOSE** | Specifies the purpose of the created cluster. The possible values are: `development`, `evaluation`, `production`, `testing`. | `development` |
+| **APP_PROVISIONER_URL** | Specifies a URL to the Runtime Provisioner's API. | None |
 | **APP_AUTH_USERNAME** | Specifies the Kyma Environment Service Broker authentication username. | None |
 | **APP_AUTH_PASSWORD** | Specifies the Kyma Environment Service Broker authentication password. | None |
 | **APP_DIRECTOR_URL** | Specifies the Director's URL. | `http://compass-director.compass-system.svc.cluster.local:3000/graphql` |
