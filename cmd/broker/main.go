@@ -114,8 +114,6 @@ type Config struct {
 
 	KymaVersion                                                         string
 	EnableOnDemandVersion                                               bool `envconfig:"default=false"`
-	ManagedRuntimeComponentsYAMLFilePath                                string
-	NewAdditionalRuntimeComponentsYAMLFilePath                          string
 	SkrOidcDefaultValuesYAMLFilePath                                    string
 	SkrDnsProvidersValuesYAMLFilePath                                   string
 	DefaultRequestRegion                                                string `envconfig:"default=cf-eu10"`
