@@ -50,13 +50,21 @@ KEB binary allows you to override some configuration parameters. You can specify
 | **APP_ORCHESTRATION_CONFIG_NAMESPACE** | Namespace of where maintenance configuration rules are defined in. | |
 | **APP_ORCHESTRATION_CONFIG_NAME** | Name of the config map that maintenance configuration rules are defined in. | |
 | **APP_KYMA_DASHBOARD_CONFIG_LANDSCAPE_URL** | Busola URL returned in response body to KEB API request. | |
+| **APP_OPERATION_TIMEOUT** | Maximum amount of time that given operation can take after which it fails. | |
+| **APP_PROVISIONER_PROVISIONING_TIMEOUT** | | |
+| **APP_PROVISIONER_DEPROVISIONING_TIMEOUT** | | |
+| **APP_ENABLE_ON_DEMAND_VERSION** | If set to `true`, a user can specify a Kyma version in a provisioning request. | `false` |
+| **APP_BROKER_ENABLE_PLANS** | EnablePlans defines the plans that should be available for provisioning. | `azure,gcp,azure_lite,trial` |
+| **APP_BROKER_ENABLE_KUBECONFIG_URL_LABEL** | A feature flag for attaching url for Kubeconfig download in the response of KEB API calls. | `false` |
 
 ### Infrastructure Manager
 
+| Name | Description | Default value |
 | **APP_INFRASTRUCTURE_MANAGER_INTEGRATION_DISABLED** | A feature flag for enabling integration with Infrastructure Manager. | |
 
 ### Gardener
 
+| Name | Description | Default value |
 | **APP_GARDENER_PROJECT** | Defines the project in which the cluster is created. | `kyma-dev` |
 | **APP_GARDENER_SHOOT_DOMAIN** | Defines the domain for clusters created in Gardener. | `shoot.canary.k8s-hana.ondemand.com` |
 | **APP_GARDENER_KUBECONFIG_PATH** | Defines the path to the kubeconfig file for Gardener. | `/gardener/kubeconfig/kubeconfig` |
@@ -67,7 +75,7 @@ KEB binary allows you to override some configuration parameters. You can specify
 
 ### Provisioner
 
-
+| Name | Description | Default value |
 | **APP_PROVISIONER_DEFAULT_GARDENER_SHOOT_PURPOSE** | Specifies the purpose of the created cluster. The possible values are: `development`, `evaluation`, `production`, `testing`. | `development` |
 | **APP_PROVISIONER_URL** | Specifies a URL to the Runtime Provisioner's API. | None |
 | **APP_PROVISIONER_MACHINE_IMAGE** | Defines the Gardener machine image used in a provisioned node. | None |
@@ -96,8 +104,6 @@ KEB binary allows you to override some configuration parameters. You can specify
 
 ### EDP
 
-
-
 | **APP_EDP_AUTH_URL** | Authorization URL for EDP integration. | |
 | **APP_EDP_ADMIN_URL** | An URL for API EDP integration. | |
 | **APP_EDP_NAMESPACE** | EDP namespace used for request sent from KEB. | |
@@ -108,25 +114,26 @@ KEB binary allows you to override some configuration parameters. You can specify
 
 ### IAS
 
-| **APP_IAS_URL** | | |
-| **APP_IAS_USER_ID** | | |
-| **APP_IAS_USER_SECRET** | | |
+| **APP_IAS_URL** | IAS URL endpoitn to call. | |
+| **APP_IAS_USER_ID** | API User | |
+| **APP_IAS_USER_SECRET** | API Secret | |
 | **APP_IAS_IDENTITY_PROVIDER** | | |
-| **APP_IAS_TLS_RENEGOTIATION_ENABLE** | | |
+| **APP_IAS_TLS_RENEGOTIATION_ENABLE** |  | |
 | **APP_IAS_TLS_SKIP_CERT_VERIFICATION** | | |
-| **APP_IAS_DISABLED** | | |
+| **APP_IAS_DISABLED** | A feature flag for IAS integration. | |
 
 
 ### AVS
 
+| **APP_AVS_OAUTH_TOKEN_ENDPOINT** | AVS authorization parameter - token endpoint. | |
+| **APP_AVS_OAUTH_USERNAME** | AVS authorization parameter - username.  | |
+| **APP_AVS_OAUTH_PASSWORD** | AVS authorization parameter - password.  | |
+| **APP_AVS_OAUTH_CLIENT_ID** | AVS authorization parameter - client id. | |
+
+| **APP_AVS_API_ENDPOINT** | | Api endpoint to call. |
+
 | **APP_AVS_REGION_TAG_CLASS_ID** | Specifies the **TagClassId** of the tag that contains Gardener cluster's region. | None |
-| **APP_AVS_OAUTH_TOKEN_ENDPOINT** | | |
-| **APP_AVS_OAUTH_USERNAME** | | |
-| **APP_AVS_OAUTH_PASSWORD** | | |
-| **APP_AVS_API_ENDPOINT** | | |
-| **APP_AVS_OAUTH_CLIENT_ID** | | |
-| **APP_AVS_API_KEY** | | |
-| **APP_AVS_INTERNAL_TESTER_ACCESS_ID** | | |
+| **APP_AVS_INTERNAL_TESTER_ACCESS_ID** | AVS tester  | |
 | **APP_AVS_EXTERNAL_TESTER_ACCESS_ID** | | |
 | **APP_AVS_INTERNAL_TESTER_SERVICE** | | |
 | **APP_AVS_EXTERNAL_TESTER_SERVICE** | | |
@@ -148,7 +155,6 @@ KEB binary allows you to override some configuration parameters. You can specify
 
 ### Director
 
-
 | **APP_DIRECTOR_URL** | Specifies the Director's URL. | `http://compass-director.compass-system.svc.cluster.local:3000/graphql` |
 | **APP_DIRECTOR_OAUTH_TOKEN_URL** | Specifies the URL for OAuth authentication. | None |
 | **APP_DIRECTOR_OAUTH_CLIENT_ID** | Specifies the client ID for OAuth authentication. | None |
@@ -157,17 +163,6 @@ KEB binary allows you to override some configuration parameters. You can specify
 | **APP_DIRECTOR_DEFAULT_TENANT** | | |
 | **APP_DIRECTOR_OAUTH_CLIENT_SECRET** | | |
 
-### Feature Flags
-
-| **APP_ENABLE_ON_DEMAND_VERSION** | If set to `true`, a user can specify a Kyma version in a provisioning request. | `false` |
-| **APP_BROKER_ENABLE_PLANS** | EnablePlans defines the plans that should be available for provisioning. | `azure,gcp,azure_lite,trial` |
-| **APP_BROKER_ENABLE_KUBECONFIG_URL_LABEL** | A feature flag for attaching url for Kubeconfig download in the response of KEB API calls. | `false` |
-
-### Timeouts
-
-| **APP_OPERATION_TIMEOUT** | Maximum amount of time that given operation can take after which it fails. | |
-| **APP_PROVISIONER_PROVISIONING_TIMEOUT** | | |
-| **APP_PROVISIONER_DEPROVISIONING_TIMEOUT** | | |
 
 ### Reconciler
 
