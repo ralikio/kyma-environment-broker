@@ -1,11 +1,15 @@
 # SAP BTP, Kyma Runtime Operations
 
-Kyma Environment Broker (KEB) allows you to configure operations that you can run on a SAP BTP, Kyma runtime. Each operation consists of several steps and each step is represented by a separate file. As every step can be re-launched multiple times, for each step, you should determine a behavior in case of a processing failure. It can either:
+Kyma Environment Broker (KEB) allows you to configure operations that you can run on a SAP BTP, Kyma runtime. Each operation is processed by several steps arranged in stages and ordered in queue structure. During its processing, an operation is passed to every step for it to act opon it acording to its responsibility. Steps get to process operation in order of its arrangement in the queue. As every step can be re-launched multiple times, for each step, you should determine a behavior in case of a processing failure. It can either:
 
-- Return an error, which interrupts the entire process, or
-- Repeat the entire operation after the specified period.
+- Return an error, which interrupts the entire process, or skips step execution.
+- Repeat the entire operation after specified period.
 
 > **NOTE:** It's important to set lower timeouts for the Kyma installation in the Runtime Provisioner.
+
+## Stages
+
+A stage is a grouping unit for steps. A step is a part of a stage. An operation can consist of multiple stages, and a stage can consist of multiple steps.  Once all the steps in a stage are successfully executed, the stage is marked as finished and never repeated again, even if the next one fails. If any steps fail at a given stage, the whole stage is repeated from the beginning.
 
 ## Provision
 
@@ -43,7 +47,7 @@ You can find all the upgrading Kyma steps in the [upgrade_kyma](../../cmd/broker
 
 ## Provide Additional Steps
 
-You can configure SAP BTP, Kyma runtime operations by providing additional steps. To add a new step, follow these tutorials:
+You can configure SAP BTP, Kyma runtime operations by providing additional steps. Every operation (see implementation of `internal.Operation` structure)is based on the same Operation structure. The following examples presents how to extend KEB process based on provisioning operation. Extensions for other processes follow the same steps but just require its specific structures.
 
 <div tabs name="runtime-provisioning-deprovisioning" group="runtime-provisioning-deprovisioning">
   <details>
@@ -63,11 +67,10 @@ You can configure SAP BTP, Kyma runtime operations by providing additional steps
     ```
 
    - `Name()` method returns the name of the step that is used in logs.
-   - `Run()` method implements the functionality of the step. The method receives operations as an argument to which it can add appropriate overrides or save other used variables.
-
+   - `Run()` method implements the functionality of the step. The method receives operations as an argument to which it can add appropriate overrides or save other used variables. You should always return the modified operation from the method.
 
     ```go
-    operation.InputCreator.SetOverrides(COMPONENT_NAME, []*gqlschema.ConfigEntryInput{
+    operation.InputCreator.AppendOverrides(COMPONENT_NAME, []*gqlschema.ConfigEntryInput{
         {
             Key:   "path.to.key",
             Value: SOME_VALUE,
@@ -80,9 +83,7 @@ You can configure SAP BTP, Kyma runtime operations by providing additional steps
     })
     ```
 
-    If your functionality contains long-term processes, you can store data in the storage.
-    To do this, add the following field to the provisioning operation in which you want to save data:
-
+    If your functionality requires saving data in the storage, you can add this by adding fields to the generic internal.Operation, specific implementation of that structure or the InstanceDetails, all of which are defined in [model.go]](../../internal/model.go). The difference is that for specific operation implementation new fields are only visible for that specific type and InstanceDetails is copied during operation initialization across all operations that concert given runtime. The example below shows how to extend operation with additional fields:
     ```go
     type Operation struct {
 
@@ -93,8 +94,6 @@ You can configure SAP BTP, Kyma runtime operations by providing additional steps
         InputCreator ProvisionerInputCreator `json:"-"`
     }
     ```
-
-    By saving data in the storage, you can check if you already have the necessary data and avoid time-consuming processes. You must always return the modified operation from the method.
 
     See the example of the step implementation:
 
@@ -171,7 +170,7 @@ You can configure SAP BTP, Kyma runtime operations by providing additional steps
 
         // If your step finishes with data which should be added to override used during the Runtime provisioning,
         // add an extra value to operation.InputCreator, then return the updated version of the Application
-        updatedOperation.InputCreator.SetOverrides("component-name", []*gqlschema.ConfigEntryInput{
+        updatedOperation.InputCreator.AppendOverrides("component-name", []*gqlschema.ConfigEntryInput{
             {
                 Key:   "some.key",
                 Value: body.token,
@@ -198,146 +197,4 @@ You can configure SAP BTP, Kyma runtime operations by providing additional steps
     ```
 
    Once all the steps in the stage have run successfully, the stage is  not retried even if the application is restarted.
-
   </details>
-
-  <details>
-  <summary label="upgrade">
-  Upgrade
-  </summary>
-
-1. Create a new file in [this directory](../../internal/process/upgrade_kyma).
-
-2. Implement the following interface in your upgrade step:
-
-    ```go
-    type Step interface {
-        Name() string
-        Run(operation internal.UpgradeOperation, logger logrus.FieldLogger) (internal.UpgradeOperation, time.Duration, error)
-    }
-    ```
-
-   - `Name()` method returns the name of the step that is used in logs.
-   - `Run()` method implements the functionality of the step. The method receives operations as an argument to which it can add appropriate overrides or save other used variables.
-
-
-    If your functionality contains long-term processes, you can store data in the storage.
-    To do this, add this field to the upgrade operation in which you want to save data:
-
-    ```go
-    type UpgradeOperation struct {
-        Operation `json:"-"`
-
-        // add additional data here
-    }
-    ```
-
-    By saving data in the storage, you can check if you already have the necessary data and avoid time-consuming processes. You should always return the modified operation from the method.
-
-    See the example of the step implementation:
-
-    ```go
-    package upgrade
-
-    import (
-        "encoding/json"
-        "net/http"
-        "time"
-
-        "github.com/kyma-incubator/compass/components/provisioner/pkg/gqlschema"
-        "github.com/kyma-incubator/compass/components/kyma-environment-broker/internal"
-        "github.com/kyma-incubator/compass/components/kyma-environment-broker/internal/storage"
-
-        "github.com/sirupsen/logrus"
-    )
-
-    type HelloWorldStep struct {
-        operationStorage storage.Operations
-        client           *http.Client
-    }
-
-    type ExternalBodyResponse struct {
-        data  string
-        token string
-    }
-
-    func NewHelloWorldStep(operationStorage storage.Operations, client *http.Client) *HelloWorldStep {
-        return &HelloWorldStep{
-            operationStorage: operationStorage,
-            client:           client,
-        }
-    }
-
-    func (s *HelloWorldStep) Name() string {
-        return "Hello_World"
-    }
-
-    // Your step can be repeated in case any other step fails, even if your step has already done its job
-    func (s *HelloWorldStep) Run(operation internal.UpgradeOperation, log *logrus.Entry) (internal.UpgradeOperation, time.Duration, error) {
-        log.Info("Start step")
-
-        // Check whether your step should be run or if its job has been done in the previous iteration
-        // All non-save operation data are empty (e.g. InputCreator overrides)
-
-        // Add your logic here
-
-        // Add a call to an external service (optional)
-        response, err := s.client.Get("http://example.com")
-        if err != nil {
-            // Error during a call to an external service may be temporary so you should return time.Duration
-            // All steps will be repeated in X seconds/minutes
-            return operation, 1 * time.Second, nil
-        }
-        defer response.Body.Close()
-
-        body := ExternalBodyResponse{}
-        err = json.NewDecoder(response.Body).Decode(&body)
-        if err != nil {
-            log.Errorf("error: %s", err)
-            // Handle a process failure by returning an error or time.Duration
-        }
-
-        // If a call or any other action is time-consuming, you can save the result in the operation
-        // If you need an extra field in the UpgradeOperation structure, add it first
-        // in the step below; beforehand, you can check if a given value already exists in the operation
-        operation.HelloWorlds = body.data
-        updatedOperation, err := s.operationStorage.UpdateUpgradeOperation(operation)
-        if err != nil {
-            log.Errorf("error: %s", err)
-            // Handle a process failure by returning an error or time.Duration
-        }
-
-        // If your step finishes with data which should be added to override used during the Runtime upgrade,
-        // add an extra value to operation.InputCreator, then return the updated version of the Application
-        updatedOperation.InputCreator.SetOverrides("component-name", []*gqlschema.ConfigEntryInput{
-            {
-                Key:   "some.key",
-                Value: body.token,
-            },
-        })
-
-        // Return the updated version of the Application
-        return *updatedOperation, 0, nil
-    }
-    ```
-
-3. Add the step to the [`/cmd/broker/upgrade_cluster.go`](../../cmd/broker/upgrade_cluster.go) or [`/cmd/broker/upgrade_kyma.go`](../../cmd/broker/upgrade_kyma.go) file:
-
-    ```go
-    upgradeSteps := []struct {
-   		weight   int
-   		step     upgrade_kyma.Step
-   	}{
-   		{
-   			weight: 1,
-   			step:   upgrade_kyma.NewHelloWorldStep(db.Operations(), &http.Client{}),
-   		},
-    }
-    ```
-
-   </details>
-</div>
-
-## Stages
-
-An operation defines stages and steps which represent the work you must do. A stage is a grouping unit for steps. A step is a part of a stage. An operation can consist of multiple stages, and a stage can consist of multiple steps. You group steps in a stage when you have some sensitive data which you don't want to store in database. In such a case you temporarily store the sensitive data in the memory and go through the steps. Once all the steps in a stage are successfully executed, the stage is marked as finished and never repeated again, even if the next one fails. If any steps fail at a given stage, the whole stage is repeated from the beginning.
