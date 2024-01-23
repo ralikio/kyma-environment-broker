@@ -47,7 +47,7 @@ You can find all the upgrading Kyma steps in the [upgrade_kyma](../../cmd/broker
 
 ## Provide Additional Steps
 
-You can configure SAP BTP, Kyma runtime operations by providing additional steps. Every operation (see implementation of `internal.Operation` structure)is based on the same Operation structure. The following examples presents how to extend KEB process based on provisioning operation. Extensions for other processes follow the same steps but just require its specific structures.
+You can configure SAP BTP, Kyma runtime operations by providing additional steps. Every operation (see implementation of `internal.Operation` structure) is based on the same Operation structure. The following examples presents how to extend KEB process based on provisioning operation. Extensions for other processes follow the same steps but just require its specific structures.
 
 <div tabs name="runtime-provisioning-deprovisioning" group="runtime-provisioning-deprovisioning">
   <details>
