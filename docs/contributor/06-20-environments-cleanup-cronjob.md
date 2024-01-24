@@ -12,7 +12,7 @@ Environments Cleanup requires access to:
 - Gardener project of choice to filter Shoots without a proper label and remove lingering shoots
 - the Kyma Environment Broker (KEB) database to get an Instance ID for each SAP BTP, Kyma runtime marked for deletion
 - KEB to trigger Kyma runtime deprovisioning
-- Provisioner endpoints to cleanup clusters provisioner directly in Provisioner omittin KEB
+- Provisioner endpoints to cleanup clusters provisioned directly in Provisioner omitting KEB
 
 ## Configuration
 
