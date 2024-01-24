@@ -11,7 +11,7 @@ Kyma Environment Broker (KEB) allows you to configure operations you can run on 
 
 A stage is a grouping unit for steps. A step is a part of a stage. An operation can consist of multiple stages, and a stage can consist of multiple steps.  Once all the steps in a stage are successfully executed, the stage is marked as finished and never repeated again, even if the next one fails. If any steps fail at a given stage, the whole stage is repeated from the beginning.
 
-## Provision
+## Provisioning
 
 The provisioning process is executed when the instance is created, or an unsuspension is triggered.
 Each provisioning step is responsible for a separate part of preparing Kyma runtime. For example, in a step you can provide tokens, credentials, or URLs to integrate SAP BTP, Kyma runtime with external systems.
