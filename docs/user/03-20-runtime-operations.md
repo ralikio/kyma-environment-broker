@@ -67,7 +67,7 @@ You can configure SAP BTP, Kyma runtime operations by providing additional steps
     ```
 
    - `Name()` method returns the name of the step that is used in logs.
-   - `Run()` method implements the functionality of the step. The method receives operations as an argument to which it can add appropriate overrides or save other used variables. You should always return the modified operation from the method.
+   - `Run()` method implements the functionality of the step. The method receives operations as an argument to which it can add appropriate overrides or save other used variables. You must always return the modified operation from the method.
 
     ```go
     operation.InputCreator.AppendOverrides(COMPONENT_NAME, []*gqlschema.ConfigEntryInput{
