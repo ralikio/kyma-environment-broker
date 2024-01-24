@@ -34,4 +34,4 @@ The Environments Cleanup binary allows you to override some configuration parame
 | **APP_DATABASE_SECRET_KEY** | Database encryption key. (Optional) | None |
 | **APP_BROKER_URL**  | Specifies the KEB URL. | `https://kyma-env-broker.kyma.local` |
 | **APP_PROVISIONER_URL** | Url to the provisioner endpoint. | `kcp-provisioner:3000` | 
-| **APP_PROVISIONER_QUERY_DUMPING** | Allows for logging GraphQL queries sent to the Provisioner. | `false` |
+| **APP_PROVISIONER_QUERY_DUMPING** | Allows for logging GraphQL queries sent to Provisioner. | `false` |
