@@ -9,7 +9,7 @@ Kyma Environment Broker (KEB) allows you to configure operations you can run on 
 
 ## Stages
 
-A stage is a grouping unit for steps. A step is a part of a stage. An operation can consist of multiple stages, and a stage can consist of multiple steps.  Once all the steps in a stage are successfully executed, the stage is marked as finished and never repeated again, even if the next one fails. If any steps fail at a given stage, the whole stage is repeated from the beginning.
+A stage is a grouping unit for steps. An operation can consist of multiple stages, and a stage can consist of multiple steps. Once all the steps in a stage are successfully executed, the stage is marked as finished and never repeated, even if the next stage fails. If a step fails at a given stage, the whole stage is repeated from the beginning.
 
 ## Provisioning
 
