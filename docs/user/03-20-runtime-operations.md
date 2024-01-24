@@ -83,7 +83,7 @@ You can configure SAP BTP, Kyma runtime operations by providing additional steps
     })
     ```
 
-    If your functionality requires saving data in the storage, you can add this by adding fields to the generic internal.Operation, specific implementation of that structure or the InstanceDetails, all of which are defined in [model.go]](../../internal/model.go). The difference is that for specific operation implementation new fields are only visible for that specific type and InstanceDetails is copied during operation initialization across all operations that concert given runtime. The example below shows how to extend operation with additional fields:
+    If your functionality requires saving data in the storage, you can do it by adding fields to the generic `internal.Operation`, a specific implementation of that structure, or the InstanceDetails, all of which are defined in [model.go](../../internal/model.go). The difference is that for a specific operation implementation, new fields are only visible for that specific type and InstanceDetails is copied during operation initialization across all operations that concert a given runtime. The example below shows how to extend operation with additional fields:
     ```go
     type Operation struct {
 
