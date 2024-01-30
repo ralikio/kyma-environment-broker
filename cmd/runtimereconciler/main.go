@@ -16,6 +16,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
+
+// dummy change
+
 type Config struct {
 	Database                             storage.Config
 	Events                               events.Config
