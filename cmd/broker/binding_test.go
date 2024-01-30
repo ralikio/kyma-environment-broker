@@ -9,6 +9,8 @@ import (
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 )
 
+// dummy change
+
 func TestBinding(t *testing.T) {
 	// given
 	suite := NewBrokerSuiteTest(t)
