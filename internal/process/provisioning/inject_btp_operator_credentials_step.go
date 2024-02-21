@@ -48,7 +48,7 @@ func (s *InjectBTPOperatorCredentialsStep) Run(operation internal.Operation, log
 
 	if err != nil {
 		log.Error("kubernetes client not set: %w", err)
-		return s.operationManager.RetryOperation(operation, "unable to get K8S client", err, time.Second, 5*time.Second, log)
+		return s.operationManager.RetryOperation(operation, "unable to get K8S client", err, 5 * time.Second, 30*time.Second, log)
 	}
 
 	clusterID := operation.InstanceDetails.ServiceManagerClusterID
