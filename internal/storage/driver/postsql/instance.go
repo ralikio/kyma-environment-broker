@@ -511,18 +511,21 @@ func (s *Instance) List(filter dbmodel.InstanceFilter) ([]internal.Instance, int
 	}
 	var instances []internal.Instance
 	for _, dto := range dtos {
-		instance, err := s.toInstance(dto)
+		instance, err := s.toInstance(dto.InstanceDTO)
 		if err != nil {
 			return []internal.Instance{}, 0, 0, err
 		}
-		lastOp, err := s.operations.GetLastOperation(instance.InstanceID)
+
+		lastOp := internal.Operation{}
+		err = json.Unmarshal([]byte(dto.OperationDTO.Data), &lastOp)
 		if err != nil {
-			if dberr.IsNotFound(err) {
-				instances = append(instances, instance)
-				continue
-			}
-			return []internal.Instance{}, 0, 0, err
+			return nil,0,0,fmt.Errorf("while unmarshalling operation data: %w", err)
 		}
+		lastOp, err = s.operations.toOperation(&dto.OperationDTO, lastOp)
+		if err != nil {
+			return []internal.Instance{}, 0,0, err
+		}
+
 		instance.InstanceDetails = lastOp.InstanceDetails
 		instance.Reconcilable = instance.RuntimeID != "" && lastOp.Type != internal.OperationTypeDeprovision && lastOp.State != domain.InProgress
 		instances = append(instances, instance)
