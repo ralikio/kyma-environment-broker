@@ -519,11 +519,11 @@ func (s *Instance) List(filter dbmodel.InstanceFilter) ([]internal.Instance, int
 		lastOp := internal.Operation{}
 		err = json.Unmarshal([]byte(dto.OperationDTO.Data), &lastOp)
 		if err != nil {
-			return nil,0,0,fmt.Errorf("while unmarshalling operation data: %w", err)
+			return nil, 0, 0, fmt.Errorf("while unmarshalling operation data: %w", err)
 		}
 		lastOp, err = s.operations.toOperation(&dto.OperationDTO, lastOp)
 		if err != nil {
-			return []internal.Instance{}, 0,0, err
+			return []internal.Instance{}, 0, 0, err
 		}
 
 		instance.InstanceDetails = lastOp.InstanceDetails
