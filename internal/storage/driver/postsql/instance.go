@@ -77,12 +77,12 @@ func (s *Instance) ListWithoutDecryption(filter dbmodel.InstanceFilter) ([]inter
 	var instances []internal.Instance
 	for _, dto := range dtos {
 		var params internal.ProvisioningParameters
-		err := json.Unmarshal([]byte(dto.ProvisioningParameters), &params)
+		err := json.Unmarshal([]byte(dto.InstanceDTO.ProvisioningParameters), &params)
 		if err != nil {
 			return nil, 0, 0, fmt.Errorf("while unmarshal parameters: %w", err)
 		}
 		instance := internal.Instance{
-			InstanceID:      dto.InstanceID,
+			InstanceID:      dto.InstanceDTO.InstanceID,
 			RuntimeID:       dto.RuntimeID,
 			GlobalAccountID: dto.GlobalAccountID,
 			SubAccountID:    dto.SubAccountID,
@@ -93,10 +93,10 @@ func (s *Instance) ListWithoutDecryption(filter dbmodel.InstanceFilter) ([]inter
 			DashboardURL:    dto.DashboardURL,
 			Parameters:      params,
 			ProviderRegion:  dto.ProviderRegion,
-			CreatedAt:       dto.CreatedAt,
-			UpdatedAt:       dto.UpdatedAt,
+			CreatedAt:       dto.InstanceDTO.CreatedAt,
+			UpdatedAt:       dto.InstanceDTO.UpdatedAt,
 			DeletedAt:       dto.DeletedAt,
-			Version:         dto.Version,
+			Version:         dto.InstanceDTO.Version,
 			Provider:        internal.CloudProvider(dto.Provider),
 		}
 		instances = append(instances, instance)
