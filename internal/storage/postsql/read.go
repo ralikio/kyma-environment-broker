@@ -668,7 +668,7 @@ func (r readSession) ListInstances(filter dbmodel.InstanceFilter) ([]dbmodel.Ins
 	// Last operation is found with the greatest-n-per-group problem solved with OUTER JOIN, followed by a (INNER) JOIN to get instance columns.
 	stmt = r.session.
 		// NOTE: order in select is important - dbr iterates over result and checks for matching fields in go structures.
-		// Because of that and Operation having common fields with Instance with current order operation attributes will 
+		// Because of that and Operation having common fields with Instance with current order operation attributes will
 		// be loaded into structures (e.g. created_at, provisioning_parameters, etc.) and will be overwritten by instance attributes.
 		Select("o1.*", fmt.Sprintf("%s.*", InstancesTableName)).
 		From(InstancesTableName).
