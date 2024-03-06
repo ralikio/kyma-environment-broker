@@ -11,6 +11,7 @@ import (
 	"regexp"
 	gruntime "runtime"
 	"runtime/pprof"
+	"runtime/trace"
 	"sort"
 	"time"
 
@@ -70,6 +71,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
+	_ "net/http/pprof"
+	httpPprof "net/http/pprof"
 )
 
 func init() {
@@ -213,13 +217,35 @@ func periodicProfile(logger lager.Logger, profiler ProfilerConfig) {
 }
 
 func main() {
+	f, err := os.Create("profile.prof")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	if err := pprof.StartCPUProfile(f); err != nil {
+		panic(err)
+	}
+	defer pprof.StopCPUProfile()
+
+	traceFile, err := os.Create("trace.out")
+	if err != nil {
+		panic(err)
+	}
+	defer traceFile.Close()
+
+	if err := trace.Start(traceFile); err != nil {
+		panic(err)
+	}
+	defer trace.Stop()
+
 	apiextensionsv1.AddToScheme(scheme.Scheme)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// create and fill config
 	var cfg Config
-	err := envconfig.InitWithPrefix(&cfg, "APP")
+	err = envconfig.InitWithPrefix(&cfg, "APP")
 	fatalOnError(err)
 
 	// check default Kyma versions
@@ -432,6 +458,12 @@ func main() {
 	// create expiration endpoint
 	expirationHandler := expiration.NewHandler(db.Instances(), db.Operations(), deprovisionQueue, logs)
 	expirationHandler.AttachRoutes(router)
+
+	router.HandleFunc("/debug/pprof/", httpPprof.Index)
+	router.HandleFunc("/debug/pprof/cmdline", httpPprof.Cmdline)
+	router.HandleFunc("/debug/pprof/profile", httpPprof.Profile)
+	router.HandleFunc("/debug/pprof/symbol", httpPprof.Symbol)
+	router.HandleFunc("/debug/pprof/trace", httpPprof.Trace)
 
 	router.StrictSlash(true).PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("/swagger"))))
 	svr := handlers.CustomLoggingHandler(os.Stdout, router, func(writer io.Writer, params handlers.LogFormatterParams) {
