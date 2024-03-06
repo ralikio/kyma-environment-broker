@@ -190,8 +190,8 @@ func (s *operations) ListOperationsByInstanceID(instanceID string) ([]internal.O
 	return operations, nil
 }
 
-func (s *operations) ListOperationsByInstanceIDGroupByType(instanceID string) ([]internal.GroupedOperations, error) {
-	// TODO: implement
+func (s *operations) ListOperationsByInstanceIDGroupByType(instanceID string) (*internal.GroupedOperations, error) {
+	panic("not implemented") //also not used in any tests
 	return nil, nil
 }
 
