@@ -190,6 +190,11 @@ func (s *operations) ListOperationsByInstanceID(instanceID string) ([]internal.O
 	return operations, nil
 }
 
+func (s *operations) ListOperationsByInstanceIDGroupByType(instanceID string) ([]internal.GroupedOperations, error) {
+	// TODO: implement	
+	return nil, nil
+}
+
 func (s *operations) ListOperationsInTimeRange(from, to time.Time) ([]internal.Operation, error) {
 	panic("not implemented") //also not used in any tests
 	return nil, nil
