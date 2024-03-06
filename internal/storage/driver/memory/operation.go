@@ -191,7 +191,7 @@ func (s *operations) ListOperationsByInstanceID(instanceID string) ([]internal.O
 }
 
 func (s *operations) ListOperationsByInstanceIDGroupByType(instanceID string) ([]internal.GroupedOperations, error) {
-	// TODO: implement	
+	// TODO: implement
 	return nil, nil
 }
 
