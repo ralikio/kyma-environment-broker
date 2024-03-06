@@ -463,11 +463,11 @@ func main() {
 	expirationHandler := expiration.NewHandler(db.Instances(), db.Operations(), deprovisionQueue, logs)
 	expirationHandler.AttachRoutes(router)
 
-	router.HandleFunc("/debug/pprof/", httpPprof.Index)
-	router.HandleFunc("/debug/pprof/cmdline", httpPprof.Cmdline)
-	router.HandleFunc("/debug/pprof/profile", httpPprof.Profile)
-	router.HandleFunc("/debug/pprof/symbol", httpPprof.Symbol)
-	router.HandleFunc("/debug/pprof/trace", httpPprof.Trace)
+	router.HandleFunc("/debug/pprof/", httpPprof.Index).Methods(http.MethodGet)
+	router.HandleFunc("/debug/pprof/cmdline", httpPprof.Cmdline).Methods(http.MethodGet)
+	router.HandleFunc("/debug/pprof/profile", httpPprof.Profile).Methods(http.MethodGet)
+	router.HandleFunc("/debug/pprof/symbol", httpPprof.Symbol).Methods(http.MethodGet)
+	router.HandleFunc("/debug/pprof/trace", httpPprof.Trace).Methods(http.MethodGet)
 
 	router.StrictSlash(true).PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("/swagger"))))
 	svr := handlers.CustomLoggingHandler(os.Stdout, router, func(writer io.Writer, params handlers.LogFormatterParams) {
