@@ -202,6 +202,7 @@ func (s *operations) ListOperationsByInstanceIDGroupByType(instanceID string) (*
 		UpdateOperations:         make([]internal.UpdatingOperation, 0),
 	}
 
+
 	for _, op := range s.operations {
 		switch op.Type {
 		case internal.OperationTypeProvision:
@@ -220,6 +221,12 @@ func (s *operations) ListOperationsByInstanceIDGroupByType(instanceID string) (*
 			grouped.UpdateOperations = append(grouped.UpdateOperations, internal.UpdatingOperation{Operation: op})
 		}
 	}
+
+	s.sortProvisioningByCreatedAtDesc(grouped.ProvisionOperations)
+	s.sortDeprovisioningByCreatedAtDesc(grouped.DeprovisionOperations)
+	s.sortUpgradeClusterByCreatedAt(grouped.UpgradeClusterOperations)
+	s.sortUpgradeKymaByCreatedAt(grouped.UpgradeKymaOperations)
+	s.sortUpdateByCreatedAt(grouped.UpdateOperations)
 
 	return &grouped, nil
 }
@@ -838,6 +845,13 @@ func (s *operations) sortUpgradeClusterByCreatedAtDesc(operations []internal.Upg
 		return operations[i].CreatedAt.After(operations[j].CreatedAt)
 	})
 }
+
+func (s *operations) sortUpdateByCreatedAt(operations []internal.UpdatingOperation) {
+	sort.Slice(operations, func(i, j int) bool {
+		return operations[i].CreatedAt.Before(operations[j].CreatedAt)
+	})
+}
+
 
 func (s *operations) sortProvisioningByCreatedAtDesc(operations []internal.ProvisioningOperation) {
 	sort.Slice(operations, func(i, j int) bool {
