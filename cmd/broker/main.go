@@ -203,7 +203,6 @@ func periodicProfile(logger lager.Logger, profiler ProfilerConfig) {
 	if err := os.MkdirAll(profiler.Path, os.ModePerm); err != nil {
 		logger.Error(fmt.Sprintf("Failed to create dir %v for profile storage", profiler.Path), err)
 	}
-
 	for {
 		profName := fmt.Sprintf("%v/mem-%v.pprof", profiler.Path, time.Now().Unix())
 		logger.Info(fmt.Sprintf("Creating periodic memory profile %v", profName))
