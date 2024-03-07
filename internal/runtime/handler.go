@@ -143,8 +143,6 @@ func (h *Handler) getRuntimes(w http.ResponseWriter, req *http.Request) {
 	clusterConfig := getBoolParam(pkg.ClusterConfigParam, req)
 	gardenerConfig := getBoolParam(pkg.GardenerConfigParam, req)
 
-	// 2 queries - list instances and instance count, pagination can be done differently
-	// https://www.citusdata.com/blog/2016/03/30/five-ways-to-paginate/
 	instances, count, totalCount, err := h.listInstances(filter)
 	if err != nil {
 		httputil.WriteErrorResponse(w, http.StatusInternalServerError, fmt.Errorf("while fetching instances: %w", err))
@@ -169,7 +167,6 @@ func (h *Handler) getRuntimes(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		// get Last operation
 		err = h.determineStatusModifiedAt(&dto)
 		if err != nil {
 			httputil.WriteErrorResponse(w, http.StatusInternalServerError, err)
