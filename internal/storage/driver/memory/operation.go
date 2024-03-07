@@ -202,7 +202,6 @@ func (s *operations) ListOperationsByInstanceIDGroupByType(instanceID string) (*
 		UpdateOperations:         make([]internal.UpdatingOperation, 0),
 	}
 
-
 	for _, op := range s.operations {
 		switch op.Type {
 		case internal.OperationTypeProvision:
@@ -851,7 +850,6 @@ func (s *operations) sortUpdateByCreatedAt(operations []internal.UpdatingOperati
 		return operations[i].CreatedAt.Before(operations[j].CreatedAt)
 	})
 }
-
 
 func (s *operations) sortProvisioningByCreatedAtDesc(operations []internal.ProvisioningOperation) {
 	sort.Slice(operations, func(i, j int) bool {
