@@ -11,7 +11,6 @@ import (
 	"regexp"
 	gruntime "runtime"
 	"runtime/pprof"
-	"runtime/trace"
 	"sort"
 	"time"
 
@@ -71,9 +70,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-
-	_ "net/http/pprof"
-	httpPprof "net/http/pprof"
 )
 
 func init() {
@@ -207,28 +203,6 @@ func periodicProfile(logger lager.Logger, profiler ProfilerConfig) {
 	if err := os.MkdirAll(profiler.Path, os.ModePerm); err != nil {
 		logger.Error(fmt.Sprintf("Failed to create dir %v for profile storage", profiler.Path), err)
 	}
-
-	f, err := os.Create(fmt.Sprintf("%v/profile-%v.prof", profiler.Path, time.Now().Unix()))
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
-	if err := pprof.StartCPUProfile(f); err != nil {
-		panic(err)
-	}
-	defer pprof.StopCPUProfile()
-
-	traceFile, err := os.Create(fmt.Sprintf("%v/trace-%v.prof", profiler.Path, time.Now().Unix()))
-	if err != nil {
-		panic(err)
-	}
-	defer traceFile.Close()
-
-	if err := trace.Start(traceFile); err != nil {
-		panic(err)
-	}
-	defer trace.Stop()
 
 	for {
 		profName := fmt.Sprintf("%v/mem-%v.pprof", profiler.Path, time.Now().Unix())
@@ -463,12 +437,6 @@ func main() {
 	// create expiration endpoint
 	expirationHandler := expiration.NewHandler(db.Instances(), db.Operations(), deprovisionQueue, logs)
 	expirationHandler.AttachRoutes(router)
-
-	router.HandleFunc("/debug/pprof/", httpPprof.Index).Methods(http.MethodGet)
-	router.HandleFunc("/debug/pprof/cmdline", httpPprof.Cmdline).Methods(http.MethodGet)
-	router.HandleFunc("/debug/pprof/profile", httpPprof.Profile).Methods(http.MethodGet)
-	router.HandleFunc("/debug/pprof/symbol", httpPprof.Symbol).Methods(http.MethodGet)
-	router.HandleFunc("/debug/pprof/trace", httpPprof.Trace).Methods(http.MethodGet)
 
 	router.StrictSlash(true).PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("/swagger"))))
 	svr := handlers.CustomLoggingHandler(os.Stdout, router, func(writer io.Writer, params handlers.LogFormatterParams) {
