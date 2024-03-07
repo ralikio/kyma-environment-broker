@@ -9,13 +9,12 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	gruntime "runtime"
-	"runtime/pprof"
 	"sort"
 	"time"
 
 	"github.com/kyma-project/kyma-environment-broker/internal/euaccess"
 	"github.com/kyma-project/kyma-environment-broker/internal/expiration"
+	"github.com/kyma-project/kyma-environment-broker/internal/profiler"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/dlmiddlecote/sqlstats"
@@ -161,7 +160,7 @@ type Config struct {
 	// Enable/disable profiler configuration. The profiler samples will be stored
 	// under /tmp/profiler directory. Based on the deployment strategy, this will be
 	// either ephemeral container filesystem or persistent storage
-	Profiler ProfilerConfig
+	Profiler profiler.ProfilerConfig
 
 	Events events.Config
 
@@ -172,12 +171,6 @@ type Config struct {
 	ArchiveDryRun   bool `envconfig:"default=true"`
 	CleaningEnabled bool `envconfig:"default=false"`
 	CleaningDryRun  bool `envconfig:"default=true"`
-}
-
-type ProfilerConfig struct {
-	Path     string        `envconfig:"default=/tmp/profiler"`
-	Sampling time.Duration `envconfig:"default=1s"`
-	Memory   bool
 }
 
 type K8sClientProvider interface {
@@ -194,27 +187,6 @@ const (
 	createKymaResourceStageName = "create_kyma_resource"
 	startStageName              = "start"
 )
-
-func periodicProfile(logger lager.Logger, profiler ProfilerConfig) {
-	if profiler.Memory == false {
-		return
-	}
-	logger.Info(fmt.Sprintf("Starting periodic profiler %v", profiler))
-	if err := os.MkdirAll(profiler.Path, os.ModePerm); err != nil {
-		logger.Error(fmt.Sprintf("Failed to create dir %v for profile storage", profiler.Path), err)
-	}
-	for {
-		profName := fmt.Sprintf("%v/mem-%v.pprof", profiler.Path, time.Now().Unix())
-		logger.Info(fmt.Sprintf("Creating periodic memory profile %v", profName))
-		profFile, err := os.Create(profName)
-		if err != nil {
-			logger.Error(fmt.Sprintf("Creating periodic memory profile %v failed", profName), err)
-		}
-		pprof.Lookup("allocs").WriteTo(profFile, 0)
-		gruntime.GC()
-		time.Sleep(profiler.Sampling)
-	}
-}
 
 func main() {
 	apiextensionsv1.AddToScheme(scheme.Scheme)
@@ -247,7 +219,8 @@ func main() {
 
 	logger.Info("Registering healthz endpoint for health probes")
 	health.NewServer(cfg.Host, cfg.StatusPort, logs).ServeAsync()
-	go periodicProfile(logger, cfg.Profiler)
+	profiler := profiler.NewProfiler(cfg.Profiler, logger)
+	go profiler.PeriodicProfile()
 
 	logs.Infof("Setting provisioner timeouts: provisioning=%s, deprovisioning=%s", cfg.Provisioner.ProvisioningTimeout, cfg.Provisioner.DeprovisioningTimeout)
 	logs.Infof("Setting reconciler timeout: provisioning=%s", cfg.Reconciler.ProvisioningTimeout)
