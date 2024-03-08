@@ -80,9 +80,9 @@ func (p *Profiler) StartIfSwitched() {
 	// 	p.logger.Error("Failed to create profile file", err)
 	// }
 
-	// if err := pprof.StartCPUProfile(p.profileFile); err != nil {
-	// 	p.logger.Error("Failed to start CPU profile", err)
-	// }
+	if err := pprof.StartCPUProfile(p.profileFile); err != nil {
+		p.logger.Error("Failed to start CPU profile", err)
+	}
 
 	// p.traceFile, err = os.Create(fmt.Sprintf("%v/trace-%v.prof", p.config.Path, time.Now().Unix()))
 	// if err != nil {
