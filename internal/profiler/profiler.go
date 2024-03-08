@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	gruntime "runtime"
 	"runtime/pprof"
 	"runtime/trace"
 	"time"
