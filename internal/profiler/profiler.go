@@ -74,24 +74,24 @@ func (p *Profiler) StartIfSwitched() {
 		return
 	}
 
-	var err error
-	p.profileFile, err = os.Create(p.profilePath)
-	if err != nil {
-		p.logger.Error("Failed to create profile file", err)
-	}
+	// var err error
+	// p.profileFile, err = os.Create(p.profilePath)
+	// if err != nil {
+	// 	p.logger.Error("Failed to create profile file", err)
+	// }
 
-	if err := pprof.StartCPUProfile(p.profileFile); err != nil {
-		p.logger.Error("Failed to start CPU profile", err)
-	}
+	// if err := pprof.StartCPUProfile(p.profileFile); err != nil {
+	// 	p.logger.Error("Failed to start CPU profile", err)
+	// }
 
-	p.traceFile, err = os.Create(fmt.Sprintf("%v/trace-%v.prof", p.config.Path, time.Now().Unix()))
-	if err != nil {
-		p.logger.Error("Failed to create trace file", err)
-	}
+	// p.traceFile, err = os.Create(fmt.Sprintf("%v/trace-%v.prof", p.config.Path, time.Now().Unix()))
+	// if err != nil {
+	// 	p.logger.Error("Failed to create trace file", err)
+	// }
 
-	if err := trace.Start(p.traceFile); err != nil {
-		p.logger.Error("Failed to start trace", err)
-	}
+	// if err := trace.Start(p.traceFile); err != nil {
+	// 	p.logger.Error("Failed to start trace", err)
+	// }
 }
 
 func (p *Profiler) AttachRoutesIfSwitched(router *mux.Router) {
