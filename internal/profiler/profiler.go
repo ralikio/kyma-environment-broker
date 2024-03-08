@@ -18,7 +18,7 @@ import (
 type ProfilerConfig struct {
 	Path                  string        `envconfig:"default=/tmp/profiler"`
 	Sampling              time.Duration `envconfig:"default=1s"`
-	DebugEndpointsEnabled bool          `envconfig:"default=false"`
+	DebugEndpointsEnabled bool          `envconfig:"default=true"`
 	Memory                bool
 }
 
