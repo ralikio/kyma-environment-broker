@@ -74,7 +74,9 @@ func (p *Profiler) AttachRoutesIfSwitched(router *mux.Router) {
 	}
 
 	// Attach routes
+	router.HandleFunc("/debug/pprof", httpPprof.Index).Methods(http.MethodGet)
 	router.HandleFunc("/debug/pprof/", httpPprof.Index).Methods(http.MethodGet)
+	router.HandleFunc("/debug/pprof/heap", httpPprof.Index).Methods(http.MethodGet)
 	router.HandleFunc("/debug/pprof/cmdline", httpPprof.Cmdline).Methods(http.MethodGet)
 	router.HandleFunc("/debug/pprof/profile", httpPprof.Profile).Methods(http.MethodGet)
 	router.HandleFunc("/debug/pprof/symbol", httpPprof.Symbol).Methods(http.MethodGet)
