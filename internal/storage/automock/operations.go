@@ -203,6 +203,7 @@ func (_m *Operations) GetOperationStatsByPlan() (map[string]internal.OperationSt
 		}
 	}
 
+
 	if rf, ok := ret.Get(1).(func() error); ok {
 		r1 = rf()
 	} else {
@@ -651,6 +652,10 @@ func (_m *Operations) ListOperationsByInstanceID(instanceID string) ([]internal.
 // ListOperationsByInstanceIDGroupByType provides a mock function with given fields: instanceID
 func (_m *Operations) ListOperationsByInstanceIDGroupByType(instanceID string) (*internal.GroupedOperations, error) {
 	ret := _m.Called(instanceID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListOperationsByInstanceIDGroupByType")
+	}
 
 	var r0 *internal.GroupedOperations
 	var r1 error
