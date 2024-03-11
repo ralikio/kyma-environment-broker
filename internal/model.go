@@ -359,6 +359,13 @@ type InstanceArchived struct {
 	LastDeprovisioningFinishedAt  time.Time
 }
 
+func (a InstanceArchived) UserID() string {
+	if a.InternalUser {
+		return "somebody (at) sap.com"
+	}
+	return "- deleted -"
+}
+
 type MonitoringData struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -490,6 +497,13 @@ func (r *RuntimeState) buildKymaConfigFromClusterSetup() gqlschema.KymaConfigInp
 type OperationStats struct {
 	Provisioning   map[domain.LastOperationState]int
 	Deprovisioning map[domain.LastOperationState]int
+}
+
+type OperationStatsV2 struct {
+	Count  int
+	Type   OperationType
+	State  domain.LastOperationState
+	PlanID string
 }
 
 // InstanceStats provide number of instances per Global Account ID
@@ -646,6 +660,21 @@ func (o *Operation) IsStageFinished(stage string) bool {
 	return false
 }
 
+func (o *Operation) SuccessMustBeSaved() bool {
+
+	// if the operation is temporary, it must be saved
+	if o.Temporary {
+		return true
+	}
+
+	// if the operation is not temporary and the last stage is success, it must not be saved
+	// because all operations for that instance are gone
+	if o.Type == OperationTypeDeprovision {
+		return false
+	}
+	return true
+}
+
 type ComponentConfigurationInputList []*gqlschema.ComponentConfigurationInput
 
 func (l ComponentConfigurationInputList) DeepCopy() []*gqlschema.ComponentConfigurationInput {
@@ -698,4 +727,12 @@ func (c *ConfigForPlan) ContainsAdditionalComponent(componentName string) bool {
 		}
 	}
 	return false
+}
+
+type SubaccountState struct {
+	ID string `json:"id"`
+
+	BetaEnabled       string `json:"betaEnabled"`
+	UsedForProduction string `json:"usedForProduction"`
+	ModifiedAt        int64  `json:"modifiedAt"`
 }

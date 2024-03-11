@@ -83,7 +83,15 @@ func NewDeprovisioningProcessingQueue(ctx context.Context, workersAmount int, de
 			step:     steps.DeleteKubeconfig(db.Operations(), cli),
 		},
 		{
+			disabled: !cfg.ArchiveEnabled,
+			step:     deprovisioning.NewArchivingStep(db.Operations(), db.Instances(), db.InstancesArchived(), cfg.ArchiveDryRun),
+		},
+		{
 			step: deprovisioning.NewRemoveInstanceStep(db.Instances(), db.Operations()),
+		},
+		{
+			disabled: !cfg.CleaningEnabled,
+			step:     deprovisioning.NewCleanStep(db.Operations(), db.RuntimeStates(), cfg.CleaningDryRun),
 		},
 	}
 	var stages []string
@@ -95,7 +103,8 @@ func NewDeprovisioningProcessingQueue(ctx context.Context, workersAmount int, de
 	deprovisionManager.DefineStages(stages)
 	for _, step := range deprovisioningSteps {
 		if !step.disabled {
-			deprovisionManager.AddStep(step.step.Name(), step.step, nil)
+			err := deprovisionManager.AddStep(step.step.Name(), step.step, nil)
+			fatalOnError(err)
 		}
 	}
 
