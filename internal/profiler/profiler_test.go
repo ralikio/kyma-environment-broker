@@ -46,7 +46,8 @@ func TestProfiler_StartIfSwitched(t *testing.T) {
 		assert.NoError(t, err)
 		
 		// cleanup
-		srv.Shutdown(context.Background())
+		err = srv.Shutdown(context.Background())
+		assert.NoError(t, err)
 		wg.Wait()
 	})
 }
