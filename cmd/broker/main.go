@@ -222,8 +222,6 @@ func main() {
 	health.NewServer(cfg.Host, cfg.StatusPort, logs).ServeAsync()
 	profiler := profiler.NewProfiler(cfg.Profiler, logger)
 	go profiler.PeriodicProfile()
-	profiler.StartIfSwitched()
-	defer profiler.StopIfSwitched()
 
 	logs.Infof("Setting provisioner timeouts: provisioning=%s, deprovisioning=%s", cfg.Provisioner.ProvisioningTimeout, cfg.Provisioner.DeprovisioningTimeout)
 	logs.Infof("Setting reconciler timeout: provisioning=%s", cfg.Reconciler.ProvisioningTimeout)

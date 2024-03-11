@@ -1,9 +1,13 @@
 package profiler
 
 import (
-	"os"
+	"context"
+	"sync"
 	"testing"
 
+	"net/http"
+
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,21 +16,37 @@ func TestProfiler_StartIfSwitched(t *testing.T) {
 	t.Run("should create profiler files when profiler feature flag is turned on", func(t *testing.T) {
 		// given
 		profilerConfig := ProfilerConfig{
-			Path:                  "/tmp/profiler",
+			Path:                  "dummy",
 			Sampling:              1,
 			DebugEndpointsEnabled: true,
 			Memory:                false,
 		}
 		profiler := NewProfiler(profilerConfig, nil)
-		defer profiler.StopIfSwitched()
+		router := mux.NewRouter()
+		
+		// attach routes
+		profiler.AttachRoutesIfSwitched(router)
+
+		// start server
+		srv := &http.Server{Addr: ":8080"}
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			srv.ListenAndServe()
+			wg.Done()
+		}()
 
 		// when
-		profiler.StartIfSwitched()
+		resp, err := http.Get("http://localhost:8080/debug/pprof/")
+		assert.NoError(t, err)
+		defer resp.Body.Close()
 
 		// then
-		profileFile, err := os.Stat(profiler.profilePath)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)	
 		assert.NoError(t, err)
-		assert.False(t, profileFile.IsDir())
-		assert.True(t, profileFile.Size() > 0)
+		
+		// cleanup
+		srv.Shutdown(context.Background())
+		wg.Wait()
 	})
 }
