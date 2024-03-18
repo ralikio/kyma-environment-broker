@@ -257,14 +257,14 @@ func (c *OperationResultCollector) OnOperationSucceeded(ctx context.Context, ev 
 		if err != nil {
 			return err
 		}
-	} else if (operationSucceeded.Operation.Type == internal.OperationTypeDeprovision) {
+	} else if operationSucceeded.Operation.Type == internal.OperationTypeDeprovision {
 		operation := process.DeprovisioningSucceeded{
 			Operation: internal.DeprovisioningOperation{Operation: operationSucceeded.Operation},
 		}
 		err := c.OnDeprovisioningSucceeded(ctx, operation)
 		if err != nil {
 			return err
-		}	
+		}
 	}
 
 	return nil
