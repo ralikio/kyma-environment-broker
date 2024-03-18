@@ -11,9 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-
 func TestProfiler_StartIfSwitched(t *testing.T) {
-	t.Run("should create profiler files when profiler feature flag is turned on", func(t *testing.T) {
+	t.Run("should create profiler when feature flag is turned on", func(t *testing.T) {
 		// given
 		profilerConfig := ProfilerConfig{
 			Path:                  "dummy",
@@ -23,7 +22,7 @@ func TestProfiler_StartIfSwitched(t *testing.T) {
 		}
 		profiler := NewProfiler(profilerConfig, nil)
 		router := mux.NewRouter()
-		
+
 		// attach routes
 		profiler.AttachRoutesIfSwitched(router)
 
@@ -42,9 +41,47 @@ func TestProfiler_StartIfSwitched(t *testing.T) {
 		defer resp.Body.Close()
 
 		// then
-		assert.Equal(t, http.StatusOK, resp.StatusCode)	
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.NoError(t, err)
-		
+
+		// cleanup
+		err = srv.Shutdown(context.Background())
+		assert.NoError(t, err)
+		wg.Wait()
+	})
+
+	t.Run("should ignore profiler when feature flag is turned off", func(t *testing.T) {
+		// given
+		profilerConfig := ProfilerConfig{
+			Path:                  "dummy",
+			Sampling:              1,
+			DebugEndpointsEnabled: false,
+			Memory:                false,
+		}
+		profiler := NewProfiler(profilerConfig, nil)
+		router := mux.NewRouter()
+
+		// attach routes
+		profiler.AttachRoutesIfSwitched(router)
+
+		// start server
+		srv := &http.Server{Addr: ":8080"}
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			srv.ListenAndServe()
+			wg.Done()
+		}()
+
+		// when
+		resp, err := http.Get("http://localhost:8080/debug/pprof/")
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+
+		// then
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		assert.NoError(t, err)
+
 		// cleanup
 		err = srv.Shutdown(context.Background())
 		assert.NoError(t, err)
