@@ -32,7 +32,7 @@ spec:
               imagePullPolicy: IfNotPresent
               env:
                 - name: DATABASE_EMBEDDED
-                  value: false
+                  value: "false"
                 - name: APP_MAX_AGE_HOURS
                   value: 24h
                 - name: APP_GARDENER_PROJECT
