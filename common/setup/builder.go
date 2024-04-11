@@ -91,7 +91,11 @@ func (b *AppBuilder) WithBrokerClient() {
 }
 
 func (b *AppBuilder) WithProvisionerClient() {
-	b.provisionerClient = provisioner.NewProvisionerClient(b.cfg.Provisioner.URL, b.cfg.Provisioner.QueryDumping)
+	if(b.logger == nil) {
+		panic("Logger is not defined")
+	}
+
+	b.provisionerClient = provisioner.NewProvisionerClient(b.cfg.Provisioner.URL, b.cfg.Provisioner.QueryDumping, b.logger)
 }
 
 func (b *AppBuilder) WithStorage() {
