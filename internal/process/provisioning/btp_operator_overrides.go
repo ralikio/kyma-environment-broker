@@ -29,7 +29,7 @@ func (s *BTPOperatorOverridesStep) Run(operation internal.Operation, log logrus.
 	f := func(op *internal.Operation) {
 		op.InstanceDetails.ServiceManagerClusterID = clusterID
 	}
-	if !operation.InputCreator.Configuration().ContainsAdditionalComponent(internal.BTPOperatorComponentName) {
+	if !operation.InputCreator.Configuration().ContainsAdditionalComponent(internal.BTPOperatorComponentName, log) {
 		log.Infof("BTP operator is not in the list of additional components, skipping preparing overrides")
 		return operation, 0, nil
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/kyma-project/kyma-environment-broker/internal/events"
 	"github.com/kyma-project/kyma-environment-broker/internal/ptr"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -736,9 +737,9 @@ type ConfigForPlan struct {
 	KymaTemplate         string          `json:"kyma-template" yaml:"kyma-template"`
 }
 
-func (c *ConfigForPlan) ContainsAdditionalComponent(componentName string) bool {
+func (c *ConfigForPlan) ContainsAdditionalComponent(componentName string, log logrus.FieldLogger) bool {
 	for _, c := range c.AdditionalComponents {
-		fmt.Println(c.Name)
+		log.Infof("looking for additional component %s", c.Name)
 		if c.Name == componentName {
 			return true
 		}
