@@ -91,7 +91,7 @@ func (b *AppBuilder) WithBrokerClient() {
 }
 
 func (b *AppBuilder) WithProvisionerClient() {
-	if(b.logger == nil) {
+	if b.logger == nil {
 		panic("Logger is not defined")
 	}
 
