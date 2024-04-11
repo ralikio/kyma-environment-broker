@@ -63,9 +63,9 @@ func main() {
 		Level: logLevel,
 	})))
 
-	slog.Info("DryRun: ", cfg.DryRun)
-	slog.Info("PerformDeletion: ", cfg.PerformDeletion)
-	slog.Info("Batch size: ", cfg.BatchSize)
+	slog.Info(fmt.Sprintf("DryRun: %v", cfg.DryRun))
+	slog.Info(fmt.Sprintf("PerformDeletion: %v", cfg.PerformDeletion))
+	slog.Info(fmt.Sprintf("Batch size: %v", cfg.BatchSize))
 
 	db, conn, err := storage.NewFromConfig(cfg.Database, events.Config{}, storage.NewEncrypter(cfg.Database.SecretKey), logrus.WithField("service", "storage"))
 	fatalOnError(err)
