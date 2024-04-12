@@ -52,7 +52,9 @@ type App interface {
 }
 
 func NewAppBuilder() AppBuilder {
-	return AppBuilder{}
+	return AppBuilder{
+		logger: log.New(),
+	}
 }
 
 func (b *AppBuilder) WithConfig() {
@@ -109,10 +111,6 @@ func (b *AppBuilder) WithStorage() {
 	dbStatsCollector := sqlstats.NewStatsCollector("broker", b.conn)
 	prometheus.MustRegister(dbStatsCollector)
 
-}
-
-func (b *AppBuilder) WithLogger() {
-	b.logger = log.New()
 }
 
 func (b *AppBuilder) Cleanup() {

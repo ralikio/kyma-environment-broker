@@ -10,7 +10,6 @@ func main() {
 	builder.WithConfig()
 	builder.WithGardenerClient()
 	builder.WithBrokerClient()
-	builder.WithLogger()
 	builder.WithProvisionerClient()
 	builder.WithStorage()
 
