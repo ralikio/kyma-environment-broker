@@ -3,6 +3,7 @@ package archive
 import (
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage/dberr"

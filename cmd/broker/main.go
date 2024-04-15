@@ -461,7 +461,7 @@ func main() {
 		logs.Infof("Call handled: method=%s url=%s statusCode=%d size=%d", params.Request.Method, params.URL.Path, params.StatusCode, params.Size)
 	})
 
-	fatalOnError(http.ListenAndServe(cfg.Host+":"+cfg.Port, svr))
+	fatalOnError(http.ListenAndServe(cfg.Host+":"+cfg.Port, svr), logs)
 }
 
 func checkDefaultVersions(versions ...string) error {
@@ -643,7 +643,7 @@ func initClient(cfg *rest.Config) (client.Client, error) {
 	return cli, nil
 }
 
-func fatalOnError(err error, log *logrus.Logger) {
+func fatalOnError(err error, log logrus.FieldLogger) {
 	if err != nil {
 		log.Fatal(err)
 	}
