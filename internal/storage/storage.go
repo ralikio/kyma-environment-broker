@@ -72,13 +72,13 @@ func NewMemoryStorage() BrokerStorage {
 
 type inMemoryEvents struct {
 	events []eventsapi.EventDTO
-	log *logrus.Logger
+	log    *logrus.Logger
 }
 
 func NewInMemoryEvents() *inMemoryEvents {
 	return &inMemoryEvents{
 		events: make([]eventsapi.EventDTO, 0),
-		log: logrus.New(),
+		log:    logrus.New(),
 	}
 }
 

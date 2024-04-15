@@ -246,7 +246,6 @@ func main() {
 		logs.SetLevel(l)
 	}
 
-
 	// check default Kyma versions
 	err = checkDefaultVersions(cfg.KymaVersion)
 	panicOnError(err)
@@ -258,8 +257,6 @@ func main() {
 	logger := lager.NewLogger("kyma-env-broker")
 
 	logger.Info("Starting Kyma Environment Broker")
-
-
 
 	logger.Info("Registering healthz endpoint for health probes")
 	health.NewServer(cfg.Host, cfg.StatusPort, logs).ServeAsync()

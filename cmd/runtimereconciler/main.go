@@ -75,7 +75,7 @@ func main() {
 	<-ctx.Done()
 }
 
-func fatalOnError(err error, log * logrus.Logger) {
+func fatalOnError(err error, log *logrus.Logger) {
 	if err != nil {
 		log.Fatal(err)
 	}
