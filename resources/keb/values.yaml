@@ -11,25 +11,25 @@ global:
       version: "v20240307-f250dc83" # do not update along with the other images
     kyma_environment_broker:
       dir:
-      version: "1.4.0"
+      version: "1.5.0"
     kyma_environments_subaccount_cleanup_job:
       dir:
-      version: "1.4.0"
+      version: "1.5.0"
     kyma_environment_trial_cleanup_job:
       dir:
-      version: "1.4.0"
+      version: "1.5.0"
     kyma_environment_expirator_job:
       dir:
-      version: "1.4.0"
+      version: "1.5.0"
     kyma_environment_deprovision_retrigger_job:
       dir:
-      version: "1.4.0"
+      version: "1.5.0"
     kyma_environment_runtime_reconciler:
       dir:
-      version: "1.4.0"
+      version: "1.5.0"
     kyma_environment_subaccount_sync:
       dir:
-      version: "1.4.0"
+      version: "1.5.0"
   kyma_environment_broker:
     enabled: false
     serviceAccountName: "kcp-kyma-environment-broker"
@@ -385,21 +385,22 @@ deprovisionRetrigger:
   dryRun: true
 
 subaccountSync:
-  updateResources: "false"
-  accountSyncInterval: "24h"
-  storageSyncInterval: "5m"
-  eventsWindowSize: "20m"
-  eventsWindowInterval: "15m"
-  queueSleepInterval: "30s"
-  metricsPort: "8081"
-  logLevel: "info"
+  enabled: true
+  updateResources: false
+  accountSyncInterval: 24h
+  storageSyncInterval: 5m
+  eventsWindowSize: 20m
+  eventsWindowInterval: 15m
+  queueSleepInterval: 30s
+  metricsPort: 8081
+  logLevel: info
   cisRateLimits:
     events:
-      rateLimitingInterval: "2s"
-      maxRequestsPerInterval: "5"
+      rateLimitingInterval: 2s
+      maxRequestsPerInterval: 5
     accounts:
-      rateLimitingInterval: "2s"
-      maxRequestsPerInterval: "5"
+      rateLimitingInterval: 2s
+      maxRequestsPerInterval: 5
 
 serviceMonitor:
   enabled: true
@@ -447,3 +448,5 @@ metricsv2:
 
 freemiumWhitelistedGlobalAccountIds: |-
   whitelist:
+
+kymaResourceDeletionTimeout: 30s
