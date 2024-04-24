@@ -236,7 +236,7 @@ func (m *StagedManager) runStep(step Step, operation internal.Operation, logger 
 			// only save to storage, skip for alerting if error
 			_, err = m.operationStorage.UpdateOperation(processedOperation)
 			if err != nil {
-				logOperation.Errorf("Unable to save operation with resolved last error from step: %s", step.Name())
+				logOperation.Errorf("unable to save operation with resolved last error from step, additionally, see previous logs for ealier errors")
 			}
 		}
 
