@@ -41,7 +41,7 @@ func (ars *AvsEvaluationRemovalStep) Run(operation internal.Operation, logger lo
 
 	operation, err := ars.delegator.DeleteAvsEvaluation(operation, logger, ars.internalEvalAssistant)
 	if err != nil {
-		return ars.deProvisioningManager.RetryOperationWithoutFail(operation, ars.Name(), "error while deleting avs internal evaluation", 10*time.Second, 1*time.Minute, logger, 
+		return ars.deProvisioningManager.RetryOperationWithoutFail(operation, ars.Name(), "error while deleting avs internal evaluation", 10*time.Second, 1*time.Minute, logger,
 			fmt.Errorf("unable to delete internal evaluation: %s", err.Error()))
 	}
 

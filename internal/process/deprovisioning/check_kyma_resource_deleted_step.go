@@ -49,7 +49,7 @@ func (step *CheckKymaResourceDeletedStep) Run(operation internal.Operation, logg
 
 	obj, err := steps.DecodeKymaTemplate(operation.KymaTemplate)
 	if err != nil {
-		return step.operationManager.RetryOperationWithoutFail(operation, step.Name(), "unable to decode kyma template", 5*time.Second, 30*time.Second, logger, 
+		return step.operationManager.RetryOperationWithoutFail(operation, step.Name(), "unable to decode kyma template", 5*time.Second, 30*time.Second, logger,
 			fmt.Errorf("unable to decode kyma template"))
 	}
 
