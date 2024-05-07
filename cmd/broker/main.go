@@ -35,6 +35,7 @@ import (
 	"github.com/kyma-project/kyma-environment-broker/internal/event"
 	"github.com/kyma-project/kyma-environment-broker/internal/events"
 	eventshandler "github.com/kyma-project/kyma-environment-broker/internal/events/handler"
+	internalLogger "github.com/kyma-project/kyma-environment-broker/internal/logger"
 	"github.com/kyma-project/kyma-environment-broker/internal/health"
 	"github.com/kyma-project/kyma-environment-broker/internal/httputil"
 	"github.com/kyma-project/kyma-environment-broker/internal/ias"
@@ -258,9 +259,9 @@ func main() {
 	// create logger
 	logger := lager.NewLogger("kyma-env-broker")
 
-	logger.Info("Starting Kyma Environment Broker")
+	logs.Infof("Starting Kyma Environment Broker")
 
-	logger.Info("Registering healthz endpoint for health probes")
+	logs.Infof("Registering healthz endpoint for health probes")
 	health.NewServer(cfg.Host, cfg.StatusPort, logs).ServeAsync()
 	go periodicProfile(logger, cfg.Profiler)
 
@@ -494,8 +495,9 @@ func createAPI(router *mux.Router, servicesConfig broker.ServicesConfig, planVal
 	fatalOnError(err, logs)
 	logger.RegisterSink(debugSink)
 	errorSink, err := lager.NewRedactingSink(lager.NewWriterSink(os.Stderr, lager.ERROR), []string{"instance-details"}, []string{})
+
 	fatalOnError(err, logs)
-	logger.RegisterSink(errorSink)
+	logger.RegisterSink(internalLogger.NewFilterSink(debugSink, errorSink))
 
 	// EU Access whitelisting
 	whitelistedGlobalAccountIds, err := whitelist.ReadWhitelistedGlobalAccountIdsFromFile(cfg.EuAccessWhitelistedGlobalAccountsFilePath)
