@@ -200,7 +200,7 @@ func (del *Delegator) tryDeleting(assistant EvalAssistant, deProvisioningOperati
 	parentID := assistant.ProvideParentId(deProvisioningOperation.ProvisioningParameters)
 	err := del.client.RemoveReferenceFromParentEval(parentID, evaluationID)
 	if err != nil {
-		return fmt.Errorf("error while deleting reference for evaluation %v", err)
+		return fmt.Errorf("error while deleting reference for evaluation: %v", err)
 	}
 
 	err = del.client.DeleteEvaluation(evaluationID)
