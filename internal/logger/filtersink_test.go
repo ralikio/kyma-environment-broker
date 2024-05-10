@@ -71,6 +71,6 @@ func TestFilterSink(t *testing.T) {
 		assert.Empty(t, errBuf.String())
 		assert.NotEmpty(t, outputMessage)
 		assert.Contains(t, outputMessage, fmt.Sprintf("\"log_level\":%d", lager.INFO))
-		
+
 	})
 }

@@ -20,8 +20,8 @@ func NewFilterSink(stdSink lager.Sink, errSink lager.Sink) *FilterSink {
 
 func (sink *FilterSink) Log(log lager.LogFormat) {
 	if strings.HasSuffix(log.Message, "does not exist") ||
-		 strings.HasSuffix(log.Message, "failed") ||
-		 strings.HasSuffix(log.Message, "in progress") {
+		strings.HasSuffix(log.Message, "failed") ||
+		strings.HasSuffix(log.Message, "in progress") {
 
 		log.LogLevel = lager.INFO
 		sink.stdSink.Log(log)
