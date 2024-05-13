@@ -97,7 +97,7 @@ func (s *EDPRegistrationStep) Run(operation internal.Operation, log logrus.Field
 }
 
 func (s *EDPRegistrationStep) handleError(operation internal.Operation, err error, log logrus.FieldLogger, msg string) (internal.Operation, time.Duration, error) {
-	log.Errorf("%s: %s", msg, err)
+	log.Warnf("%s: %s", msg, err)
 
 	if kebError.IsTemporaryError(err) {
 		since := time.Since(operation.UpdatedAt)
