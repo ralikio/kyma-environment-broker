@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/kyma-project/kyma-environment-broker/internal/logger"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gorilla/mux"
@@ -29,7 +28,7 @@ func TestClient_CreateDataTenant(t *testing.T) {
 		AdminURL:  testServer.URL,
 		Namespace: testNamespace,
 	}
-	client := NewClient(config, logger.NewLogDummy())
+	client := NewClient(config)
 	client.setHttpClient(testServer.Client())
 
 	// when
@@ -61,7 +60,7 @@ func TestClient_DeleteDataTenant(t *testing.T) {
 		AdminURL:  testServer.URL,
 		Namespace: testNamespace,
 	}
-	client := NewClient(config, logger.NewLogDummy())
+	client := NewClient(config)
 	client.setHttpClient(testServer.Client())
 
 	err := client.CreateDataTenant(DataTenantPayload{
@@ -90,7 +89,7 @@ func TestClient_CreateMetadataTenant(t *testing.T) {
 		AdminURL:  testServer.URL,
 		Namespace: testNamespace,
 	}
-	client := NewClient(config, logger.NewLogDummy())
+	client := NewClient(config)
 	client.setHttpClient(testServer.Client())
 
 	// when
@@ -118,7 +117,7 @@ func TestClient_DeleteMetadataTenant(t *testing.T) {
 		AdminURL:  testServer.URL,
 		Namespace: testNamespace,
 	}
-	client := NewClient(config, logger.NewLogDummy())
+	client := NewClient(config)
 	client.setHttpClient(testServer.Client())
 
 	err := client.CreateMetadataTenant(subAccountID, environment, MetadataTenantPayload{Key: key, Value: "tV"}, logrus.New())
