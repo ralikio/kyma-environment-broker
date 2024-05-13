@@ -54,7 +54,6 @@ func (s *EDPRegistrationStep) Run(operation internal.Operation, log logrus.Field
 		Name:        subAccountID,
 		Environment: s.config.Environment,
 		Secret:      s.generateSecret(subAccountID, s.config.Environment),
-		
 	}, log.WithField("service", "edpClient"))
 	if err != nil {
 		if edp.IsConflictError(err) {

@@ -42,7 +42,7 @@ type Client struct {
 	httpClient *http.Client
 }
 
-func NewClient(config Config, log logrus.FieldLogger) *Client {
+func NewClient(config Config) *Client {
 	cfg := clientcredentials.Config{
 		ClientID:     fmt.Sprintf("edp-namespace;%s", config.Namespace),
 		ClientSecret: config.Secret,
