@@ -64,7 +64,7 @@ func (s *DeregisterClusterStep) handleError(operation internal.Operation, err er
 	if repeat != 0 {
 		return operation, repeat, err
 	}
-	
+
 	log.Errorf("%s: %s", msg, err)
 
 	return operation, 0, nil
