@@ -97,8 +97,6 @@ func (s *EDPDeregistrationStep) Run(operation internal.Operation, log logrus.Fie
 }
 
 func (s *EDPDeregistrationStep) handleError(operation internal.Operation, err error, log logrus.FieldLogger, msg string) (internal.Operation, time.Duration, error) {
-	log.Warnf("%s: %s", msg, err)
-
 	if kebError.IsTemporaryError(err) {
 		since := time.Since(operation.UpdatedAt)
 		if since < time.Minute*30 {
@@ -112,5 +110,8 @@ func (s *EDPDeregistrationStep) handleError(operation internal.Operation, err er
 	if repeat != 0 {
 		return operation, repeat, err
 	}
+
+	log.Warnf("%s: %s", msg, err)
+
 	return operation, 0, nil
 }

@@ -52,8 +52,6 @@ func (s *DeregisterClusterStep) Run(operation internal.Operation, log logrus.Fie
 }
 
 func (s *DeregisterClusterStep) handleError(operation internal.Operation, err error, log logrus.FieldLogger, msg string) (internal.Operation, time.Duration, error) {
-	log.Warnf("%s: %s", msg, err)
-
 	if kebErrors.IsTemporaryError(err) {
 		since := time.Since(operation.UpdatedAt)
 		if since < 30*time.Minute {
@@ -66,5 +64,8 @@ func (s *DeregisterClusterStep) handleError(operation internal.Operation, err er
 	if repeat != 0 {
 		return operation, repeat, err
 	}
+	
+	log.Errorf("%s: %s", msg, err)
+
 	return operation, 0, nil
 }
