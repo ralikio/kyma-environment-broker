@@ -111,7 +111,7 @@ func (s *EDPDeregistrationStep) handleError(operation internal.Operation, err er
 		return operation, repeat, err
 	}
 
-	log.Warnf("%s: %s", msg, err)
+	log.Errorf("%s: %s", msg, err)
 
 	return operation, 0, nil
 }
