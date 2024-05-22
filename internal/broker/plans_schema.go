@@ -264,17 +264,18 @@ func ShootDomainProperty() *Type {
 	}
 }
 
-func ShootSeedSameRegionProperty() *Type {
+func ShootAndSeedSameRegionProperty() *Type {
 	return &Type{
 		Type:                 "boolean",
 		Title:                "Enforce Same Location for Seed and Shoot",
-		Default:              "false",
+		Default:              false,
+		Description: 		  "If set to true a Gardener seed will be placed in the same region as the selected region from the region field. Provisioning process will fail if no seed is availabie in the region.",
 	}
 }
 
 // NewProvisioningProperties creates a new properties for different plans
 // Note that the order of properties will be the same in the form on the website
-func NewProvisioningProperties(machineTypesDisplay, regionsDisplay map[string]string, machineTypes, regions []string, update bool, shootSeedSameRegion bool) ProvisioningProperties {
+func NewProvisioningProperties(machineTypesDisplay, regionsDisplay map[string]string, machineTypes, regions []string, update bool) ProvisioningProperties {
 
 	properties := ProvisioningProperties{
 		UpdateProperties: UpdateProperties{
@@ -313,9 +314,6 @@ func NewProvisioningProperties(machineTypesDisplay, regionsDisplay map[string]st
 		properties.AutoScalerMin.Default = nil
 	}
 
-	if shootSeedSameRegion {
-		properties.ShootAndSeedSameRegion = ShootSeedSameRegionProperty()
-	}
 
 	return properties
 }

@@ -301,33 +301,33 @@ func requiredOwnClusterSchemaProperties() []string {
 }
 
 func SapConvergedCloudSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, SapConvergedCloudRegions(), update, true)
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, SapConvergedCloudRegions(), update)
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), true)
 }
 
 func PreviewSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AWSRegions(euAccessRestricted), update, false)
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AWSRegions(euAccessRestricted), update)
 	properties.Networking = NewNetworkingSchema()
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), false)
 }
 
 func GCPSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, GcpRegions(), update, true)
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, GcpRegions(), update)
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), true)
 }
 
 func AWSSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AWSRegions(euAccessRestricted), update, true)
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AWSRegions(euAccessRestricted), update)
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), true)
 }
 
 func AzureSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AzureRegions(euAccessRestricted), update, true)
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AzureRegions(euAccessRestricted), update)
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), true)
 }
 
 func AzureLiteSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AzureRegions(euAccessRestricted), update, true)
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AzureRegions(euAccessRestricted), update)
 
 	properties.AutoScalerMax.Minimum = 2
 	properties.AutoScalerMin.Minimum = 2
@@ -338,7 +338,7 @@ func AzureLiteSchema(machineTypesDisplay, regionsDisplay map[string]string, mach
 		properties.AutoScalerMin.Default = 2
 	}
 
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), true)
 }
 
 func FreemiumSchema(provider internal.CloudProvider, regionsDisplay map[string]string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
@@ -369,7 +369,7 @@ func FreemiumSchema(provider internal.CloudProvider, regionsDisplay map[string]s
 		properties.Modules = NewModulesSchema()
 	}
 
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), false)
 }
 
 func TrialSchema(additionalParams, update bool) *map[string]interface{} {
@@ -385,7 +385,7 @@ func TrialSchema(additionalParams, update bool) *map[string]interface{} {
 		return empty()
 	}
 
-	return createSchemaWithProperties(properties, additionalParams, update, requiredTrialSchemaProperties())
+	return createSchemaWithProperties(properties, additionalParams, update, requiredTrialSchemaProperties(), false)
 }
 
 func OwnClusterSchema(update bool) *map[string]interface{} {
@@ -411,9 +411,13 @@ func empty() *map[string]interface{} {
 	return &empty
 }
 
-func createSchemaWithProperties(properties ProvisioningProperties, additionalParams, update bool, requiered []string) *map[string]interface{} {
+func createSchemaWithProperties(properties ProvisioningProperties, additionalParams, update bool, requiered []string, shootAndSeedSameRegion bool) *map[string]interface{} {
 	if additionalParams {
 		properties.IncludeAdditional()
+	}
+
+	if additionalParams && shootAndSeedSameRegion {
+		properties.ShootAndSeedSameRegion = ShootAndSeedSameRegionProperty()
 	}
 
 	if update {
