@@ -64,13 +64,13 @@ type RuntimeInput struct {
 	oidcDefaultValues         internal.OIDCConfigDTO
 	oidcLastValues            gqlschema.OIDCConfigInput
 
-	trialNodesNumber  int
-	instanceID        string
-	runtimeID         string
-	kubeconfig        string
-	shootDomain       string
-	shootDnsProviders gardener.DNSProvidersData
-	clusterName       string
+	trialNodesNumber       int
+	instanceID             string
+	runtimeID              string
+	kubeconfig             string
+	shootDomain            string
+	shootDnsProviders      gardener.DNSProvidersData
+	clusterName            string
 	shootAndSeedSameRegion bool
 }
 
@@ -706,7 +706,6 @@ func (r *RuntimeInput) seedAndShootSameRegion() error {
 	return nil
 }
 
-
 func (r *RuntimeInput) setNodesForTrialProvision() error {
 	// parameter with number of notes for trial plan is optional; if parameter is not set value is equal to 0
 	if r.trialNodesNumber == 0 {
@@ -809,7 +808,6 @@ func updateBool(toUpdate *bool, value *bool) {
 		*toUpdate = *value
 	}
 }
-
 
 func updateInt(toUpdate *int, value *int) {
 	if value != nil {

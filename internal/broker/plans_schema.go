@@ -23,13 +23,13 @@ type RootSchema struct {
 type ProvisioningProperties struct {
 	UpdateProperties
 
-	Name        NameType        `json:"name"`
-	ShootName   *Type           `json:"shootName,omitempty"`
-	ShootDomain *Type           `json:"shootDomain,omitempty"`
-	Region      *Type           `json:"region,omitempty"`
-	Networking  *NetworkingType `json:"networking,omitempty"`
-	Modules     *Modules        `json:"modules,omitempty"`
-	ShootAndSeedSameRegion     *Type        `json:"shootAndSeedSameRegion,omitempty"`
+	Name                   NameType        `json:"name"`
+	ShootName              *Type           `json:"shootName,omitempty"`
+	ShootDomain            *Type           `json:"shootDomain,omitempty"`
+	Region                 *Type           `json:"region,omitempty"`
+	Networking             *NetworkingType `json:"networking,omitempty"`
+	Modules                *Modules        `json:"modules,omitempty"`
+	ShootAndSeedSameRegion *Type           `json:"shootAndSeedSameRegion,omitempty"`
 }
 
 type UpdateProperties struct {
@@ -266,11 +266,11 @@ func ShootDomainProperty() *Type {
 
 func ShootSeedSameRegionProperty() *Type {
 	return &Type{
-			Type:  "boolean",
-			Title: "Enforce Same Location for Seed and Shoot",
-			Default: "false",
-			AdditionalProperties: true,
-		}
+		Type:                 "boolean",
+		Title:                "Enforce Same Location for Seed and Shoot",
+		Default:              "false",
+		AdditionalProperties: true,
+	}
 }
 
 // NewProvisioningProperties creates a new properties for different plans
@@ -405,5 +405,3 @@ func AdministratorsProperty() *Type {
 		},
 	}
 }
-
-
