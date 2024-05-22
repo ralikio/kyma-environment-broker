@@ -266,10 +266,10 @@ func ShootDomainProperty() *Type {
 
 func ShootAndSeedSameRegionProperty() *Type {
 	return &Type{
-		Type:                 "boolean",
-		Title:                "Enforce Same Location for Seed and Shoot",
-		Default:              false,
-		Description: 		  "If set to true a Gardener seed will be placed in the same region as the selected region from the region field. Provisioning process will fail if no seed is availabie in the region.",
+		Type:        "boolean",
+		Title:       "Enforce Same Location for Seed and Shoot",
+		Default:     false,
+		Description: "If set to true a Gardener seed will be placed in the same region as the selected region from the region field. Provisioning process will fail if no seed is availabie in the region.",
 	}
 }
 
@@ -313,7 +313,6 @@ func NewProvisioningProperties(machineTypesDisplay, regionsDisplay map[string]st
 		properties.AutoScalerMax.Default = nil
 		properties.AutoScalerMin.Default = nil
 	}
-
 
 	return properties
 }
