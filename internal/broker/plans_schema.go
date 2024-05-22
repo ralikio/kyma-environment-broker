@@ -269,7 +269,6 @@ func ShootSeedSameRegionProperty() *Type {
 		Type:                 "boolean",
 		Title:                "Enforce Same Location for Seed and Shoot",
 		Default:              "false",
-		AdditionalProperties: true,
 	}
 }
 
