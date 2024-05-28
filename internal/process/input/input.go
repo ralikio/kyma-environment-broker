@@ -39,6 +39,7 @@ type Config struct {
 	MultiZoneCluster              bool                   `envconfig:"default=false"`
 	ControlPlaneFailureTolerance  string                 `envconfig:"optional"`
 	GardenerClusterStepTimeout    time.Duration          `envconfig:"default=3m"`
+	EnableSeedAndShootRegionValidation    bool          `envconfig:"default=false"`
 }
 
 type RuntimeInput struct {
@@ -71,7 +72,7 @@ type RuntimeInput struct {
 	shootDomain            string
 	shootDnsProviders      gardener.DNSProvidersData
 	clusterName            string
-	shootAndSeedSameRegion bool
+	EnableSeedAndShootRegionValidation bool
 }
 
 func (r *RuntimeInput) Configuration() *internal.ConfigForPlan {
@@ -448,7 +449,9 @@ func (r *RuntimeInput) applyProvisioningParametersForProvisionRuntime() error {
 		return nil
 	}
 
-	updateBool(r.provisionRuntimeInput.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion, params.ShootAndSeedSameRegion)
+	if(r.EnableSeedAndShootRegionValidation) {
+		updateBool(r.provisionRuntimeInput.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion, params.ShootAndSeedSameRegion)
+	}
 	updateInt(&r.provisionRuntimeInput.ClusterConfig.GardenerConfig.MaxUnavailable, params.MaxUnavailable)
 	updateInt(&r.provisionRuntimeInput.ClusterConfig.GardenerConfig.MaxSurge, params.MaxSurge)
 	updateInt(&r.provisionRuntimeInput.ClusterConfig.GardenerConfig.AutoScalerMin, params.AutoScalerMin)
@@ -700,8 +703,10 @@ func (r *RuntimeInput) seedAndShootSameRegion() error {
 	if r.provisioningParameters.Parameters.ShootAndSeedSameRegion == nil {
 		return nil
 	}
-	updateBool(r.provisionRuntimeInput.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion,
-		r.provisioningParameters.Parameters.ShootAndSeedSameRegion)
+	if(r.EnableSeedAndShootRegionValidation) {
+		updateBool(r.provisionRuntimeInput.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion,
+			r.provisioningParameters.Parameters.ShootAndSeedSameRegion)
+	}
 
 	return nil
 }
