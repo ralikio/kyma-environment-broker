@@ -25,21 +25,21 @@ const (
 )
 
 type Config struct {
-	URL                           string
-	ProvisioningTimeout           time.Duration          `envconfig:"default=6h"`
-	DeprovisioningTimeout         time.Duration          `envconfig:"default=5h"`
-	KubernetesVersion             string                 `envconfig:"default=1.16.9"`
-	DefaultGardenerShootPurpose   string                 `envconfig:"default=development"`
-	MachineImage                  string                 `envconfig:"optional"`
-	MachineImageVersion           string                 `envconfig:"optional"`
-	TrialNodesNumber              int                    `envconfig:"optional"`
-	DefaultTrialProvider          internal.CloudProvider `envconfig:"default=Azure"` // could be: Azure, AWS, GCP, SapConvergedCloud, unknown
-	AutoUpdateKubernetesVersion   bool                   `envconfig:"default=false"`
-	AutoUpdateMachineImageVersion bool                   `envconfig:"default=false"`
-	MultiZoneCluster              bool                   `envconfig:"default=false"`
-	ControlPlaneFailureTolerance  string                 `envconfig:"optional"`
-	GardenerClusterStepTimeout    time.Duration          `envconfig:"default=3m"`
-	EnableSeedAndShootRegionValidation    bool          `envconfig:"default=false"`
+	URL                                string
+	ProvisioningTimeout                time.Duration          `envconfig:"default=6h"`
+	DeprovisioningTimeout              time.Duration          `envconfig:"default=5h"`
+	KubernetesVersion                  string                 `envconfig:"default=1.16.9"`
+	DefaultGardenerShootPurpose        string                 `envconfig:"default=development"`
+	MachineImage                       string                 `envconfig:"optional"`
+	MachineImageVersion                string                 `envconfig:"optional"`
+	TrialNodesNumber                   int                    `envconfig:"optional"`
+	DefaultTrialProvider               internal.CloudProvider `envconfig:"default=Azure"` // could be: Azure, AWS, GCP, SapConvergedCloud, unknown
+	AutoUpdateKubernetesVersion        bool                   `envconfig:"default=false"`
+	AutoUpdateMachineImageVersion      bool                   `envconfig:"default=false"`
+	MultiZoneCluster                   bool                   `envconfig:"default=false"`
+	ControlPlaneFailureTolerance       string                 `envconfig:"optional"`
+	GardenerClusterStepTimeout         time.Duration          `envconfig:"default=3m"`
+	EnableSeedAndShootRegionValidation bool                   `envconfig:"default=false"`
 }
 
 type RuntimeInput struct {
@@ -65,13 +65,13 @@ type RuntimeInput struct {
 	oidcDefaultValues         internal.OIDCConfigDTO
 	oidcLastValues            gqlschema.OIDCConfigInput
 
-	trialNodesNumber       int
-	instanceID             string
-	runtimeID              string
-	kubeconfig             string
-	shootDomain            string
-	shootDnsProviders      gardener.DNSProvidersData
-	clusterName            string
+	trialNodesNumber                   int
+	instanceID                         string
+	runtimeID                          string
+	kubeconfig                         string
+	shootDomain                        string
+	shootDnsProviders                  gardener.DNSProvidersData
+	clusterName                        string
 	EnableSeedAndShootRegionValidation bool
 }
 
@@ -449,7 +449,7 @@ func (r *RuntimeInput) applyProvisioningParametersForProvisionRuntime() error {
 		return nil
 	}
 
-	if(r.EnableSeedAndShootRegionValidation) {
+	if r.EnableSeedAndShootRegionValidation {
 		updateBool(r.provisionRuntimeInput.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion, params.ShootAndSeedSameRegion)
 	}
 	updateInt(&r.provisionRuntimeInput.ClusterConfig.GardenerConfig.MaxUnavailable, params.MaxUnavailable)
@@ -703,7 +703,7 @@ func (r *RuntimeInput) seedAndShootSameRegion() error {
 	if r.provisioningParameters.Parameters.ShootAndSeedSameRegion == nil {
 		return nil
 	}
-	if(r.EnableSeedAndShootRegionValidation) {
+	if r.EnableSeedAndShootRegionValidation {
 		updateBool(r.provisionRuntimeInput.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion,
 			r.provisioningParameters.Parameters.ShootAndSeedSameRegion)
 	}
