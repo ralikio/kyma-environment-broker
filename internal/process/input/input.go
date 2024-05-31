@@ -39,7 +39,7 @@ type Config struct {
 	MultiZoneCluster                   bool                   `envconfig:"default=false"`
 	ControlPlaneFailureTolerance       string                 `envconfig:"optional"`
 	GardenerClusterStepTimeout         time.Duration          `envconfig:"default=3m"`
-	EnableSeedAndShootRegionValidation bool                   `envconfig:"default=false"`
+	EnableShootAndSeedRegionValidation bool                   `envconfig:"default=false"`
 }
 
 type RuntimeInput struct {
@@ -72,7 +72,7 @@ type RuntimeInput struct {
 	shootDomain                        string
 	shootDnsProviders                  gardener.DNSProvidersData
 	clusterName                        string
-	EnableSeedAndShootRegionValidation bool
+	EnableShootAndSeedRegionValidation bool
 }
 
 func (r *RuntimeInput) Configuration() *internal.ConfigForPlan {
@@ -449,7 +449,7 @@ func (r *RuntimeInput) applyProvisioningParametersForProvisionRuntime() error {
 		return nil
 	}
 
-	if r.EnableSeedAndShootRegionValidation {
+	if r.EnableShootAndSeedRegionValidation {
 		updateBool(r.provisionRuntimeInput.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion, params.ShootAndSeedSameRegion)
 	}
 	updateInt(&r.provisionRuntimeInput.ClusterConfig.GardenerConfig.MaxUnavailable, params.MaxUnavailable)
