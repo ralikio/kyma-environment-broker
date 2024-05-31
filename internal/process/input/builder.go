@@ -198,6 +198,7 @@ func (f *InputBuilderFactory) CreateProvisionInput(provisioningParameters intern
 		enabledOptionalComponents: map[string]struct{}{},
 		oidcDefaultValues:         f.oidcDefaultValues,
 		trialNodesNumber:          f.config.TrialNodesNumber,
+		EnableShootAndSeedRegionValidation: f.config.EnableShootAndSeedRegionValidation,
 	}, nil
 }
 

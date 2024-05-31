@@ -1250,6 +1250,38 @@ func TestCreateUpgradeShootInput_ConfigureAutoscalerParams(t *testing.T) {
 	})
 }
 
+func TestShootAndSeedSameRegion(t *testing.T) {
+	
+	t.Run("should set shootAndSeedSameRegion field on provisioner input if feature flag is enabled", func(t *testing.T) {
+		// given
+		optComponentsSvc := dummyOptionalComponentServiceMock([]internal.KymaComponent{})
+		componentsProvider := &automock.ComponentListProvider{}
+		componentsProvider.On("AllComponents", 
+			mock.AnythingOfType("internal.RuntimeVersionData"), 
+			mock.AnythingOfType("*internal.ConfigForPlan")).
+			Return([]internal.KymaComponent{}, nil)
+
+		configProvider := mockConfigProvider()
+
+		builder, err := NewInputBuilderFactory(optComponentsSvc, runtime.NewDisabledComponentsProvider(),
+			componentsProvider, configProvider, Config{EnableShootAndSeedRegionValidation: true}, "not-important",
+			fixTrialRegionMapping(), fixTrialProviders(), fixture.FixOIDCConfigDTO())
+		assert.NoError(t, err)
+
+		pp := fixture.FixProvisioningParameters("") 
+		pp.Parameters.ShootAndSeedSameRegion = ptr.Bool(true)
+
+		// when
+		creator, err := builder.CreateProvisionInput(pp, internal.RuntimeVersionData{})
+		require.NoError(t, err)
+		input, err := creator.CreateProvisionRuntimeInput()
+		
+		// then
+		require.NoError(t, err)
+		assert.NotNil(t, input.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion)
+	})
+}
+
 func assertOverrides(t *testing.T, componentName string, components internal.ComponentConfigurationInputList, overrides []*gqlschema.ConfigEntryInput) {
 	overriddenComponent, found := find(components, componentName)
 	require.True(t, found)

@@ -450,7 +450,7 @@ func (r *RuntimeInput) applyProvisioningParametersForProvisionRuntime() error {
 	}
 
 	if r.EnableShootAndSeedRegionValidation {
-		updateBool(r.provisionRuntimeInput.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion, params.ShootAndSeedSameRegion)
+		r.provisionRuntimeInput.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion = params.ShootAndSeedSameRegion
 	}
 	updateInt(&r.provisionRuntimeInput.ClusterConfig.GardenerConfig.MaxUnavailable, params.MaxUnavailable)
 	updateInt(&r.provisionRuntimeInput.ClusterConfig.GardenerConfig.MaxSurge, params.MaxSurge)
@@ -798,7 +798,7 @@ func updateString(toUpdate *string, value *string) {
 
 func updateBool(toUpdate *bool, value *bool) {
 	if value != nil {
-		*toUpdate = *value
+		toUpdate = value
 	}
 }
 
