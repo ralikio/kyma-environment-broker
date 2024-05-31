@@ -196,6 +196,7 @@ func NewBrokerSuiteTestWithConfig(t *testing.T, cfg *Config, version ...string) 
 			URL:                         "http://localhost",
 			DefaultGardenerShootPurpose: "testing",
 			DefaultTrialProvider:        internal.AWS,
+			EnableShootAndSeedRegionValidation: cfg.Provisioner.EnableShootAndSeedRegionValidation,
 		}, defaultKymaVer, map[string]string{"cf-eu10": "europe", "cf-us10": "us"}, cfg.FreemiumProviders, defaultOIDCValues())
 
 	storageCleanup, db, err := GetStorageForE2ETests()
