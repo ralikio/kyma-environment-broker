@@ -248,6 +248,7 @@ gardener:
   autoUpdateKubernetesVersion: "true"
   autoUpdateMachineImageVersion: "false"
   multiZoneCluster: "false"
+  enableShootAndSeedRegionValidation: "false"
 
 kubeconfig:
   issuerURL: "TBD"
