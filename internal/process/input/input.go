@@ -699,18 +699,6 @@ func (r *RuntimeInput) configureNetworking() error {
 	return nil
 }
 
-func (r *RuntimeInput) seedAndShootSameRegion() error {
-	if r.provisioningParameters.Parameters.ShootAndSeedSameRegion == nil {
-		return nil
-	}
-	if r.EnableSeedAndShootRegionValidation {
-		updateBool(r.provisionRuntimeInput.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion,
-			r.provisioningParameters.Parameters.ShootAndSeedSameRegion)
-	}
-
-	return nil
-}
-
 func (r *RuntimeInput) setNodesForTrialProvision() error {
 	// parameter with number of notes for trial plan is optional; if parameter is not set value is equal to 0
 	if r.trialNodesNumber == 0 {
