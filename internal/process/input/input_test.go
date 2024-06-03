@@ -1265,7 +1265,7 @@ func TestShootAndSeedSameRegion(t *testing.T) {
 
 		builder, err := NewInputBuilderFactory(optComponentsSvc, runtime.NewDisabledComponentsProvider(),
 			componentsProvider, configProvider, Config{EnableShootAndSeedRegionValidation: true}, "not-important",
-			fixTrialRegionMapping(), fixTrialProviders(), fixture.FixOIDCConfigDTO())
+			fixTrialRegionMapping(), fixTrialProviders(), fixture.FixOIDCConfigDTO(), false)
 		assert.NoError(t, err)
 
 		pp := fixture.FixProvisioningParameters("")
