@@ -190,12 +190,12 @@ func NewBrokerSuiteTestWithConfig(t *testing.T, cfg *Config, version ...string) 
 
 	inputFactory, err := input.NewInputBuilderFactory(optComponentsSvc, disabledComponentsProvider, componentProvider,
 		configProvider, input.Config{
-			MachineImageVersion:         "253",
-			KubernetesVersion:           "1.18",
-			MachineImage:                "coreos",
-			URL:                         "http://localhost",
-			DefaultGardenerShootPurpose: "testing",
-			DefaultTrialProvider:        internal.AWS,
+			MachineImageVersion:                "253",
+			KubernetesVersion:                  "1.18",
+			MachineImage:                       "coreos",
+			URL:                                "http://localhost",
+			DefaultGardenerShootPurpose:        "testing",
+			DefaultTrialProvider:               internal.AWS,
 			EnableShootAndSeedRegionValidation: cfg.Provisioner.EnableShootAndSeedRegionValidation,
 		}, defaultKymaVer, map[string]string{"cf-eu10": "europe", "cf-us10": "us"}, cfg.FreemiumProviders, defaultOIDCValues())
 

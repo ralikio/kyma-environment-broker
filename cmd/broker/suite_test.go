@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kyma-project/kyma-environment-broker/internal/kubeconfig"
+	"github.com/kyma-project/kyma-environment-broker/internal/ptr"
 
 	"github.com/kyma-project/kyma-environment-broker/internal/process/steps"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -687,11 +688,11 @@ func (s *ProvisioningSuite) CreateProvisioning(options RuntimeOptions) string {
 		},
 		PlatformProvider: options.PlatformProvider,
 		Parameters: internal.ProvisioningParametersDTO{
-			Region:                options.ProvideRegion(),
-			KymaVersion:           options.KymaVersion,
-			OverridesVersion:      options.OverridesVersion,
-			OIDC:                  options.ProvideOIDC(),
-			RuntimeAdministrators: options.ProvideRuntimeAdmins(),
+			Region:                 options.ProvideRegion(),
+			KymaVersion:            options.KymaVersion,
+			OverridesVersion:       options.OverridesVersion,
+			OIDC:                   options.ProvideOIDC(),
+			RuntimeAdministrators:  options.ProvideRuntimeAdmins(),
 		},
 	}
 

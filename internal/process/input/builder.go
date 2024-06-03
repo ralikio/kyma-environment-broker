@@ -186,18 +186,18 @@ func (f *InputBuilderFactory) CreateProvisionInput(provisioningParameters intern
 	disabledComponents := mergeMaps(disabledForPlan, f.disabledComponentsProvider.DisabledForAll())
 
 	return &RuntimeInput{
-		provisionRuntimeInput:     initInput,
-		overrides:                 make(map[string][]*gqlschema.ConfigEntryInput, 0),
-		labels:                    make(map[string]string),
-		globalOverrides:           make([]*gqlschema.ConfigEntryInput, 0),
-		config:                    cfg,
-		hyperscalerInputProvider:  provider,
-		optionalComponentsService: f.optComponentsSvc,
-		provisioningParameters:    provisioningParameters,
-		componentsDisabler:        runtime.NewDisabledComponentsService(disabledComponents),
-		enabledOptionalComponents: map[string]struct{}{},
-		oidcDefaultValues:         f.oidcDefaultValues,
-		trialNodesNumber:          f.config.TrialNodesNumber,
+		provisionRuntimeInput:              initInput,
+		overrides:                          make(map[string][]*gqlschema.ConfigEntryInput, 0),
+		labels:                             make(map[string]string),
+		globalOverrides:                    make([]*gqlschema.ConfigEntryInput, 0),
+		config:                             cfg,
+		hyperscalerInputProvider:           provider,
+		optionalComponentsService:          f.optComponentsSvc,
+		provisioningParameters:             provisioningParameters,
+		componentsDisabler:                 runtime.NewDisabledComponentsService(disabledComponents),
+		enabledOptionalComponents:          map[string]struct{}{},
+		oidcDefaultValues:                  f.oidcDefaultValues,
+		trialNodesNumber:                   f.config.TrialNodesNumber,
 		EnableShootAndSeedRegionValidation: f.config.EnableShootAndSeedRegionValidation,
 	}, nil
 }

@@ -17,9 +17,9 @@ func TestShootAndSeedSameRegion(t *testing.T) {
 	t.Run("should parse shootAndSeedSameRegion - true", func(t *testing.T) {
 		// given
 		rawParameters := json.RawMessage(`{ "shootAndSeedSameRegion": true }`)
-        details := domain.ProvisionDetails{
-            RawParameters: rawParameters,
-        }
+		details := domain.ProvisionDetails{
+			RawParameters: rawParameters,
+		}
 		provisionEndpoint := NewProvision(
 			Config{},
 			gardener.Config{},
@@ -44,15 +44,15 @@ func TestShootAndSeedSameRegion(t *testing.T) {
 
 		// then
 		require.NoError(t, err)
-        assert.True(t, *parameters.ShootAndSeedSameRegion)
+		assert.True(t, *parameters.ShootAndSeedSameRegion)
 	})
 
-    t.Run("should parse shootAndSeedSameRegion - false", func(t *testing.T) {
+	t.Run("should parse shootAndSeedSameRegion - false", func(t *testing.T) {
 		// given
 		rawParameters := json.RawMessage(`{ "shootAndSeedSameRegion": false }`)
-        details := domain.ProvisionDetails{
-            RawParameters: rawParameters,
-        }
+		details := domain.ProvisionDetails{
+			RawParameters: rawParameters,
+		}
 		provisionEndpoint := NewProvision(
 			Config{},
 			gardener.Config{},
@@ -77,16 +77,15 @@ func TestShootAndSeedSameRegion(t *testing.T) {
 
 		// then
 		require.NoError(t, err)
-        assert.False(t, *parameters.ShootAndSeedSameRegion)
+		assert.False(t, *parameters.ShootAndSeedSameRegion)
 	})
 
-
-    t.Run("should parse shootAndSeedSameRegion - nil", func(t *testing.T) {
+	t.Run("should parse shootAndSeedSameRegion - nil", func(t *testing.T) {
 		// given
 		rawParameters := json.RawMessage(`{ }`)
-        details := domain.ProvisionDetails{
-            RawParameters: rawParameters,
-        }
+		details := domain.ProvisionDetails{
+			RawParameters: rawParameters,
+		}
 		provisionEndpoint := NewProvision(
 			Config{},
 			gardener.Config{},
@@ -111,7 +110,7 @@ func TestShootAndSeedSameRegion(t *testing.T) {
 
 		// then
 		require.NoError(t, err)
-        assert.Nil(t, parameters.ShootAndSeedSameRegion)
+		assert.Nil(t, parameters.ShootAndSeedSameRegion)
 	})
 
 }
