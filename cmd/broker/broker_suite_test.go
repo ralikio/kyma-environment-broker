@@ -197,7 +197,7 @@ func NewBrokerSuiteTestWithConfig(t *testing.T, cfg *Config, version ...string) 
 			DefaultGardenerShootPurpose:        "testing",
 			DefaultTrialProvider:               internal.AWS,
 			EnableShootAndSeedRegionValidation: cfg.Provisioner.EnableShootAndSeedRegionValidation,
-		}, defaultKymaVer, map[string]string{"cf-eu10": "europe", "cf-us10": "us"}, cfg.FreemiumProviders, defaultOIDCValues())
+		}, defaultKymaVer, map[string]string{"cf-eu10": "europe", "cf-us10": "us"}, cfg.FreemiumProviders, defaultOIDCValues(), cfg.Broker.UseSmallerMachineTypes)
 
 	storageCleanup, db, err := GetStorageForE2ETests()
 	assert.NoError(t, err)
