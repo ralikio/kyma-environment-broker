@@ -427,7 +427,7 @@ func empty() *map[string]interface{} {
 	return &empty
 }
 
-func createSchemaWithProperties(properties ProvisioningProperties, additionalParams, update bool, requiered []string, shootAndSeedSameRegion bool, shootAndSeedFeatureFlag bool) *map[string]interface{} {
+func createSchemaWithProperties(properties ProvisioningProperties, additionalParams, update bool, required []string, shootAndSeedSameRegion bool, shootAndSeedFeatureFlag bool) *map[string]interface{} {
 	if additionalParams {
 		properties.IncludeAdditional()
 	}
@@ -437,9 +437,9 @@ func createSchemaWithProperties(properties ProvisioningProperties, additionalPar
 	}
 
 	if update {
-		return createSchemaWith(properties.UpdateProperties, update, requiered)
+		return createSchemaWith(properties.UpdateProperties, update, required)
 	} else {
-		return createSchemaWith(properties, update, requiered)
+		return createSchemaWith(properties, update, required)
 	}
 }
 
