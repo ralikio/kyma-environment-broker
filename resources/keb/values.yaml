@@ -120,6 +120,7 @@ broker:
     memory: false
   events:
     enabled: false
+  enableShootAndSeedSameRegion: "false"
 
 binding:
   enabled: false
@@ -235,7 +236,6 @@ useSmallerMachineTypes: "false"
 
 osbUpdateProcessingEnabled: "false"
 
-enableShootAndSeedSameRegion: "false"
 
 gardener:
   project: "kyma-dev" # Gardener project connected to SA for HAP credentials lookup
