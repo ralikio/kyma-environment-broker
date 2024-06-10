@@ -22,7 +22,7 @@ type ServicesEndpoint struct {
 	cfg            Config
 	servicesConfig ServicesConfig
 
-	enabledPlanIDs map[string]struct{}
+	enabledPlanIDs      map[string]struct{}
 	cceeRegionsProvider ConvergedCloudRegionProvider
 }
 
@@ -55,14 +55,14 @@ func (b *ServicesEndpoint) Services(ctx context.Context) ([]domain.Service, erro
 
 	provider, ok := middleware.ProviderFromContext(ctx)
 	platformRegion, ok := middleware.RegionFromContext(ctx)
-	for _, plan := range Plans(class.Plans, 
-		provider, 
+	for _, plan := range Plans(class.Plans,
+		provider,
 		b.cfg.IncludeAdditionalParamsInSchema,
 		euaccess.IsEURestrictedAccess(platformRegion),
-		b.cfg.UseSmallerMachineTypes, 
+		b.cfg.UseSmallerMachineTypes,
 		b.cfg.EnableShootAndSeedSameRegion,
 		b.cceeRegionsProvider.GetRegions(),
-		) {
+	) {
 
 		// filter out not enabled plans
 		if _, exists := b.enabledPlanIDs[plan.ID]; !exists {

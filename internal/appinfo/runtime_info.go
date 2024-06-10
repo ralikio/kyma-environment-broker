@@ -35,7 +35,7 @@ type RuntimeInfoHandler struct {
 	respWriter              ResponseWriter
 	plansConfig             broker.PlansConfig
 	defaultSubaccountRegion string
-	cceeRegionsProvider 	broker.ConvergedCloudRegionProvider
+	cceeRegionsProvider     broker.ConvergedCloudRegionProvider
 }
 
 func NewRuntimeInfoHandler(instanceFinder InstanceFinder, lastOpFinder LastOperationFinder, plansConfig broker.PlansConfig, region string, respWriter ResponseWriter) *RuntimeInfoHandler {

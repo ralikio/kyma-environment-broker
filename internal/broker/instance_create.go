@@ -124,7 +124,7 @@ func NewProvision(cfg Config,
 		dashboardConfig:          dashboardConfig,
 		freemiumWhiteList:        freemiumWhitelist,
 		kcBuilder:                kcBuilder,
-		cceeRegionsProvider: 	cceeRegionsProvider,
+		cceeRegionsProvider:      cceeRegionsProvider,
 	}
 }
 
