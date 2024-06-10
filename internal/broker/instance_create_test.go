@@ -92,6 +92,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+			&broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -170,6 +171,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -252,6 +254,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -305,6 +308,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when shootDomain is missing
@@ -383,6 +387,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -464,6 +469,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -517,6 +523,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+            &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -571,6 +578,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -639,6 +647,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -707,6 +716,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -755,6 +765,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -801,6 +812,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -849,6 +861,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -894,6 +907,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -947,6 +961,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -996,6 +1011,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -1051,6 +1067,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		oidcParams := `"clientID":"client-id"`
@@ -1112,6 +1129,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		oidcParams := `"issuerURL":"https://test.local"`
@@ -1173,6 +1191,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		oidcParams := `"clientID":"client-id","issuerURL":"https://test.local","signingAlgs":["RS256","notValid"]`
@@ -1235,6 +1254,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		oidcParams := `"clientID":"client-id","issuerURL":"https://test.local","signingAlgs":["RS256"]`
@@ -1289,6 +1309,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		oidcParams := `"clientID":"client-id","issuerURL":"https://test.local","signingAlgs":["RS256"]`
@@ -1344,6 +1365,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -1414,6 +1436,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -1474,6 +1497,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{globalAccountID: struct{}{}},
+			&broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -1532,6 +1556,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -1581,6 +1606,7 @@ func TestProvision_Provision(t *testing.T) {
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
+                        &broker.OneForAllCCEERegionProvider{},
 		)
 
 		// when
@@ -1684,6 +1710,7 @@ func TestNetworkingValidation(t *testing.T) {
 				dashboardConfig,
 				kcBuilder,
 				whitelist.Set{},
+				&broker.OneForAllCCEERegionProvider{},
 			)
 
 			// when
@@ -1784,6 +1811,7 @@ func TestRegionValidation(t *testing.T) {
 				dashboardConfig,
 				kcBuilder,
 				whitelist.Set{},
+				&broker.OneForAllCCEERegionProvider{},
 			)
 
 			// when

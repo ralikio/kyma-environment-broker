@@ -72,6 +72,7 @@ func TestGetEndpoint_GetProvisioningInstance(t *testing.T) {
 		dashboardConfig,
 		kcBuilder,
 		whitelist.Set{},
+		&broker.OneForAllCCEERegionProvider{},
 	)
 	getSvc := broker.NewGetInstance(broker.Config{EnableKubeconfigURLLabel: true}, st.Instances(), st.Operations(), kcBuilder, logrus.New())
 
