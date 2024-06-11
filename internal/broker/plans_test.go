@@ -209,7 +209,7 @@ func TestSchemaGenerator(t *testing.T) {
 		{
 			name: "SapConvergedCloud schema is correct",
 			generator: func(machinesDisplay, regionsDisplay map[string]string, machines []string, additionalParams, update bool) *map[string]interface{} {
-				cceeRegionProvider := &OneForAllCCEERegionProvider{}
+				cceeRegionProvider := &OneForAllConvergedCloudRegionsProvider{}
 				return SapConvergedCloudSchema(machinesDisplay, regionsDisplay, machines, additionalParams, update, additionalParams, cceeRegionProvider.GetRegions())
 			},
 			machineTypes:        SapConvergedCloudMachinesNames(),

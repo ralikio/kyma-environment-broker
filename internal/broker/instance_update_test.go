@@ -86,7 +86,7 @@ func TestUpdateEndpoint_UpdateSuspension(t *testing.T) {
 		logrus.New(),
 		dashboardConfig,
 		kcBuilder,
-		&OneForAllCCEERegionProvider{})
+		&OneForAllConvergedCloudRegionsProvider{})
 
 	// when
 	response, err := svc.Update(context.Background(), instanceID, domain.UpdateDetails{
@@ -143,7 +143,7 @@ func TestUpdateEndpoint_UpdateOfExpiredTrial(t *testing.T) {
 	}
 	kcBuilder := &kcMock.KcBuilder{}
 	svc := NewUpdate(Config{}, st.Instances(), st.RuntimeStates(), st.Operations(), handler, true, false, q, PlansConfig{},
-		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllCCEERegionProvider{})
+		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllConvergedCloudRegionsProvider{})
 
 	// when
 	response, err := svc.Update(context.Background(), instanceID, domain.UpdateDetails{
@@ -193,7 +193,7 @@ func TestUpdateEndpoint_UpdateAutoscalerParams(t *testing.T) {
 	}
 	kcBuilder := &kcMock.KcBuilder{}
 	svc := NewUpdate(Config{}, st.Instances(), st.RuntimeStates(), st.Operations(), handler, true, false, q, PlansConfig{},
-		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllCCEERegionProvider{})
+		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllConvergedCloudRegionsProvider{})
 
 	t.Run("Should fail on invalid (too low) autoScalerMin and autoScalerMax", func(t *testing.T) {
 
@@ -287,7 +287,7 @@ func TestUpdateEndpoint_UpdateUnsuspension(t *testing.T) {
 	}
 	kcBuilder := &kcMock.KcBuilder{}
 	svc := NewUpdate(Config{}, st.Instances(), st.RuntimeStates(), st.Operations(), handler, true, false, q, PlansConfig{},
-		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllCCEERegionProvider{})
+		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllConvergedCloudRegionsProvider{})
 
 	// when
 	_, err = svc.Update(context.Background(), instanceID, domain.UpdateDetails{
@@ -338,7 +338,7 @@ func TestUpdateEndpoint_UpdateInstanceWithWrongActiveValue(t *testing.T) {
 	}
 	kcBuilder := &kcMock.KcBuilder{}
 	svc := NewUpdate(Config{}, st.Instances(), st.RuntimeStates(), st.Operations(), handler, true, false, q, PlansConfig{},
-		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllCCEERegionProvider{})
+		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllConvergedCloudRegionsProvider{})
 
 	// when
 	_, err = svc.Update(context.Background(), instanceID, domain.UpdateDetails{
@@ -370,7 +370,7 @@ func TestUpdateEndpoint_UpdateNonExistingInstance(t *testing.T) {
 	}
 	kcBuilder := &kcMock.KcBuilder{}
 	svc := NewUpdate(Config{}, st.Instances(), st.RuntimeStates(), st.Operations(), handler, true, false, q, PlansConfig{},
-		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllCCEERegionProvider{})
+		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllConvergedCloudRegionsProvider{})
 
 	// when
 	_, err := svc.Update(context.Background(), instanceID, domain.UpdateDetails{
@@ -436,7 +436,7 @@ func TestUpdateEndpoint_UpdateGlobalAccountID(t *testing.T) {
 	}
 	kcBuilder := &kcMock.KcBuilder{}
 	svc := NewUpdate(Config{}, st.Instances(), st.RuntimeStates(), st.Operations(), handler, true, true, q, PlansConfig{},
-		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllCCEERegionProvider{})
+		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllConvergedCloudRegionsProvider{})
 
 	// when
 	response, err := svc.Update(context.Background(), instanceID, domain.UpdateDetails{
@@ -480,7 +480,7 @@ func TestUpdateEndpoint_UpdateParameters(t *testing.T) {
 	}
 	kcBuilder := &kcMock.KcBuilder{}
 	svc := NewUpdate(Config{}, st.Instances(), st.RuntimeStates(), st.Operations(), handler, true, true, q, PlansConfig{},
-		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllCCEERegionProvider{})
+		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllConvergedCloudRegionsProvider{})
 
 	t.Run("Should fail on invalid OIDC params", func(t *testing.T) {
 		// given
@@ -611,7 +611,7 @@ func TestUpdateEndpoint_UpdateWithEnabledDashboard(t *testing.T) {
 	}
 	kcBuilder := &kcMock.KcBuilder{}
 	svc := NewUpdate(Config{}, st.Instances(), st.RuntimeStates(), st.Operations(), handler, true, false, q, PlansConfig{},
-		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllCCEERegionProvider{})
+		planDefaults, logrus.New(), dashboardConfig, kcBuilder, &OneForAllConvergedCloudRegionsProvider{})
 
 	// when
 	response, err := svc.Update(context.Background(), instanceID, domain.UpdateDetails{

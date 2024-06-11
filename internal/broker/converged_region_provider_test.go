@@ -8,7 +8,7 @@ import (
 
 func TestConvergedCloudRegions_GetDefaultRegions(t *testing.T) {
 	// given
-	c := &OneForAllCCEERegionProvider{}
+	c := &OneForAllConvergedCloudRegionsProvider{}
 
 	// when
 	result := c.GetRegions()

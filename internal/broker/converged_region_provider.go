@@ -12,9 +12,9 @@ func (c *PathBasedCCEERegionProvider) GetRegions() []string {
 	return []string{"eu-de-1"}
 }
 
-type OneForAllCCEERegionProvider struct {
+type OneForAllConvergedCloudRegionsProvider struct {
 }
 
-func (c *OneForAllCCEERegionProvider) GetRegions() []string {
+func (c *OneForAllConvergedCloudRegionsProvider) GetRegions() []string {
 	return []string{"eu-de-1"}
 }
