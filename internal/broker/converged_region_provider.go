@@ -4,11 +4,11 @@ type ConvergedCloudRegionProvider interface {
 	GetRegions() []string
 }
 
-type PathBasedCCEERegionProvider struct {
+type PathBasedConvergedCloudRegionsProvider struct {
 	// placeholder
 }
 
-func (c *PathBasedCCEERegionProvider) GetRegions() []string {
+func (c *PathBasedConvergedCloudRegionsProvider) GetRegions() []string {
 	return []string{"eu-de-1"}
 }
 
