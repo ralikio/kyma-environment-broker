@@ -29,8 +29,14 @@ func NewPathBasedConvergedCloudRegionsProvider(regionConfigurationPath string, r
 	}, nil
 }
 
-func (c *PathBasedConvergedCloudRegionsProvider) GetRegions() []string {
-	return []string{"eu-de-1"}
+func (c *PathBasedConvergedCloudRegionsProvider) GetRegions(region string) []string {
+	item, found:=c.regionConfiguration[region]
+
+	if  !found {
+		return []string{}
+	}
+	
+	return item
 }
 
 type OneForAllConvergedCloudRegionsProvider struct {
