@@ -10,28 +10,28 @@ global:
       path: europe-docker.pkg.dev/kyma-project/prod
     schema_migrator:
       dir: "control-plane"
-      version: "v20240307-f250dc83" # do not update along with the other images
+      version: "v20240612-83a7c0eb" # do not update along with the other images
     kyma_environment_broker:
       dir:
-      version: "1.5.28"
+      version: "1.5.33"
     kyma_environments_subaccount_cleanup_job:
       dir:
-      version: "1.5.28"
+      version: "1.5.33"
     kyma_environment_trial_cleanup_job:
       dir:
-      version: "1.5.28"
+      version: "1.5.33"
     kyma_environment_expirator_job:
       dir:
-      version: "1.5.28"
+      version: "1.5.33"
     kyma_environment_deprovision_retrigger_job:
       dir:
-      version: "1.5.28"
+      version: "1.5.33"
     kyma_environment_runtime_reconciler:
       dir:
-      version: "1.5.28"
+      version: "1.5.33"
     kyma_environment_subaccount_sync:
       dir:
-      version: "1.5.28"
+      version: "1.5.33"
   kyma_environment_broker:
     enabled: false
     serviceAccountName: "kcp-kyma-environment-broker"
@@ -396,6 +396,7 @@ deprovisionRetrigger:
 subaccountSync:
   enabled: true
   updateResources: false
+  alwaysSubaccountFromDatabase: false
   accountSyncInterval: 24h
   storageSyncInterval: 5m
   eventsWindowSize: 20m

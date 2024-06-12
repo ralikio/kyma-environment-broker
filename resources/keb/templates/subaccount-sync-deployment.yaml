@@ -30,14 +30,14 @@ spec:
             name: http
             protocol: TCP
           env:
-            - name: SUBACCOUNT_SYNC_KYMA_VERSION
-              value: {{ .Values.kymaVersion | required "please specify Values.kymaVersion" | quote}}
             - name: SUBACCOUNT_SYNC_METRICS_PORT
               value: {{ .Values.subaccountSync.metricsPort | quote }}
             - name: SUBACCOUNT_SYNC_LOG_LEVEL
               value: {{ .Values.subaccountSync.logLevel | quote }}
             - name: SUBACCOUNT_SYNC_UPDATE_RESOURCES
               value: {{ .Values.subaccountSync.updateResources | quote }}
+            - name: SUBACCOUNT_SYNC_ALWAYS_SUBACCOUNT_FROM_DATABASE
+              value: {{ .Values.subaccountSync.alwaysSubaccountFromDatabase | quote }}
             - name: SUBACCOUNT_SYNC_ACCOUNTS_SYNC_INTERVAL
               value: {{ .Values.subaccountSync.accountSyncInterval | quote }}
             - name: SUBACCOUNT_SYNC_STORAGE_SYNC_INTERVAL
@@ -122,6 +122,8 @@ spec:
                   key: postgresql-sslMode
             - name: SUBACCOUNT_SYNC_DATABASE_SSLROOTCERT
               value: /secrets/cloudsql-sslrootcert/server-ca.pem
+            - name: SUBACCOUNT_SYNC_RUNTIME_CONFIGURATION_CONFIG_MAP_NAME
+              value: "{{ include "kyma-env-broker.fullname" . }}-runtime-configuration"
         {{- if and (eq .Values.global.database.embedded.enabled false) (eq .Values.global.database.cloudsqlproxy.enabled false)}}
           volumeMounts:
               - name: cloudsql-sslrootcert
@@ -134,10 +136,12 @@ spec:
           {{- if .Values.global.database.cloudsqlproxy.workloadIdentity.enabled }}
           command: ["/cloud-sql-proxy",
                     "{{ .Values.global.database.managedGCP.instanceConnectionName }}",
+                    "--exit-zero-on-sigterm",
                     "--private-ip"]
           {{- else }}
           command: ["/cloud-sql-proxy",
                     "{{ .Values.global.database.managedGCP.instanceConnectionName }}",
+                    "--exit-zero-on-sigterm",
                     "--private-ip",
                     "--credentials-file=/secrets/cloudsql-instance-credentials/credentials.json"]
           volumeMounts:
