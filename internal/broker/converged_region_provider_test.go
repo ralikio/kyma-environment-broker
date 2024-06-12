@@ -57,7 +57,6 @@ func TestPathBasedConvergedCloudRegionsProvider_GetRegions(t *testing.T) {
 		assert.Equal(t, result[0], "value")
 	})
 
-	
 	t.Run("should return existing mappings in multi item configuration", func(t *testing.T) {
 		// given
 		regions := map[string][]string{
@@ -77,7 +76,7 @@ func TestPathBasedConvergedCloudRegionsProvider_GetRegions(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Len(t, result, 1)
 		assert.Equal(t, result[0], "value2")
-	
+
 		// when
 		result = provider.GetRegions("key3")
 

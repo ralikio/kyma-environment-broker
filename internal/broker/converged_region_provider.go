@@ -30,9 +30,9 @@ func NewPathBasedConvergedCloudRegionsProvider(regionConfigurationPath string, r
 }
 
 func (c *DefaultConvergedCloudRegionsProvider) GetRegions(region string) []string {
-	item, found:=c.regionConfiguration[region]
+	item, found := c.regionConfiguration[region]
 
-	if  !found {
+	if !found {
 		return []string{}
 	}
 
