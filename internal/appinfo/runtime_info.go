@@ -35,17 +35,15 @@ type RuntimeInfoHandler struct {
 	respWriter               ResponseWriter
 	plansConfig              broker.PlansConfig
 	defaultSubaccountRegion  string
-	convergedRegionsProvider broker.ConvergedCloudRegionProvider
 }
 
-func NewRuntimeInfoHandler(instanceFinder InstanceFinder, lastOpFinder LastOperationFinder, plansConfig broker.PlansConfig, region string, respWriter ResponseWriter, convergedRegionsProvider broker.ConvergedCloudRegionProvider) *RuntimeInfoHandler {
+func NewRuntimeInfoHandler(instanceFinder InstanceFinder, lastOpFinder LastOperationFinder, plansConfig broker.PlansConfig, region string, respWriter ResponseWriter) *RuntimeInfoHandler {
 	return &RuntimeInfoHandler{
 		instanceFinder:           instanceFinder,
 		lastOperationFinder:      lastOpFinder,
 		respWriter:               respWriter,
 		plansConfig:              plansConfig,
 		defaultSubaccountRegion:  region,
-		convergedRegionsProvider: convergedRegionsProvider,
 	}
 }
 
