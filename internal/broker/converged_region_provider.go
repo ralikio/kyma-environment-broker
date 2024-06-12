@@ -13,29 +13,29 @@ type ConvergedCloudRegionProvider interface {
 	GetRegions() []string
 }
 
-type PathBasedConvergedCloudRegionsProvider struct {
+type DefaultConvergedCloudRegionsProvider struct {
 	// placeholder
 	regionConfiguration map[string][]string
 }
 
-func NewPathBasedConvergedCloudRegionsProvider(regionConfigurationPath string, reader RegionReader) (*PathBasedConvergedCloudRegionsProvider, error) {
+func NewPathBasedConvergedCloudRegionsProvider(regionConfigurationPath string, reader RegionReader) (*DefaultConvergedCloudRegionsProvider, error) {
 	regionConfiguration, err := reader.Read(regionConfigurationPath)
 	if err != nil {
 		return nil, fmt.Errorf("while unmarshalling a file with sap-converged-cloud region mappings: %w", err)
 	}
 
-	return &PathBasedConvergedCloudRegionsProvider{
+	return &DefaultConvergedCloudRegionsProvider{
 		regionConfiguration: regionConfiguration,
 	}, nil
 }
 
-func (c *PathBasedConvergedCloudRegionsProvider) GetRegions(region string) []string {
+func (c *DefaultConvergedCloudRegionsProvider) GetRegions(region string) []string {
 	item, found:=c.regionConfiguration[region]
 
 	if  !found {
 		return []string{}
 	}
-	
+
 	return item
 }
 

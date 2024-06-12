@@ -44,7 +44,7 @@ func TestPathBasedConvergedCloudRegionsProvider_GetRegions(t *testing.T) {
 			"key": {"value"},
 		}
 
-		provider := &PathBasedConvergedCloudRegionsProvider{
+		provider := &DefaultConvergedCloudRegionsProvider{
 			regionConfiguration: regions,
 		}
 
@@ -66,7 +66,7 @@ func TestPathBasedConvergedCloudRegionsProvider_GetRegions(t *testing.T) {
 			"key3": {"value3", "value4"},
 		}
 
-		provider := &PathBasedConvergedCloudRegionsProvider{
+		provider := &DefaultConvergedCloudRegionsProvider{
 			regionConfiguration: regions,
 		}
 
@@ -95,7 +95,7 @@ func TestPathBasedConvergedCloudRegionsProvider_GetRegions(t *testing.T) {
 			"key": {"value"},
 		}
 
-		provider := &PathBasedConvergedCloudRegionsProvider{
+		provider := &DefaultConvergedCloudRegionsProvider{
 			regionConfiguration: regions,
 		}
 
