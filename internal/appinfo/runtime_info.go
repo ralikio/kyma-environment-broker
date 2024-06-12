@@ -159,7 +159,7 @@ func (h *RuntimeInfoHandler) planNameOrDefault(inst internal.InstanceWithOperati
 	if inst.ServicePlanName != "" {
 		return inst.ServicePlanName
 	}
-	return broker.Plans(h.plansConfig, "", false, false, false, false, h.convergedRegionsProvider.GetRegions())[inst.ServicePlanID].Name
+	return broker.Plans(h.plansConfig, "", false, false, false, false, h.convergedRegionsProvider.GetRegions(inst.ProviderRegion))[inst.ServicePlanID].Name
 }
 
 func getIfNotZero(in time.Time) *time.Time {
