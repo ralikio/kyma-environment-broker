@@ -262,41 +262,39 @@ func TestSchemaGenerator(t *testing.T) {
 	}
 }
 
-func TestSapConvergedSchema(t* testing.T) {
+func TestSapConvergedSchema(t *testing.T) {
 
 	t.Run("SapConvergedCloud schema uses regions from parameter to display region list", func(t *testing.T) {
 		// given
 		regions := []string{"region1", "region2"}
-	
-		// when 
+
+		// when
 		schema := Plans(nil, "", false, false, false, false, regions)
 		convergedSchema, found := schema[SapConvergedCloudPlanID]
-		schemaRegionsCreate := convergedSchema.Schemas.Instance.Create.Parameters["properties"].
-			(map[string]interface{})["region"].
-			(map[string]interface{})["enum"]
-	
+		schemaRegionsCreate := convergedSchema.Schemas.Instance.Create.Parameters["properties"].(map[string]interface{})["region"].(map[string]interface{})["enum"]
+
 		// then
 		assert.NotNil(t, schema)
 		assert.True(t, found)
-		assert.Equal(t, []interface {}([]interface {}{"region1", "region2"}), schemaRegionsCreate)		
+		assert.Equal(t, []interface{}([]interface{}{"region1", "region2"}), schemaRegionsCreate)
 	})
 
 	t.Run("SapConvergedCloud schema not generated if empty region list", func(t *testing.T) {
 		// given
 		regions := []string{}
-	
-		// when 
+
+		// when
 		schema := Plans(nil, "", false, false, false, false, regions)
 		_, found := schema[SapConvergedCloudPlanID]
-	
+
 		// then
 		assert.NotNil(t, schema)
 		assert.False(t, found)
-	
-		// when 
+
+		// when
 		schema = Plans(nil, "", false, false, false, false, nil)
 		_, found = schema[SapConvergedCloudPlanID]
-	
+
 		// then
 		assert.NotNil(t, schema)
 		assert.False(t, found)
