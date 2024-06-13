@@ -49,10 +49,10 @@ func (c *DefaultConvergedCloudRegionsProvider) GetRegions(mappedRegion string) [
 	return item
 }
 
-
-func NewOneForAllConvergedCloudRegionsProvider() (ConvergedCloudRegionProvider) {
+func NewOneForAllConvergedCloudRegionsProvider() ConvergedCloudRegionProvider {
 	return &OneForAllConvergedCloudRegionsProvider{}
 }
+
 type OneForAllConvergedCloudRegionsProvider struct {
 }
 
