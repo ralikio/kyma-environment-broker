@@ -21,6 +21,15 @@ type DefaultConvergedCloudRegionsProvider struct {
 }
 
 func NewDefaultConvergedCloudRegionsProvider(regionConfigurationPath string, reader RegionReader) (*DefaultConvergedCloudRegionsProvider, error) {
+	if regionConfigurationPath == "" {
+		return nil, fmt.Errorf("regionConfigurationPath cannot be empty")
+	}
+
+	if reader == nil {
+		return nil, fmt.Errorf("reader cannot be nil")
+	}
+
+
 	regionConfiguration, err := reader.Read(regionConfigurationPath)
 	if err != nil {
 		return nil, fmt.Errorf("while unmarshalling a file with sap-converged-cloud region mappings: %w", err)
