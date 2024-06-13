@@ -20,7 +20,7 @@ func TestSapConvergedCloudRegionMappings(t *testing.T) {
 	}
 
 	// given
-	suite := NewBrokerSuiteTest(t)
+	suite := NewBrokerSuiteTestWithConvergedRegionMappings(t)
 	defer suite.TearDown()
 
 	t.Run("Create catalog - test converged cloud plan not render if not region in path", func(t *testing.T) {

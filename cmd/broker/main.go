@@ -482,9 +482,15 @@ func createAPI(router *mux.Router, servicesConfig broker.ServicesConfig, planVal
 	fatalOnError(err, logs)
 	logs.Infof("Number of globalAccountIds for unlimited freeemium: %d\n", len(freemiumGlobalAccountIds))
 
-	convergedCloudRegionProvider, err := broker.NewDefaultConvergedCloudRegionsProvider(cfg.SapConvergedCloudRegionMappingsFilePath, &broker.YamlRegionReader{})
-	fatalOnError(err, logs)
-	logs.Info("sap-converged-cloud plan region mappings loaded")
+	var convergedCloudRegionProvider  = broker.NewOneForAllConvergedCloudRegionsProvider()
+
+	if cfg.SapConvergedCloudRegionMappingsFilePath != "" {
+		convergedCloudRegionProvider, err = broker.NewDefaultConvergedCloudRegionsProvider(cfg.SapConvergedCloudRegionMappingsFilePath, &broker.YamlRegionReader{})
+		fatalOnError(err, logs)
+		logs.Info("sap-converged-cloud plan region mappings loaded")
+	} else {
+		logs.Warn("sap-converged-cloud plan region mappings file path is not set, using old configuration")
+	}
 
 	// create KymaEnvironmentBroker endpoints
 	kymaEnvBroker := &broker.KymaEnvironmentBroker{

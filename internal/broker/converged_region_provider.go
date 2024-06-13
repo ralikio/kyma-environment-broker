@@ -20,7 +20,7 @@ type DefaultConvergedCloudRegionsProvider struct {
 	regionConfiguration map[string][]string
 }
 
-func NewDefaultConvergedCloudRegionsProvider(regionConfigurationPath string, reader RegionReader) (*DefaultConvergedCloudRegionsProvider, error) {
+func NewDefaultConvergedCloudRegionsProvider(regionConfigurationPath string, reader RegionReader) (ConvergedCloudRegionProvider, error) {
 	if regionConfigurationPath == "" {
 		return nil, fmt.Errorf("regionConfigurationPath cannot be empty")
 	}
@@ -49,6 +49,10 @@ func (c *DefaultConvergedCloudRegionsProvider) GetRegions(mappedRegion string) [
 	return item
 }
 
+
+func NewOneForAllConvergedCloudRegionsProvider() (ConvergedCloudRegionProvider) {
+	return &OneForAllConvergedCloudRegionsProvider{}
+}
 type OneForAllConvergedCloudRegionsProvider struct {
 }
 
