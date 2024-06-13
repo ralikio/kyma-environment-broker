@@ -72,8 +72,6 @@ func TestCatalog(t *testing.T) {
 	}
 }
 
-
-
 func TestProvisioning_HappyPath(t *testing.T) {
 	// given
 	suite := NewProvisioningSuite(t, false, "", false)
