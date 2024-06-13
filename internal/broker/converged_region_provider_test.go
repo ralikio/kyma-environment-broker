@@ -19,7 +19,7 @@ func TestOneForAllConvergedCloudRegionsProvider_GetDefaultRegions(t *testing.T) 
 }
 
 func TestPathBasedConvergedCloudRegionsProvider_FactoryMethod(t *testing.T) {
-	
+
 	t.Run("should call config reader, forward configLocation and init own configuration with its results ", func(t *testing.T) {
 		// given
 		configLocation := "path-to-config"
@@ -45,7 +45,7 @@ func TestPathBasedConvergedCloudRegionsProvider_FactoryMethod(t *testing.T) {
 		// then
 		assert.Error(t, err)
 		assert.Nil(t, provider)
-	
+
 		// when
 		provider, err = NewDefaultConvergedCloudRegionsProvider("", automock.NewRegionReader(t))
 
@@ -125,6 +125,5 @@ func TestPathBasedConvergedCloudRegionsProvider_GetRegions(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Len(t, result, 0)
 	})
-
 
 }

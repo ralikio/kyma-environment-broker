@@ -29,7 +29,6 @@ func NewDefaultConvergedCloudRegionsProvider(regionConfigurationPath string, rea
 		return nil, fmt.Errorf("reader cannot be nil")
 	}
 
-
 	regionConfiguration, err := reader.Read(regionConfigurationPath)
 	if err != nil {
 		return nil, fmt.Errorf("while unmarshalling a file with sap-converged-cloud region mappings: %w", err)
