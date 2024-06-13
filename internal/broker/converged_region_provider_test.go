@@ -29,7 +29,7 @@ func TestPathBasedConvergedCloudRegionsProvider_FactoryMethod(t *testing.T) {
 	mockReader.On("Read", configLocation).Return(regions, nil)
 
 	// when
-	provider, err := NewPathBasedConvergedCloudRegionsProvider(configLocation, mockReader)
+	provider, err := NewDefaultConvergedCloudRegionsProvider(configLocation, mockReader)
 
 	// then
 	assert.NoError(t, err)
