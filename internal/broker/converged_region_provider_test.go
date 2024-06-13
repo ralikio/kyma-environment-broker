@@ -35,7 +35,7 @@ func TestPathBasedConvergedCloudRegionsProvider_FactoryMethod(t *testing.T) {
 
 		// then
 		assert.NoError(t, err)
-		assert.Equal(t, regions, provider.regionConfiguration)
+		assert.Equal(t, regions, provider.(*DefaultConvergedCloudRegionsProvider).regionConfiguration)
 	})
 
 	t.Run("should return error if called with incorrect configuration", func(t *testing.T) {

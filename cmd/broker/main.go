@@ -482,7 +482,7 @@ func createAPI(router *mux.Router, servicesConfig broker.ServicesConfig, planVal
 	fatalOnError(err, logs)
 	logs.Infof("Number of globalAccountIds for unlimited freeemium: %d\n", len(freemiumGlobalAccountIds))
 
-	var convergedCloudRegionProvider  = broker.NewOneForAllConvergedCloudRegionsProvider()
+	var convergedCloudRegionProvider = broker.NewOneForAllConvergedCloudRegionsProvider()
 
 	if cfg.SapConvergedCloudRegionMappingsFilePath != "" {
 		convergedCloudRegionProvider, err = broker.NewDefaultConvergedCloudRegionsProvider(cfg.SapConvergedCloudRegionMappingsFilePath, &broker.YamlRegionReader{})
