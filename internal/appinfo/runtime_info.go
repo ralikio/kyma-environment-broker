@@ -30,20 +30,20 @@ type (
 )
 
 type RuntimeInfoHandler struct {
-	instanceFinder           InstanceFinder
-	lastOperationFinder      LastOperationFinder
-	respWriter               ResponseWriter
-	plansConfig              broker.PlansConfig
-	defaultSubaccountRegion  string
+	instanceFinder          InstanceFinder
+	lastOperationFinder     LastOperationFinder
+	respWriter              ResponseWriter
+	plansConfig             broker.PlansConfig
+	defaultSubaccountRegion string
 }
 
 func NewRuntimeInfoHandler(instanceFinder InstanceFinder, lastOpFinder LastOperationFinder, plansConfig broker.PlansConfig, region string, respWriter ResponseWriter) *RuntimeInfoHandler {
 	return &RuntimeInfoHandler{
-		instanceFinder:           instanceFinder,
-		lastOperationFinder:      lastOpFinder,
-		respWriter:               respWriter,
-		plansConfig:              plansConfig,
-		defaultSubaccountRegion:  region,
+		instanceFinder:          instanceFinder,
+		lastOperationFinder:     lastOpFinder,
+		respWriter:              respWriter,
+		plansConfig:             plansConfig,
+		defaultSubaccountRegion: region,
 	}
 }
 

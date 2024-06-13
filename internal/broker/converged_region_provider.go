@@ -48,7 +48,7 @@ func (c *OneForAllConvergedCloudRegionsProvider) GetRegions(mappedRegion string)
 	return []string{"eu-de-1"}
 }
 
-type YamlRegionReader struct {}
+type YamlRegionReader struct{}
 
 func (u *YamlRegionReader) Read(filename string) (map[string][]string, error) {
 	regionMappings := make(map[string][]string)

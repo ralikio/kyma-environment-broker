@@ -116,7 +116,6 @@ func TestSapConvergedCloudRegionMappings(t *testing.T) {
 		assert.NotContains(t, prettify(content).String(), "non-existing-3")
 		assert.NotContains(t, prettify(content).String(), "non-existing-4")
 	})
-	
 
 	t.Run("Create catalog - test converged cloud plan render if correct region in path", func(t *testing.T) {
 		// when
