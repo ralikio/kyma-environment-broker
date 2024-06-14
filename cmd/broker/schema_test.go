@@ -32,11 +32,11 @@ func TestSapConvergedCloudRegionMappings(t *testing.T) {
 		defer resp.Body.Close()
 
 		// then
-		assert.NotContains(t, prettify(content).String(), "sap-converged-cloud")
-		assert.NotContains(t, prettify(content).String(), "non-existing-1")
-		assert.NotContains(t, prettify(content).String(), "non-existing-2")
-		assert.NotContains(t, prettify(content).String(), "non-existing-3")
-		assert.NotContains(t, prettify(content).String(), "non-existing-4")
+		assert.NotContains(t, string(content), "sap-converged-cloud")
+		assert.NotContains(t, string(content), "non-existing-1")
+		assert.NotContains(t, string(content), "non-existing-2")
+		assert.NotContains(t, string(content), "non-existing-3")
+		assert.NotContains(t, string(content), "non-existing-4")
 	})
 
 	t.Run("Create catalog - test converged cloud plan not render if invalid region in path", func(t *testing.T) {
@@ -48,11 +48,11 @@ func TestSapConvergedCloudRegionMappings(t *testing.T) {
 		defer resp.Body.Close()
 
 		// then
-		assert.NotContains(t, prettify(content).String(), "sap-converged-cloud")
-		assert.NotContains(t, prettify(content).String(), "non-existing-1")
-		assert.NotContains(t, prettify(content).String(), "non-existing-2")
-		assert.NotContains(t, prettify(content).String(), "non-existing-3")
-		assert.NotContains(t, prettify(content).String(), "non-existing-4")
+		assert.NotContains(t, string(content), "sap-converged-cloud")
+		assert.NotContains(t, string(content), "non-existing-1")
+		assert.NotContains(t, string(content), "non-existing-2")
+		assert.NotContains(t, string(content), "non-existing-3")
+		assert.NotContains(t, string(content), "non-existing-4")
 	})
 
 	t.Run("Create catalog - test converged cloud plan render if correct region in path", func(t *testing.T) {
@@ -64,11 +64,11 @@ func TestSapConvergedCloudRegionMappings(t *testing.T) {
 		defer resp.Body.Close()
 
 		// then
-		assert.Contains(t, prettify(content).String(), "sap-converged-cloud")
-		assert.Contains(t, prettify(content).String(), "non-existing-1")
-		assert.Contains(t, prettify(content).String(), "non-existing-2")
-		assert.NotContains(t, prettify(content).String(), "non-existing-3")
-		assert.NotContains(t, prettify(content).String(), "non-existing-4")
+		assert.Contains(t, string(content), "sap-converged-cloud")
+		assert.Contains(t, string(content), "non-existing-1")
+		assert.Contains(t, string(content), "non-existing-2")
+		assert.NotContains(t, string(content), "non-existing-3")
+		assert.NotContains(t, string(content), "non-existing-4")
 	})
 
 }
