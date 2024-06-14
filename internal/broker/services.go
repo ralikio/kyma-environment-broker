@@ -23,10 +23,10 @@ type ServicesEndpoint struct {
 	servicesConfig ServicesConfig
 
 	enabledPlanIDs           map[string]struct{}
-	convergedRegionsProvider ConvergedCloudRegionProvider
+	convergedCloudRegionsProvider ConvergedCloudRegionProvider
 }
 
-func NewServices(cfg Config, servicesConfig ServicesConfig, log logrus.FieldLogger, convergedRegionsProvider ConvergedCloudRegionProvider) *ServicesEndpoint {
+func NewServices(cfg Config, servicesConfig ServicesConfig, log logrus.FieldLogger, convergedCloudRegionsProvider ConvergedCloudRegionProvider) *ServicesEndpoint {
 	enabledPlanIDs := map[string]struct{}{}
 	for _, planName := range cfg.EnablePlans {
 		id := PlanIDsMapping[planName]
@@ -38,7 +38,7 @@ func NewServices(cfg Config, servicesConfig ServicesConfig, log logrus.FieldLogg
 		cfg:                      cfg,
 		servicesConfig:           servicesConfig,
 		enabledPlanIDs:           enabledPlanIDs,
-		convergedRegionsProvider: convergedRegionsProvider,
+		convergedCloudRegionsProvider: convergedCloudRegionsProvider,
 	}
 }
 
@@ -62,7 +62,7 @@ func (b *ServicesEndpoint) Services(ctx context.Context) ([]domain.Service, erro
 		euaccess.IsEURestrictedAccess(platformRegion),
 		b.cfg.UseSmallerMachineTypes,
 		b.cfg.EnableShootAndSeedSameRegion,
-		b.convergedRegionsProvider.GetRegions(platformRegion),
+		b.convergedCloudRegionsProvider.GetRegions(platformRegion),
 	) {
 
 		// filter out not enabled plans

@@ -127,7 +127,7 @@ func NewBrokerSuiteTest(t *testing.T, version ...string) *BrokerSuiteTest {
 	return NewBrokerSuiteTestWithConfig(t, cfg, version...)
 }
 
-func NewBrokerSuiteTestWithConvergedRegionMappings(t *testing.T, version ...string) *BrokerSuiteTest {
+func NewBrokerSuiteTestWithConvergedCloudRegionMappings(t *testing.T, version ...string) *BrokerSuiteTest {
 	cfg := fixConfig()
 	cfg.SapConvergedCloudRegionMappingsFilePath = "testdata/sap-converged-cloud-region-mappings.yaml"
 	return NewBrokerSuiteTestWithConfig(t, cfg, version...)
