@@ -485,13 +485,9 @@ func createAPI(router *mux.Router, servicesConfig broker.ServicesConfig, planVal
 	var convergedCloudRegionProvider = broker.NewOneForAllConvergedCloudRegionsProvider()
 
 	// backward compatibility for tests
-	if cfg.SapConvergedCloudRegionMappingsFilePath != "" {
-		convergedCloudRegionProvider, err = broker.NewDefaultConvergedCloudRegionsProvider(cfg.SapConvergedCloudRegionMappingsFilePath, &broker.YamlRegionReader{})
-		fatalOnError(err, logs)
-		logs.Infof("%s plan region mappings loaded", broker.SapConvergedCloudPlanName)
-	} else {
-		logs.Warnf("%s plan region mappings file path is not set, using old configuration", broker.SapConvergedCloudPlanName)
-	}
+	convergedCloudRegionProvider, err = broker.NewDefaultConvergedCloudRegionsProvider(cfg.SapConvergedCloudRegionMappingsFilePath, &broker.YamlRegionReader{})
+	fatalOnError(err, logs)
+	logs.Infof("%s plan region mappings loaded", broker.SapConvergedCloudPlanName)
 
 	// create KymaEnvironmentBroker endpoints
 	kymaEnvBroker := &broker.KymaEnvironmentBroker{
