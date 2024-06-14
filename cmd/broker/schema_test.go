@@ -23,7 +23,7 @@ func TestSapConvergedCloudRegionMappings(t *testing.T) {
 	suite := NewBrokerSuiteTestWithConvergedCloudRegionMappings(t)
 	defer suite.TearDown()
 
-	t.Run("Create catalog - test converged cloud plan not render if not region in path", func(t *testing.T) {
+	t.Run("Create catalog - test converged cloud plan not rendered if no region in path", func(t *testing.T) {
 		// when
 		resp := suite.CallAPI("GET", fmt.Sprintf("oauth/v2/catalog"), ``)
 
