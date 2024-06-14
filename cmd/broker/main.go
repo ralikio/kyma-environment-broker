@@ -484,6 +484,7 @@ func createAPI(router *mux.Router, servicesConfig broker.ServicesConfig, planVal
 
 	var convergedCloudRegionProvider = broker.NewOneForAllConvergedCloudRegionsProvider()
 
+	// backward compatibility for tests
 	if cfg.SapConvergedCloudRegionMappingsFilePath != "" {
 		convergedCloudRegionProvider, err = broker.NewDefaultConvergedCloudRegionsProvider(cfg.SapConvergedCloudRegionMappingsFilePath, &broker.YamlRegionReader{})
 		fatalOnError(err, logs)
