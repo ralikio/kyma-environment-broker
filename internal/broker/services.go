@@ -22,7 +22,7 @@ type ServicesEndpoint struct {
 	cfg            Config
 	servicesConfig ServicesConfig
 
-	enabledPlanIDs           map[string]struct{}
+	enabledPlanIDs                map[string]struct{}
 	convergedCloudRegionsProvider ConvergedCloudRegionProvider
 }
 
@@ -34,10 +34,10 @@ func NewServices(cfg Config, servicesConfig ServicesConfig, log logrus.FieldLogg
 	}
 
 	return &ServicesEndpoint{
-		log:                      log.WithField("service", "ServicesEndpoint"),
-		cfg:                      cfg,
-		servicesConfig:           servicesConfig,
-		enabledPlanIDs:           enabledPlanIDs,
+		log:                           log.WithField("service", "ServicesEndpoint"),
+		cfg:                           cfg,
+		servicesConfig:                servicesConfig,
+		enabledPlanIDs:                enabledPlanIDs,
 		convergedCloudRegionsProvider: convergedCloudRegionsProvider,
 	}
 }

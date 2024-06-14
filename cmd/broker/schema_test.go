@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"testing"
@@ -11,15 +9,6 @@ import (
 )
 
 func TestSapConvergedCloudRegionMappings(t *testing.T) {
-	// this test is used for human-testing the catalog response
-	prettify := func(content []byte) *bytes.Buffer {
-		var prettyJSON bytes.Buffer
-		err := json.Indent(&prettyJSON, content, "", "    ")
-		assert.NoError(t, err)
-		return &prettyJSON
-	}
-
-	// given
 	suite := NewBrokerSuiteTestWithConvergedCloudRegionMappings(t)
 	defer suite.TearDown()
 
