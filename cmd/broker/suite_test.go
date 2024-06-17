@@ -1001,6 +1001,7 @@ func fixConfig() *Config {
 
 		ArchiveEnabled:  true,
 		CleaningEnabled: true,
+		SapConvergedCloudRegionMappingsFilePath: "testdata/old-sap-converged-cloud-region-mappings.yaml",
 	}
 }
 
