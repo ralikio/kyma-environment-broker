@@ -124,7 +124,7 @@ func (s *BrokerSuiteTest) TearDown() {
 
 func NewBrokerSuiteTest(t *testing.T, version ...string) *BrokerSuiteTest {
 	cfg := fixConfig()
-	cfg.SapConvergedCloudRegionMappingsFilePath = "testdata/old-sap-converged-cloud-region-mappings.yaml"	
+	cfg.SapConvergedCloudRegionMappingsFilePath = "testdata/old-sap-converged-cloud-region-mappings.yaml"
 	return NewBrokerSuiteTestWithConfig(t, cfg, version...)
 }
 
@@ -150,7 +150,7 @@ func NewBrokerSuitTestWithMetrics(t *testing.T, cfg *Config, version ...string) 
 
 func NewBrokerSuiteTestWithOptionalRegion(t *testing.T, version ...string) *BrokerSuiteTest {
 	cfg := fixConfig()
-	cfg.SapConvergedCloudRegionMappingsFilePath = "testdata/old-sap-converged-cloud-region-mappings.yaml"	
+	cfg.SapConvergedCloudRegionMappingsFilePath = "testdata/old-sap-converged-cloud-region-mappings.yaml"
 	return NewBrokerSuiteTestWithConfig(t, cfg, version...)
 }
 
