@@ -226,11 +226,10 @@ func TestProvisioning_HappyPathSapConvergedCloud(t *testing.T) {
 		suite.AssertKymaLabelsExist(opID, map[string]string{"kyma-project.io/region": "eu-de-1"})
 	})
 
-
-	t.Run("should fail for invalid platform region - invalid platform region", func(t *testing.T) { 
+	t.Run("should fail for invalid platform region - invalid platform region", func(t *testing.T) {
 		// when
 		resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/invalid/v2/service_instances/%s?accepts_incomplete=true", iid),
-		`{
+			`{
 					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
 					"plan_id": "03b812ac-c991-4528-b5bd-08b303523a63",
 					"context": {
@@ -247,11 +246,11 @@ func TestProvisioning_HappyPathSapConvergedCloud(t *testing.T) {
 		assert.Contains(t, string(parsedResponse), "plan-id not in the catalog")
 	})
 
-	t.Run("should fail for invalid platform region - default platform region", func(t *testing.T) { 
+	t.Run("should fail for invalid platform region - default platform region", func(t *testing.T) {
 
 		// when
 		resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
-		`{
+			`{
 					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
 					"plan_id": "03b812ac-c991-4528-b5bd-08b303523a63",
 					"context": {
@@ -268,11 +267,11 @@ func TestProvisioning_HappyPathSapConvergedCloud(t *testing.T) {
 		assert.Contains(t, string(parsedResponse), "plan-id not in the catalog")
 	})
 
-	t.Run("should fail for invalid platform region - invalid Kyma region", func(t *testing.T) { 
+	t.Run("should fail for invalid platform region - invalid Kyma region", func(t *testing.T) {
 
 		// when
 		resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu20-staging/v2/service_instances/%s?accepts_incomplete=true", iid),
-		`{
+			`{
 					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
 					"plan_id": "03b812ac-c991-4528-b5bd-08b303523a63",
 					"context": {
@@ -288,7 +287,7 @@ func TestProvisioning_HappyPathSapConvergedCloud(t *testing.T) {
 		parsedResponse := suite.ReadResponse(resp)
 		assert.Contains(t, string(parsedResponse), "while validating input parameters: region: region must be one of the following")
 	})
-	
+
 }
 
 func TestProvisioning_Preview(t *testing.T) {

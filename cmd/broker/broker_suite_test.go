@@ -678,9 +678,8 @@ func (s *BrokerSuiteTest) ReadResponse(resp *http.Response) []byte {
 	return m
 }
 
-
 func (s *BrokerSuiteTest) DecodeOperationID(resp *http.Response) string {
-	m := s.ReadResponse(resp)	
+	m := s.ReadResponse(resp)
 	var provisioningResp struct {
 		Operation string `json:"operation"`
 	}
