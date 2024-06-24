@@ -302,7 +302,7 @@ func (b *ProvisionEndpoint) validateAndExtract(details domain.ProvisionDetails, 
 		return ersContext, parameters, fmt.Errorf("while validating input parameters: %w", result.Error)
 	}
 
-	// EU Access: reject requests for not whitelisted globalAccountIds
+	// EU Access
 	if isEuRestrictedAccess(ctx) {
 		logger.Infof("EU Access restricted instance creation")
 	}

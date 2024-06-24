@@ -30,12 +30,12 @@ import (
 )
 
 const (
-	serviceID                  = "47c9dcbf-ff30-448e-ab36-d3bad66ba281"
-	planID                     = "4deee563-e5ec-4731-b9b1-53b42d855f0c"
-	clusterRegion              = "westeurope"
-	globalAccountID            = "e8f7ec0a-0cd6-41f0-905d-5d1efa9fb6c4"
-	subAccountID               = "3cb65e5b-e455-4799-bf35-be46e8f5a533"
-	userID                     = "test@test.pl"
+	serviceID       = "47c9dcbf-ff30-448e-ab36-d3bad66ba281"
+	planID          = "4deee563-e5ec-4731-b9b1-53b42d855f0c"
+	clusterRegion   = "westeurope"
+	globalAccountID = "e8f7ec0a-0cd6-41f0-905d-5d1efa9fb6c4"
+	subAccountID    = "3cb65e5b-e455-4799-bf35-be46e8f5a533"
+	userID          = "test@test.pl"
 
 	instanceID           = "d3d5dca4-5dc8-44ee-a825-755c2a3fb839"
 	otherInstanceID      = "87bfaeaa-48eb-40d6-84f3-3d5368eed3eb"
@@ -1027,7 +1027,7 @@ func TestProvision_Provision(t *testing.T) {
 			factoryBuilder,
 			broker.PlansConfig{},
 			planDefaults,
-						logrus.StandardLogger(),
+			logrus.StandardLogger(),
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
@@ -1109,65 +1109,6 @@ func TestProvision_Provision(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("Should fail for not whitelisted globalAccountId - EU Access", func(t *testing.T) {
-		// given
-		memoryStorage := storage.NewMemoryStorage()
-
-		queue := &automock.Queue{}
-		queue.On("Add", mock.AnythingOfType("string"))
-
-		factoryBuilder := &automock.PlanValidator{}
-		factoryBuilder.On("IsPlanSupport", planID).Return(true)
-
-		planDefaults := func(planID string, platformProvider internal.CloudProvider, provider *internal.CloudProvider) (*gqlschema.ClusterConfigInput, error) {
-			return &gqlschema.ClusterConfigInput{}, nil
-		}
-		kcBuilder := &kcMock.KcBuilder{}
-		// #create provisioner endpoint
-		provisionEndpoint := broker.NewProvision(
-			broker.Config{
-				EnablePlans:              []string{"gcp", "azure"},
-				URL:                      brokerURL,
-				OnlySingleTrialPerGA:     true,
-				EnableKubeconfigURLLabel: true,
-			},
-			gardener.Config{Project: "test", ShootDomain: "example.com", DNSProviders: fixDNSProviders()},
-			memoryStorage.Operations(),
-			memoryStorage.Instances(),
-			memoryStorage.InstancesArchived(),
-			queue,
-			factoryBuilder,
-			broker.PlansConfig{},
-			planDefaults,
-						logrus.StandardLogger(),
-			dashboardConfig,
-			kcBuilder,
-			whitelist.Set{},
-			&broker.OneForAllConvergedCloudRegionsProvider{},
-		)
-
-		oidcParams := `"clientID":"client-id","issuerURL":"https://test.local","signingAlgs":["RS256"]`
-		err := fmt.Errorf("request rejected, your globalAccountId is not whitelisted")
-		errMsg := fmt.Sprintf("[instanceID: %s] %s", instanceID, err)
-		expectedErr := apiresponses.NewFailureResponse(err, http.StatusBadRequest, errMsg)
-
-		// when
-		_, err = provisionEndpoint.Provision(fixRequestContext(t, "cf-eu11"), instanceID, domain.ProvisionDetails{
-			ServiceID:     serviceID,
-			PlanID:        planID,
-			RawParameters: json.RawMessage(fmt.Sprintf(`{"name": "%s", "region": "%s", "oidc":{ %s }}`, clusterName, "switzerlandnorth", oidcParams)),
-			RawContext:    json.RawMessage(fmt.Sprintf(`{"globalaccount_id": "%s", "subaccount_id": "%s", "user_id": "%s"}`, globalAccountID, subAccountID, "Test@Test.pl")),
-		}, true)
-		t.Logf("%+v\n", *provisionEndpoint)
-
-		// then
-		require.Error(t, err)
-		assert.IsType(t, &apiresponses.FailureResponse{}, err)
-		apierr := err.(*apiresponses.FailureResponse)
-		assert.Equal(t, expectedErr.ValidatedStatusCode(nil), apierr.ValidatedStatusCode(nil))
-		assert.Equal(t, expectedErr.LoggerAction(), apierr.LoggerAction())
-	})
-
 	t.Run("first freemium is allowed", func(t *testing.T) {
 		// given
 		memoryStorage := storage.NewMemoryStorage()
@@ -1192,7 +1133,7 @@ func TestProvision_Provision(t *testing.T) {
 			factoryBuilder,
 			broker.PlansConfig{},
 			planDefaults,
-						logrus.StandardLogger(),
+			logrus.StandardLogger(),
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
@@ -1260,7 +1201,7 @@ func TestProvision_Provision(t *testing.T) {
 			factoryBuilder,
 			broker.PlansConfig{},
 			planDefaults,
-						logrus.StandardLogger(),
+			logrus.StandardLogger(),
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
@@ -1318,7 +1259,7 @@ func TestProvision_Provision(t *testing.T) {
 			factoryBuilder,
 			broker.PlansConfig{},
 			planDefaults,
-						logrus.StandardLogger(),
+			logrus.StandardLogger(),
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{globalAccountID: struct{}{}},
@@ -1374,7 +1315,7 @@ func TestProvision_Provision(t *testing.T) {
 			factoryBuilder,
 			broker.PlansConfig{},
 			planDefaults,
-						logrus.StandardLogger(),
+			logrus.StandardLogger(),
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
@@ -1421,7 +1362,7 @@ func TestProvision_Provision(t *testing.T) {
 			factoryBuilder,
 			broker.PlansConfig{},
 			planDefaults,
-						logrus.StandardLogger(),
+			logrus.StandardLogger(),
 			dashboardConfig,
 			kcBuilder,
 			whitelist.Set{},
