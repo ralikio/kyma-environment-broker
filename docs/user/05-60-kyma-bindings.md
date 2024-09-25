@@ -19,4 +19,4 @@ As a result of the above call the Broker will return a Kubeconfig file in the re
 
 | Name | Default | Description |
 |---|---|---|
-| `token_request` | `false` | If set to `true` the Broker will return a kubeconfig with JWT token used as user authentication mechanism. The token itself ise generated using K8S's TokenRequest that is attached to a service account, clusterroel and clusterrolebinding all named `kyma-binding-{{binding_id}}`. Such approach allows to easily modify permissions granted to the Kubeconfig. |
+| `token_request` | `false` | If set to `true` the Broker will return a kubeconfig with JWT token used as user authentication mechanism. The token itself ise generated using K8S's TokenRequest that is attached to a ServiceAccount, ClusterRole and ClusterRoleBinding all named `kyma-binding-{{binding_id}}`. Such approach allows to easily modify permissions granted to the Kubeconfig. |
