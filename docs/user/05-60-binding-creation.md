@@ -1,2 +1,0 @@
-# Kyma Binding Creation
-
