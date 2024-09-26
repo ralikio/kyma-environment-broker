@@ -1,6 +1,6 @@
 # Kyma Bindings
 
-One of the Broker API endpoints related to bindings allow for management of credentials for accessing given service. The endpoints in question include all subpaths of `v2/service_instances/<service_id>/service_bindings`. In case of Kyma Environment Broker, the generated credentials are in the form of a Kubeconfig for managed SKR cluster. To generated a kubeconfig for a given SKR instance sent the following request to the Broker API:
+You can manage credentials for accessing a given service through a Broker API endpoint related to bindings. The Broker API endpoints include all subpaths of `v2/service_instances/<service_id>/service_bindings`. In the case of Kyma Environment Broker (KEB), the generated credentials are a kubeconfig for a managed Kyma cluster. To generate a kubeconfig for a given Kyma instance, send the following request to the Broker API:
 
 ```
 PUT http://localhost:8080/oauth/v2/service_instances/{{instance_id}}/service_bindings/{{binding_id}}?accepts_incomplete=true&accepts_incomplete=true&service_id={{service_id}}&plan_id={{plan_id}}
@@ -15,8 +15,8 @@ X-Broker-API-Version: 2.14
 }
 ```
 
-As a result of the above call the Broker will return a Kubeconfig file in the response body. The Kubeconfig file will contain the necessary information to access the managed SKR cluster. By default, Kyma Environment Broker uses [`shoots/adminkubeconfig`](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_access.md#shootsadminkubeconfig-subresource) subresources to generate a Kubeconfig that uses certificates to authenticate its user. To customize format of returned kubeconfig the following parameters (used in the `parameters` section of the request body) can be used:
+The Broker returns a kubeconfig file in the response body. The kubeconfig file contains the necessary information to access the managed Kyma cluster. By default, KEB uses [`shoots/adminkubeconfig`](https://github.com/gardener/gardener/blob/master/docs/usage/shoot_access.md#shootsadminkubeconfig-subresource) subresources to generate a kubeconfig that uses certificates to authenticate its user. To customize the format of the returned kubeconfig, use the `parameters` field of the request body:
 
 | Name | Default | Description |
 |---|---|---|
-| `token_request` | `false` | If set to `true` the Broker will return a kubeconfig with JWT token used as user authentication mechanism. The token itself ise generated using K8S's TokenRequest that is attached to a ServiceAccount, ClusterRole and ClusterRoleBinding all named `kyma-binding-{{binding_id}}`. Such approach allows to easily modify permissions granted to the Kubeconfig. |
+| **token_request** | `false` | If set to `true`, the Broker returns a kubeconfig with a JWT token used as a user authentication mechanism. The token is generated using Kubernetes TokenRequest attached to a ServiceAccount, ClusterRole, and ClusterRoleBinding, all named `kyma-binding-{{binding_id}}`. Such an approach allows for easily modifying the permissions granted to the kubeconfig. |
