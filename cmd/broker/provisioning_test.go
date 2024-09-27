@@ -10,10 +10,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/kyma-project/kyma-environment-broker/internal/provider"
 	"github.com/stretchr/testify/require"
 
 	"github.com/google/uuid"
-	reconcilerApi "github.com/kyma-incubator/reconciler/pkg/keb"
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"github.com/stretchr/testify/assert"
@@ -74,7 +74,8 @@ func TestCatalog(t *testing.T) {
 
 func TestProvisioning_HappyPath(t *testing.T) {
 	// given
-	suite := NewProvisioningSuite(t, false, "")
+	suite := NewProvisioningSuite(t, false, "", false)
+	defer suite.TearDown()
 
 	// when
 	provisioningOperationID := suite.CreateProvisioning(RuntimeOptions{})
@@ -84,12 +85,50 @@ func TestProvisioning_HappyPath(t *testing.T) {
 	suite.AssertProvisionerStartedProvisioning(provisioningOperationID)
 
 	// when
-	suite.FinishProvisioningOperationByProvisionerAndReconciler(provisioningOperationID)
+	suite.FinishProvisioningOperationByProvisioner(provisioningOperationID)
 
 	// then
 	suite.WaitForProvisioningState(provisioningOperationID, domain.Succeeded)
 	suite.AssertAllStagesFinished(provisioningOperationID)
 	suite.AssertProvisioningRequest()
+}
+
+func TestProvisioningWithKIM(t *testing.T) {
+	// this test is used for developing KIM integration. The main reason is to just print the Runtime CR as YAML as a result of a process
+
+	cfg := fixConfig()
+	cfg.Broker.KimConfig.Enabled = true
+	cfg.Broker.KimConfig.Plans = []string{"aws", "preview"}
+	cfg.Broker.KimConfig.DryRun = true
+
+	suite := NewBrokerSuiteTestWithConfig(t, cfg)
+	defer suite.TearDown()
+	iid := uuid.New().String()
+	// when
+	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu21/v2/service_instances/%s?accepts_incomplete=true", iid),
+		`{
+					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+					"plan_id": "361c511f-f939-4621-b228-d0fb79a1fe15",
+					"context": {
+						"globalaccount_id": "g-account-id",
+						"subaccount_id": "sub-id",
+						"user_id": "john.smith@email.com"
+					},
+					"parameters": {
+						"name": "testing-cluster",
+						"region": "eu-central-1",
+						"administrators":["newAdmin1@kyma.cx", "newAdmin2@kyma.cx"],
+						"autoScalerMax": 11,
+                        "autoScalerMin": 6
+					}
+		}`)
+
+	opID := suite.DecodeOperationID(resp)
+
+	suite.processProvisioningByOperationID(opID)
+
+	// then
+	suite.WaitForOperationState(opID, domain.Succeeded)
 }
 
 func TestProvisioning_HappyPathAWS(t *testing.T) {
@@ -124,10 +163,9 @@ func TestProvisioning_HappyPathAWS(t *testing.T) {
 	suite.AssertKymaAnnotationExists(opID, "compass-runtime-id-for-migration")
 	suite.AssertKymaLabelsExist(opID, map[string]string{"kyma-project.io/region": "eu-central-1"})
 	suite.AssertKymaLabelNotExists(opID, "kyma-project.io/platform-region")
-	suite.AssertSecretWithKubeconfigExists(opID)
 }
 
-func TestProvisioning_HappyPathSapConvergedCloud(t *testing.T) {
+func TestProvisioning_SeedAndShootSameRegion_Disabled(t *testing.T) {
 	// given
 	suite := NewBrokerSuiteTest(t)
 	defer suite.TearDown()
@@ -136,6 +174,100 @@ func TestProvisioning_HappyPathSapConvergedCloud(t *testing.T) {
 	// when
 	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
 		`{
+					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+					"plan_id": "361c511f-f939-4621-b228-d0fb79a1fe15",
+					"context": {
+						"globalaccount_id": "g-account-id",
+						"subaccount_id": "sub-id",
+						"user_id": "john.smith@email.com"
+					},
+					"parameters": {
+						"name": "testing-cluster",
+						"region": "eu-central-1",
+						"shootAndSeedSameRegion": true
+					}
+		}`)
+	opID := suite.DecodeOperationID(resp)
+
+	suite.processProvisioningByOperationID(opID)
+
+	// then
+	suite.WaitForOperationState(opID, domain.Succeeded)
+	assert.False(t, suite.provisionerClient.IsSeedAndRegionValidationEnabled())
+}
+
+func TestProvisioning_SeedAndShootSameRegion_Enabled(t *testing.T) {
+	// given
+	cfg := fixConfig()
+	cfg.Broker.EnableShootAndSeedSameRegion = true
+	cfg.Provisioner.EnableShootAndSeedSameRegion = true
+	suite := NewBrokerSuiteTestWithConfig(t, cfg)
+	defer suite.TearDown()
+	iid := uuid.New().String()
+
+	// when
+	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
+		`{
+					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+					"plan_id": "361c511f-f939-4621-b228-d0fb79a1fe15",
+					"context": {
+						"globalaccount_id": "g-account-id",
+						"subaccount_id": "sub-id",
+						"user_id": "john.smith@email.com"
+					},
+					"parameters": {
+						"name": "testing-cluster",
+						"region": "eu-central-1",
+						"shootAndSeedSameRegion": true
+					}
+		}`)
+	opID := suite.DecodeOperationID(resp)
+
+	suite.processProvisioningByOperationID(opID)
+
+	// then
+	suite.WaitForOperationState(opID, domain.Succeeded)
+	assert.True(t, suite.provisionerClient.IsSeedAndRegionValidationEnabled())
+}
+
+func TestProvisioning_HappyPathSapConvergedCloud(t *testing.T) {
+	// given
+	suite := NewBrokerSuiteTest(t)
+	defer suite.TearDown()
+	iid := uuid.New().String()
+
+	t.Run("should provision SAP Converged Cloud", func(t *testing.T) {
+		// when
+		resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu20-staging/v2/service_instances/%s?accepts_incomplete=true", iid),
+			`{
+						"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+						"plan_id": "03b812ac-c991-4528-b5bd-08b303523a63",
+						"context": {
+							"globalaccount_id": "g-account-id",
+							"subaccount_id": "sub-id",
+							"user_id": "john.smith@email.com"
+						},
+						"parameters": {
+							"name": "testing-cluster",
+							"region": "eu-de-1"
+						}
+			}`)
+		opID := suite.DecodeOperationID(resp)
+
+		suite.processProvisioningByOperationID(opID)
+
+		// then
+		suite.WaitForOperationState(opID, domain.Succeeded)
+
+		suite.AssertKymaResourceExists(opID)
+		suite.AssertKymaAnnotationExists(opID, "compass-runtime-id-for-migration")
+		suite.AssertKymaLabelsExist(opID, map[string]string{"kyma-project.io/region": "eu-de-1"})
+	})
+
+	t.Run("should fail for invalid platform region - invalid platform region", func(t *testing.T) {
+		// when
+		resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/invalid/v2/service_instances/%s?accepts_incomplete=true", iid),
+			`{
 					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
 					"plan_id": "03b812ac-c991-4528-b5bd-08b303523a63",
 					"context": {
@@ -148,18 +280,52 @@ func TestProvisioning_HappyPathSapConvergedCloud(t *testing.T) {
 						"region": "eu-de-1"
 					}
 		}`)
-	opID := suite.DecodeOperationID(resp)
+		parsedResponse := suite.ReadResponse(resp)
+		assert.Contains(t, string(parsedResponse), "plan-id not in the catalog")
+	})
 
-	suite.processProvisioningByOperationID(opID)
+	t.Run("should fail for invalid platform region - default platform region", func(t *testing.T) {
 
-	// then
-	suite.WaitForOperationState(opID, domain.Succeeded)
+		// when
+		resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
+			`{
+					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+					"plan_id": "03b812ac-c991-4528-b5bd-08b303523a63",
+					"context": {
+						"globalaccount_id": "g-account-id",
+						"subaccount_id": "sub-id",
+						"user_id": "john.smith@email.com"
+					},
+					"parameters": {
+						"name": "testing-cluster",
+						"region": "eu-de-1"
+					}
+		}`)
+		parsedResponse := suite.ReadResponse(resp)
+		assert.Contains(t, string(parsedResponse), "plan-id not in the catalog")
+	})
 
-	suite.AssertKymaResourceExists(opID)
-	suite.AssertKymaAnnotationExists(opID, "compass-runtime-id-for-migration")
-	suite.AssertKymaLabelsExist(opID, map[string]string{"kyma-project.io/region": "eu-de-1"})
-	suite.AssertKymaLabelNotExists(opID, "kyma-project.io/platform-region")
-	suite.AssertSecretWithKubeconfigExists(opID)
+	t.Run("should fail for invalid platform region - invalid Kyma region", func(t *testing.T) {
+
+		// when
+		resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu20-staging/v2/service_instances/%s?accepts_incomplete=true", iid),
+			`{
+					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+					"plan_id": "03b812ac-c991-4528-b5bd-08b303523a63",
+					"context": {
+						"globalaccount_id": "g-account-id",
+						"subaccount_id": "sub-id",
+						"user_id": "john.smith@email.com"
+					},
+					"parameters": {
+						"name": "testing-cluster",
+						"region": "invalid"
+					}
+		}`)
+		parsedResponse := suite.ReadResponse(resp)
+		assert.Contains(t, string(parsedResponse), "while validating input parameters: region: region must be one of the following")
+	})
+
 }
 
 func TestProvisioning_Preview(t *testing.T) {
@@ -185,7 +351,7 @@ func TestProvisioning_Preview(t *testing.T) {
 		}`)
 	opID := suite.DecodeOperationID(resp)
 
-	suite.processProvisioningByOperationID(opID)
+	suite.waitForRuntimeAndMakeItReady(opID)
 
 	suite.WaitForOperationState(opID, domain.Succeeded)
 
@@ -194,7 +360,6 @@ func TestProvisioning_Preview(t *testing.T) {
 		"kyma-project.io/region": "eu-central-1",
 	})
 	suite.AssertKymaLabelNotExists(opID, "kyma-project.io/platform-region")
-	suite.AssertSecretWithKubeconfigExists(opID)
 }
 
 func TestProvisioning_NetworkingParametersForAWS(t *testing.T) {
@@ -220,6 +385,42 @@ func TestProvisioning_NetworkingParametersForAWS(t *testing.T) {
 					"region": "eu-central-1",
 					"networking": {
 						"nodes": "192.168.48.0/20"
+					}
+				}
+			}
+		}`)
+	opID := suite.DecodeOperationID(resp)
+
+	suite.processProvisioningByOperationID(opID)
+
+	suite.WaitForOperationState(opID, domain.Succeeded)
+}
+
+func TestProvisioning_AllNetworkingParametersForAWS(t *testing.T) {
+	// given
+	suite := NewBrokerSuiteTest(t)
+	defer suite.TearDown()
+	iid := uuid.New().String()
+
+	// when
+	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
+		`{
+				"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+				"plan_id": "361c511f-f939-4621-b228-d0fb79a1fe15",
+		
+				"context": {
+					"globalaccount_id": "e449f875-b5b2-4485-b7c0-98725c0571bf",
+						"subaccount_id": "test",
+					"user_id": "piotr.miskiewicz@sap.com"
+					
+				},
+				"parameters": {
+					"name": "test",
+					"region": "eu-central-1",
+					"networking": {
+						"nodes": "192.168.48.0/20",
+						"pods": "10.104.0.0/24",
+						"services": "10.105.0.0/24"
 					}
 				}
 			}
@@ -493,8 +694,7 @@ func TestProvisioning_Conflict(t *testing.T) {
 						"user_id": "john.smith@email.com"
 					},
 					"parameters": {
-						"name": "testing-cluster",
-						"kymaVersion": "2.4.0"
+						"name": "testing-cluster"
 					}
 		}`)
 	opID := suite.DecodeOperationID(resp)
@@ -516,8 +716,7 @@ func TestProvisioning_Conflict(t *testing.T) {
 						"user_id": "john.smith@email.com"
 					},
 					"parameters": {
-						"name": "testing-cluster",
-						"kymaVersion": "2.5.0"
+						"name": "testing-cluster-2"
 					}
 		}`)
 	// then
@@ -552,7 +751,6 @@ func TestProvisioning_OwnCluster(t *testing.T) {
 					}
 		}`)
 	opID := suite.DecodeOperationID(resp)
-	suite.FinishReconciliation(opID)
 
 	// then
 	suite.WaitForOperationState(opID, domain.Succeeded)
@@ -679,133 +877,6 @@ func TestProvisioning_HandleExistingOperation(t *testing.T) {
 	assert.Equal(t, string(firstBodyBytes), string(secondBodyBytes))
 }
 
-func TestProvisioningWithReconciler_HappyPath(t *testing.T) {
-	// given
-	suite := NewBrokerSuiteTest(t, "2.0")
-	defer suite.TearDown()
-	iid := uuid.New().String()
-
-	// when
-	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", iid),
-		`{
-			"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
-			"plan_id": "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
-			"context": {
-				"url": "https://sm.url",
-				"sm_operator_credentials": {
-					"clientid": "testClientID",
-					"clientsecret": "testClientSecret",
-					"sm_url": "https://service-manager.kyma.com",
-					"url": "https://test.auth.com",
-					"xsappname": "testXsappname"
-				},
-				"globalaccount_id": "g-account-id",
-				"subaccount_id": "sub-id",
-				"user_id": "john.smith@email.com"
-			},
-			"parameters": {
-				"name": "testing-cluster"
-			}
-		}`)
-
-	opID := suite.DecodeOperationID(resp)
-	suite.processProvisioningByOperationID(opID)
-	suite.WaitForOperationState(opID, domain.Succeeded)
-	provisioningOp, _ := suite.db.Operations().GetProvisioningOperationByID(opID)
-	clusterID := provisioningOp.InstanceDetails.ServiceManagerClusterID
-
-	// then
-	suite.AssertProvider("aws")
-	suite.AssertProvisionRuntimeInputWithoutKymaConfig()
-
-	suite.AssertClusterMetadata(opID, reconcilerApi.Metadata{
-		GlobalAccountID: "g-account-id",
-		SubAccountID:    "sub-id",
-		ServiceID:       "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
-		ServicePlanID:   "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
-		ServicePlanName: "trial",
-		ShootName:       suite.ShootName(opID),
-		InstanceID:      iid,
-		Region:          "eu-west-1",
-	})
-
-	suite.AssertClusterKymaConfig(opID, reconcilerApi.KymaConfig{
-		Version:        "2.0",
-		Profile:        "Evaluation",
-		Administrators: []string{"john.smith@email.com"},
-		Components:     suite.fixExpectedComponentListWithSMOperator(opID, clusterID),
-	})
-	suite.AssertClusterConfigWithKubeconfig(opID)
-	suite.AssertKymaLabelsExist(opID, map[string]string{
-		"kyma-project.io/region":          "eu-west-1",
-		"kyma-project.io/platform-region": "cf-eu10",
-	})
-
-}
-
-func TestProvisioningWithReconcilerWithBTPOperator_HappyPath(t *testing.T) {
-	// given
-	suite := NewBrokerSuiteTest(t, "2.0")
-	defer suite.TearDown()
-	iid := uuid.New().String()
-
-	// when
-	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", iid),
-		`{
-					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
-					"plan_id": "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
-					"context": {
-						"sm_operator_credentials": {
-						  "clientid": "testClientID",
-						  "clientsecret": "testClientSecret",
-						  "sm_url": "https://service-manager.kyma.com",
-						  "url": "https://test.auth.com",
-						  "xsappname": "testXsappname"
-						},
-						"globalaccount_id": "g-account-id",
-						"subaccount_id": "sub-id",
-						"user_id": "john.smith@email.com"
-					},
-					"parameters": {
-						"name": "testing-cluster"
-					}
-		}`)
-
-	opID := suite.DecodeOperationID(resp)
-	suite.processProvisioningByOperationID(opID)
-	suite.WaitForOperationState(opID, domain.Succeeded)
-
-	// then
-	suite.AssertProvider("aws")
-	suite.AssertProvisionRuntimeInputWithoutKymaConfig()
-
-	suite.AssertClusterMetadata(opID, reconcilerApi.Metadata{
-		GlobalAccountID: "g-account-id",
-		SubAccountID:    "sub-id",
-		ServiceID:       "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
-		ServicePlanID:   "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
-		ServicePlanName: "trial",
-		ShootName:       suite.ShootName(opID),
-		InstanceID:      iid,
-		Region:          "eu-west-1",
-	})
-
-	op, _ := suite.db.Operations().GetProvisioningOperationByID(opID)
-	suite.AssertClusterKymaConfig(opID, reconcilerApi.KymaConfig{
-		Version:        "2.0",
-		Profile:        "Evaluation",
-		Administrators: []string{"john.smith@email.com"},
-		Components:     suite.fixExpectedComponentListWithSMOperator(opID, op.InstanceDetails.ServiceManagerClusterID),
-	})
-
-	suite.AssertClusterConfigWithKubeconfig(opID)
-	suite.AssertKymaLabelsExist(opID, map[string]string{
-		"kyma-project.io/region":          "eu-west-1",
-		"kyma-project.io/platform-region": "cf-eu10",
-	})
-
-}
-
 func TestProvisioning_ClusterParameters(t *testing.T) {
 	for tn, tc := range map[string]struct {
 		planID                       string
@@ -814,9 +885,9 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 		region                       string
 		multiZone                    bool
 		controlPlaneFailureTolerance string
+		useSmallerMachineTypes       bool
 
 		expectedZonesCount                  *int
-		expectedProfile                     gqlschema.KymaProfile
 		expectedProvider                    string
 		expectedMinimalNumberOfNodes        int
 		expectedMaximumNumberOfNodes        int
@@ -830,7 +901,17 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 			expectedMinimalNumberOfNodes:        1,
 			expectedMaximumNumberOfNodes:        1,
 			expectedMachineType:                 "Standard_D4s_v5",
-			expectedProfile:                     gqlschema.KymaProfileEvaluation,
+			expectedProvider:                    "azure",
+			expectedSharedSubscription:          true,
+			expectedSubscriptionHyperscalerType: hyperscaler.Azure(),
+		},
+		"Regular trial with smaller machines": {
+			planID:                 broker.TrialPlanID,
+			useSmallerMachineTypes: true,
+
+			expectedMinimalNumberOfNodes:        1,
+			expectedMaximumNumberOfNodes:        1,
+			expectedMachineType:                 "Standard_D2s_v5",
 			expectedProvider:                    "azure",
 			expectedSharedSubscription:          true,
 			expectedSubscriptionHyperscalerType: hyperscaler.Azure(),
@@ -841,10 +922,21 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 
 			expectedMinimalNumberOfNodes:        1,
 			expectedMaximumNumberOfNodes:        1,
-			expectedProfile:                     gqlschema.KymaProfileEvaluation,
 			expectedProvider:                    "aws",
 			expectedSharedSubscription:          false,
 			expectedMachineType:                 "m5.xlarge",
+			expectedSubscriptionHyperscalerType: hyperscaler.AWS(),
+		},
+		"Freemium aws with smaller machines": {
+			planID:                 broker.FreemiumPlanID,
+			platformProvider:       internal.AWS,
+			useSmallerMachineTypes: true,
+
+			expectedMinimalNumberOfNodes:        1,
+			expectedMaximumNumberOfNodes:        1,
+			expectedProvider:                    "aws",
+			expectedSharedSubscription:          false,
+			expectedMachineType:                 "m6i.large",
 			expectedSubscriptionHyperscalerType: hyperscaler.AWS(),
 		},
 		"Freemium azure": {
@@ -853,10 +945,21 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 
 			expectedMinimalNumberOfNodes:        1,
 			expectedMaximumNumberOfNodes:        1,
-			expectedProfile:                     gqlschema.KymaProfileEvaluation,
 			expectedProvider:                    "azure",
 			expectedSharedSubscription:          false,
 			expectedMachineType:                 "Standard_D4s_v5",
+			expectedSubscriptionHyperscalerType: hyperscaler.Azure(),
+		},
+		"Freemium azure with smaller machines": {
+			planID:                 broker.FreemiumPlanID,
+			platformProvider:       internal.Azure,
+			useSmallerMachineTypes: true,
+
+			expectedMinimalNumberOfNodes:        1,
+			expectedMaximumNumberOfNodes:        1,
+			expectedProvider:                    "azure",
+			expectedSharedSubscription:          false,
+			expectedMachineType:                 "Standard_D2s_v5",
 			expectedSubscriptionHyperscalerType: hyperscaler.Azure(),
 		},
 		"Production Azure": {
@@ -867,8 +970,7 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 			expectedZonesCount:                  ptr.Integer(1),
 			expectedMinimalNumberOfNodes:        3,
 			expectedMaximumNumberOfNodes:        20,
-			expectedMachineType:                 "Standard_D4s_v5",
-			expectedProfile:                     gqlschema.KymaProfileProduction,
+			expectedMachineType:                 provider.DefaultAzureMachineType,
 			expectedProvider:                    "azure",
 			expectedSharedSubscription:          false,
 			expectedSubscriptionHyperscalerType: hyperscaler.Azure(),
@@ -882,8 +984,7 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 			expectedZonesCount:                  ptr.Integer(3),
 			expectedMinimalNumberOfNodes:        3,
 			expectedMaximumNumberOfNodes:        20,
-			expectedMachineType:                 "Standard_D4s_v5",
-			expectedProfile:                     gqlschema.KymaProfileProduction,
+			expectedMachineType:                 provider.DefaultAzureMachineType,
 			expectedProvider:                    "azure",
 			expectedSharedSubscription:          false,
 			expectedSubscriptionHyperscalerType: hyperscaler.Azure(),
@@ -896,8 +997,7 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 			expectedZonesCount:                  ptr.Integer(1),
 			expectedMinimalNumberOfNodes:        3,
 			expectedMaximumNumberOfNodes:        20,
-			expectedMachineType:                 "m5.xlarge",
-			expectedProfile:                     gqlschema.KymaProfileProduction,
+			expectedMachineType:                 provider.DefaultAWSMachineType,
 			expectedProvider:                    "aws",
 			expectedSharedSubscription:          false,
 			expectedSubscriptionHyperscalerType: hyperscaler.AWS(),
@@ -911,8 +1011,7 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 			expectedZonesCount:                  ptr.Integer(3),
 			expectedMinimalNumberOfNodes:        3,
 			expectedMaximumNumberOfNodes:        20,
-			expectedMachineType:                 "m5.xlarge",
-			expectedProfile:                     gqlschema.KymaProfileProduction,
+			expectedMachineType:                 provider.DefaultAWSMachineType,
 			expectedProvider:                    "aws",
 			expectedSharedSubscription:          false,
 			expectedSubscriptionHyperscalerType: hyperscaler.AWS(),
@@ -925,11 +1024,24 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 			expectedZonesCount:                  ptr.Integer(1),
 			expectedMinimalNumberOfNodes:        3,
 			expectedMaximumNumberOfNodes:        20,
-			expectedMachineType:                 "n2-standard-4",
-			expectedProfile:                     gqlschema.KymaProfileProduction,
+			expectedMachineType:                 provider.DefaultGCPMachineType,
 			expectedProvider:                    "gcp",
 			expectedSharedSubscription:          false,
-			expectedSubscriptionHyperscalerType: hyperscaler.GCP(),
+			expectedSubscriptionHyperscalerType: hyperscaler.GCP("cf-us30"),
+		},
+		"Production GCP KSA": {
+			planID:         broker.GCPPlanID,
+			platformRegion: "cf-sa30",
+			region:         "me-central2",
+			multiZone:      false,
+
+			expectedZonesCount:                  ptr.Integer(1),
+			expectedMinimalNumberOfNodes:        3,
+			expectedMaximumNumberOfNodes:        20,
+			expectedMachineType:                 provider.DefaultGCPMachineType,
+			expectedProvider:                    "gcp",
+			expectedSharedSubscription:          false,
+			expectedSubscriptionHyperscalerType: hyperscaler.GCP("cf-sa30"),
 		},
 		"Production Multi-AZ GCP": {
 			planID:                       broker.GCPPlanID,
@@ -940,16 +1052,16 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 			expectedZonesCount:                  ptr.Integer(3),
 			expectedMinimalNumberOfNodes:        3,
 			expectedMaximumNumberOfNodes:        20,
-			expectedMachineType:                 "n2-standard-4",
-			expectedProfile:                     gqlschema.KymaProfileProduction,
+			expectedMachineType:                 provider.DefaultGCPMachineType,
 			expectedProvider:                    "gcp",
 			expectedSharedSubscription:          false,
-			expectedSubscriptionHyperscalerType: hyperscaler.GCP(),
+			expectedSubscriptionHyperscalerType: hyperscaler.GCP("cf-us30"),
 		},
 	} {
 		t.Run(tn, func(t *testing.T) {
 			// given
-			suite := NewProvisioningSuite(t, tc.multiZone, tc.controlPlaneFailureTolerance)
+			suite := NewProvisioningSuite(t, tc.multiZone, tc.controlPlaneFailureTolerance, tc.useSmallerMachineTypes)
+			defer suite.TearDown()
 
 			// when
 			provisioningOperationID := suite.CreateProvisioning(RuntimeOptions{
@@ -964,13 +1076,12 @@ func TestProvisioning_ClusterParameters(t *testing.T) {
 			suite.AssertProvisionerStartedProvisioning(provisioningOperationID)
 
 			// when
-			suite.FinishProvisioningOperationByProvisionerAndReconciler(provisioningOperationID)
+			suite.FinishProvisioningOperationByProvisioner(provisioningOperationID)
 
 			// then
 			suite.WaitForProvisioningState(provisioningOperationID, domain.Succeeded)
 			suite.AssertAllStagesFinished(provisioningOperationID)
 
-			suite.AssertKymaProfile(provisioningOperationID, tc.expectedProfile)
 			suite.AssertProvider(tc.expectedProvider)
 			suite.AssertMinimalNumberOfNodes(tc.expectedMinimalNumberOfNodes)
 			suite.AssertMaximumNumberOfNodes(tc.expectedMaximumNumberOfNodes)
@@ -987,7 +1098,8 @@ func TestProvisioning_OIDCValues(t *testing.T) {
 
 	t.Run("should apply default OIDC values when OIDC object is nil", func(t *testing.T) {
 		// given
-		suite := NewProvisioningSuite(t, false, "")
+		suite := NewProvisioningSuite(t, false, "", false)
+		defer suite.TearDown()
 		defaultOIDC := fixture.FixOIDCConfigDTO()
 		expectedOIDC := gqlschema.OIDCConfigInput{
 			ClientID:       defaultOIDC.ClientID,
@@ -1006,7 +1118,7 @@ func TestProvisioning_OIDCValues(t *testing.T) {
 		suite.AssertProvisionerStartedProvisioning(provisioningOperationID)
 
 		// when
-		suite.FinishProvisioningOperationByProvisionerAndReconciler(provisioningOperationID)
+		suite.FinishProvisioningOperationByProvisioner(provisioningOperationID)
 
 		// then
 		suite.WaitForProvisioningState(provisioningOperationID, domain.Succeeded)
@@ -1017,7 +1129,8 @@ func TestProvisioning_OIDCValues(t *testing.T) {
 
 	t.Run("should apply default OIDC values when all OIDC object's fields are empty", func(t *testing.T) {
 		// given
-		suite := NewProvisioningSuite(t, false, "")
+		suite := NewProvisioningSuite(t, false, "", false)
+		defer suite.TearDown()
 		defaultOIDC := fixture.FixOIDCConfigDTO()
 		expectedOIDC := gqlschema.OIDCConfigInput{
 			ClientID:       defaultOIDC.ClientID,
@@ -1039,7 +1152,7 @@ func TestProvisioning_OIDCValues(t *testing.T) {
 		suite.AssertProvisionerStartedProvisioning(provisioningOperationID)
 
 		// when
-		suite.FinishProvisioningOperationByProvisionerAndReconciler(provisioningOperationID)
+		suite.FinishProvisioningOperationByProvisioner(provisioningOperationID)
 
 		// then
 		suite.WaitForProvisioningState(provisioningOperationID, domain.Succeeded)
@@ -1050,7 +1163,8 @@ func TestProvisioning_OIDCValues(t *testing.T) {
 
 	t.Run("should apply provided OIDC configuration", func(t *testing.T) {
 		// given
-		suite := NewProvisioningSuite(t, false, "")
+		suite := NewProvisioningSuite(t, false, "", false)
+		defer suite.TearDown()
 		providedOIDC := internal.OIDCConfigDTO{
 			ClientID:       "fake-client-id-1",
 			GroupsClaim:    "fakeGroups",
@@ -1077,7 +1191,7 @@ func TestProvisioning_OIDCValues(t *testing.T) {
 		suite.AssertProvisionerStartedProvisioning(provisioningOperationID)
 
 		// when
-		suite.FinishProvisioningOperationByProvisionerAndReconciler(provisioningOperationID)
+		suite.FinishProvisioningOperationByProvisioner(provisioningOperationID)
 
 		// then
 		suite.WaitForProvisioningState(provisioningOperationID, domain.Succeeded)
@@ -1088,7 +1202,8 @@ func TestProvisioning_OIDCValues(t *testing.T) {
 
 	t.Run("should apply default OIDC values on empty OIDC params from input", func(t *testing.T) {
 		// given
-		suite := NewProvisioningSuite(t, false, "")
+		suite := NewProvisioningSuite(t, false, "", false)
+		defer suite.TearDown()
 		providedOIDC := internal.OIDCConfigDTO{
 			ClientID:  "fake-client-id-1",
 			IssuerURL: "https://testurl.local",
@@ -1112,7 +1227,7 @@ func TestProvisioning_OIDCValues(t *testing.T) {
 		suite.AssertProvisionerStartedProvisioning(provisioningOperationID)
 
 		// when
-		suite.FinishProvisioningOperationByProvisionerAndReconciler(provisioningOperationID)
+		suite.FinishProvisioningOperationByProvisioner(provisioningOperationID)
 
 		// then
 		suite.WaitForProvisioningState(provisioningOperationID, domain.Succeeded)
@@ -1125,7 +1240,8 @@ func TestProvisioning_OIDCValues(t *testing.T) {
 func TestProvisioning_RuntimeAdministrators(t *testing.T) {
 	t.Run("should use UserID as default value for admins list", func(t *testing.T) {
 		// given
-		suite := NewProvisioningSuite(t, false, "")
+		suite := NewProvisioningSuite(t, false, "", false)
+		defer suite.TearDown()
 		options := RuntimeOptions{
 			UserID: "fake-user-id",
 		}
@@ -1139,7 +1255,7 @@ func TestProvisioning_RuntimeAdministrators(t *testing.T) {
 		suite.AssertProvisionerStartedProvisioning(provisioningOperationID)
 
 		// when
-		suite.FinishProvisioningOperationByProvisionerAndReconciler(provisioningOperationID)
+		suite.FinishProvisioningOperationByProvisioner(provisioningOperationID)
 
 		// then
 		suite.WaitForProvisioningState(provisioningOperationID, domain.Succeeded)
@@ -1150,7 +1266,8 @@ func TestProvisioning_RuntimeAdministrators(t *testing.T) {
 
 	t.Run("should apply new admins list", func(t *testing.T) {
 		// given
-		suite := NewProvisioningSuite(t, false, "")
+		suite := NewProvisioningSuite(t, false, "", false)
+		defer suite.TearDown()
 		options := RuntimeOptions{
 			UserID:        "fake-user-id",
 			RuntimeAdmins: []string{"admin1@test.com", "admin2@test.com"},
@@ -1165,7 +1282,7 @@ func TestProvisioning_RuntimeAdministrators(t *testing.T) {
 		suite.AssertProvisionerStartedProvisioning(provisioningOperationID)
 
 		// when
-		suite.FinishProvisioningOperationByProvisionerAndReconciler(provisioningOperationID)
+		suite.FinishProvisioningOperationByProvisioner(provisioningOperationID)
 
 		// then
 		suite.WaitForProvisioningState(provisioningOperationID, domain.Succeeded)
@@ -1176,7 +1293,8 @@ func TestProvisioning_RuntimeAdministrators(t *testing.T) {
 
 	t.Run("should apply empty admin value (list is not empty)", func(t *testing.T) {
 		// given
-		suite := NewProvisioningSuite(t, false, "")
+		suite := NewProvisioningSuite(t, false, "", false)
+		defer suite.TearDown()
 		options := RuntimeOptions{
 			UserID:        "fake-user-id",
 			RuntimeAdmins: []string{""},
@@ -1191,7 +1309,7 @@ func TestProvisioning_RuntimeAdministrators(t *testing.T) {
 		suite.AssertProvisionerStartedProvisioning(provisioningOperationID)
 
 		// when
-		suite.FinishProvisioningOperationByProvisionerAndReconciler(provisioningOperationID)
+		suite.FinishProvisioningOperationByProvisioner(provisioningOperationID)
 
 		// then
 		suite.WaitForProvisioningState(provisioningOperationID, domain.Succeeded)
@@ -1269,38 +1387,6 @@ func TestProvisioning_WithNetworkFilter(t *testing.T) {
 	disabled := true
 	suite.AssertDisabledNetworkFilterForProvisioning(&disabled)
 	assert.Equal(suite.t, "CUSTOMER", *instance.Parameters.ErsContext.LicenseType)
-}
-
-func TestProvisioning_PRVersionWithoutOverrides(t *testing.T) {
-	// given
-	suite := NewBrokerSuiteTest(t)
-	defer suite.TearDown()
-	iid := uuid.New().String()
-
-	// when
-	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-ch20/v2/service_instances/%s?accepts_incomplete=true", iid),
-		`{
-					"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
-					"plan_id": "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
-					"context": {
-						"sm_platform_credentials": {
-							  "url": "https://sm.url",
-							  "credentials": {}
-					    },
-						"globalaccount_id": "whitelisted-global-account-id",
-						"subaccount_id": "sub-id",
-						"user_id": "john.smith@email.com"
-					},
-					"parameters": {
-						"name": "testing-cluster",
-						"overridesVersion":"",
-						"kymaVersion":"PR-99999"
-					}
-		}`)
-	opID := suite.DecodeOperationID(resp)
-
-	// then
-	suite.WaitForProvisioningState(opID, domain.Failed)
 }
 
 func TestProvisioning_Modules(t *testing.T) {

@@ -14,7 +14,7 @@
     "autoScalerMax": {
       "default": 20,
       "description": "Specifies the maximum number of virtual machines to create",
-      "maximum": 80,
+      "maximum": 300,
       "minimum": 3,
       "type": "integer"
     },
@@ -25,17 +25,33 @@
       "type": "integer"
     },
     "machineType": {
+      "_enumDisplayName": {
+        "m5.large":     "m5.large (2vCPU, 8GB RAM)",
+        "m5.xlarge":    "m5.xlarge (4vCPU, 16GB RAM)",
+        "m5.2xlarge":   "m5.2xlarge (8vCPU, 32GB RAM)",
+        "m5.4xlarge":   "m5.4xlarge (16vCPU, 64GB RAM)",
+        "m5.8xlarge":   "m5.8xlarge (32vCPU, 128GB RAM)",
+        "m5.12xlarge":  "m5.12xlarge (48vCPU, 192GB RAM)",
+        "m6i.large":    "m6i.large (2vCPU, 8GB RAM)",
+        "m6i.xlarge":   "m6i.xlarge (4vCPU, 16GB RAM)",
+        "m6i.2xlarge":  "m6i.2xlarge (8vCPU, 32GB RAM)",
+        "m6i.4xlarge":  "m6i.4xlarge (16vCPU, 64GB RAM)",
+        "m6i.8xlarge":  "m6i.8xlarge (32vCPU, 128GB RAM)",
+        "m6i.12xlarge": "m6i.12xlarge (48vCPU, 192GB RAM)"
+      },
       "enum": [
-        "m5.xlarge",
-        "m5.2xlarge",
-        "m5.4xlarge",
-        "m5.8xlarge",
-        "m5.12xlarge",
+        "m6i.large",
         "m6i.xlarge",
         "m6i.2xlarge",
         "m6i.4xlarge",
         "m6i.8xlarge",
-        "m6i.12xlarge"
+        "m6i.12xlarge",
+        "m5.large",
+        "m5.xlarge",
+        "m5.2xlarge",
+        "m5.4xlarge",
+        "m5.8xlarge",
+        "m5.12xlarge"
       ],
       "type": "string"
     },
@@ -135,12 +151,24 @@
       "type": "string"
     },
     "networking": {
-      "description": "Networking configuration. These values are immutable and cannot be updated later.",
+      "description": "Networking configuration. These values are immutable and cannot be updated later. All provided CIDR ranges must not overlap one another.",
       "properties": {
         "nodes": {
           "default": "10.250.0.0/22",
-          "description": "CIDR range for nodes, must not overlap with the following CIDRs: 10.96.0.0/13, 10.104.0.0/13, 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
-          "title": "CIDR range for nodes",
+          "description": "CIDR range for Nodes, must not overlap with the following CIDRs: 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
+          "title": "CIDR range for Nodes",
+          "type": "string"
+        },
+        "pods": {
+          "default": "10.96.0.0/13",
+          "description": "CIDR range for Pods, must not overlap with the following CIDRs: 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
+          "title": "CIDR range for Pods",
+          "type": "string"
+        },
+        "services": {
+          "default": "10.104.0.0/13",
+          "description": "CIDR range for Services, must not overlap with the following CIDRs: 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
+          "title": "CIDR range for Services",
           "type": "string"
         }
       },

@@ -6,6 +6,8 @@ import (
 	"net/netip"
 	"strconv"
 
+	"github.com/kyma-project/kyma-environment-broker/internal/euaccess"
+
 	"github.com/kyma-project/kyma-environment-broker/internal/networking"
 
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
@@ -15,9 +17,11 @@ import (
 )
 
 const (
-	DefaultAzureRegion         = "eastus"
-	DefaultEuAccessAzureRegion = "switzerlandnorth"
-	DefaultAzureMultiZoneCount = 3
+	DefaultAzureRegion              = "eastus"
+	DefaultEuAccessAzureRegion      = "switzerlandnorth"
+	DefaultAzureMultiZoneCount      = 3
+	DefaultAzureMachineType         = "Standard_D2s_v5"
+	DefaultOldAzureTrialMachineType = "Standard_D4s_v5"
 )
 
 var europeAzure = "westeurope"
@@ -37,11 +41,16 @@ type (
 		MultiZone                    bool
 		ControlPlaneFailureTolerance string
 	}
-	AzureLiteInput  struct{}
-	AzureTrialInput struct {
-		PlatformRegionMapping map[string]string
+	AzureLiteInput struct {
+		UseSmallerMachineTypes bool
 	}
-	AzureFreemiumInput struct{}
+	AzureTrialInput struct {
+		PlatformRegionMapping  map[string]string
+		UseSmallerMachineTypes bool
+	}
+	AzureFreemiumInput struct {
+		UseSmallerMachineTypes bool
+	}
 )
 
 func (p *AzureInput) Defaults() *gqlschema.ClusterConfigInput {
@@ -55,9 +64,9 @@ func (p *AzureInput) Defaults() *gqlschema.ClusterConfigInput {
 	}
 	return &gqlschema.ClusterConfigInput{
 		GardenerConfig: &gqlschema.GardenerConfigInput{
-			DiskType:       ptr.String("Standard_LRS"),
-			VolumeSizeGb:   ptr.Integer(50),
-			MachineType:    "Standard_D4s_v5",
+			DiskType:       ptr.String("StandardSSD_LRS"),
+			VolumeSizeGb:   ptr.Integer(80),
+			MachineType:    DefaultAzureMachineType,
 			Region:         DefaultAzureRegion,
 			Provider:       "azure",
 			WorkerCidr:     networking.DefaultNodesCIDR,
@@ -78,7 +87,7 @@ func (p *AzureInput) Defaults() *gqlschema.ClusterConfigInput {
 }
 
 func (p *AzureInput) ApplyParameters(input *gqlschema.ClusterConfigInput, pp internal.ProvisioningParameters) {
-	if internal.IsEuAccess(pp.PlatformRegion) {
+	if euaccess.IsEURestrictedAccess(pp.PlatformRegion) {
 		updateString(&input.GardenerConfig.Region, ptr.String(DefaultEuAccessAzureRegion))
 		return
 	}
@@ -118,11 +127,15 @@ func (p *AzureInput) Provider() internal.CloudProvider {
 }
 
 func (p *AzureLiteInput) Defaults() *gqlschema.ClusterConfigInput {
+	machineType := DefaultOldAzureTrialMachineType
+	if p.UseSmallerMachineTypes {
+		machineType = DefaultAzureMachineType
+	}
 	return &gqlschema.ClusterConfigInput{
 		GardenerConfig: &gqlschema.GardenerConfigInput{
 			DiskType:       ptr.String("Standard_LRS"),
 			VolumeSizeGb:   ptr.Integer(50),
-			MachineType:    "Standard_D4s_v5",
+			MachineType:    machineType,
 			Region:         DefaultAzureRegion,
 			Provider:       "azure",
 			WorkerCidr:     networking.DefaultNodesCIDR,
@@ -147,7 +160,7 @@ func (p *AzureLiteInput) Defaults() *gqlschema.ClusterConfigInput {
 }
 
 func (p *AzureLiteInput) ApplyParameters(input *gqlschema.ClusterConfigInput, pp internal.ProvisioningParameters) {
-	if internal.IsEuAccess(pp.PlatformRegion) {
+	if euaccess.IsEURestrictedAccess(pp.PlatformRegion) {
 		updateString(&input.GardenerConfig.Region, ptr.String(DefaultEuAccessAzureRegion))
 	}
 
@@ -173,15 +186,19 @@ func (p *AzureLiteInput) Provider() internal.CloudProvider {
 }
 
 func (p *AzureTrialInput) Defaults() *gqlschema.ClusterConfigInput {
-	return azureTrialDefaults()
+	return azureTrialDefaults(p.UseSmallerMachineTypes)
 }
 
-func azureTrialDefaults() *gqlschema.ClusterConfigInput {
+func azureTrialDefaults(useSmallerMachineTypes bool) *gqlschema.ClusterConfigInput {
+	machineType := DefaultOldAzureTrialMachineType
+	if useSmallerMachineTypes {
+		machineType = DefaultAzureMachineType
+	}
 	return &gqlschema.ClusterConfigInput{
 		GardenerConfig: &gqlschema.GardenerConfigInput{
 			DiskType:       ptr.String("Standard_LRS"),
 			VolumeSizeGb:   ptr.Integer(50),
-			MachineType:    "Standard_D4s_v5",
+			MachineType:    machineType,
 			Region:         DefaultAzureRegion,
 			Provider:       "azure",
 			WorkerCidr:     networking.DefaultNodesCIDR,
@@ -209,7 +226,7 @@ func azureTrialDefaults() *gqlschema.ClusterConfigInput {
 func (p *AzureTrialInput) ApplyParameters(input *gqlschema.ClusterConfigInput, pp internal.ProvisioningParameters) {
 	params := pp.Parameters
 
-	if internal.IsEuAccess(pp.PlatformRegion) {
+	if euaccess.IsEURestrictedAccess(pp.PlatformRegion) {
 		updateString(&input.GardenerConfig.Region, ptr.String(DefaultEuAccessAzureRegion))
 		return
 	}
@@ -239,7 +256,7 @@ func (p *AzureTrialInput) Profile() gqlschema.KymaProfile {
 }
 
 func (p *AzureFreemiumInput) Defaults() *gqlschema.ClusterConfigInput {
-	return azureTrialDefaults()
+	return azureTrialDefaults(p.UseSmallerMachineTypes)
 }
 
 func (p *AzureFreemiumInput) ApplyParameters(input *gqlschema.ClusterConfigInput, params internal.ProvisioningParameters) {

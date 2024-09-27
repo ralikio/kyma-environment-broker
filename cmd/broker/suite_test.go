@@ -13,38 +13,27 @@ import (
 	"github.com/kyma-project/kyma-environment-broker/internal/process/steps"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	reconcilerApi "github.com/kyma-incubator/reconciler/pkg/keb"
 	kebConfig "github.com/kyma-project/kyma-environment-broker/internal/config"
-
-	"github.com/kyma-project/kyma-environment-broker/internal/reconciler"
 
 	"github.com/kyma-project/kyma-environment-broker/internal/fixture"
 
 	"github.com/google/uuid"
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
-	"github.com/kyma-project/kyma-environment-broker/common/director"
 	"github.com/kyma-project/kyma-environment-broker/common/gardener"
 	"github.com/kyma-project/kyma-environment-broker/common/hyperscaler"
 	hyperscalerautomock "github.com/kyma-project/kyma-environment-broker/common/hyperscaler/automock"
 	"github.com/kyma-project/kyma-environment-broker/common/orchestration"
 	"github.com/kyma-project/kyma-environment-broker/internal"
-	"github.com/kyma-project/kyma-environment-broker/internal/avs"
 	"github.com/kyma-project/kyma-environment-broker/internal/broker"
 	"github.com/kyma-project/kyma-environment-broker/internal/edp"
 	"github.com/kyma-project/kyma-environment-broker/internal/event"
-	"github.com/kyma-project/kyma-environment-broker/internal/ias"
 	"github.com/kyma-project/kyma-environment-broker/internal/notification"
 	kebOrchestration "github.com/kyma-project/kyma-environment-broker/internal/orchestration"
 	"github.com/kyma-project/kyma-environment-broker/internal/process"
 	"github.com/kyma-project/kyma-environment-broker/internal/process/input"
-	"github.com/kyma-project/kyma-environment-broker/internal/process/input/automock"
-	"github.com/kyma-project/kyma-environment-broker/internal/process/provisioning"
 	"github.com/kyma-project/kyma-environment-broker/internal/process/upgrade_cluster"
-	"github.com/kyma-project/kyma-environment-broker/internal/process/upgrade_kyma"
 	"github.com/kyma-project/kyma-environment-broker/internal/provisioner"
 	kebRuntime "github.com/kyma-project/kyma-environment-broker/internal/runtime"
-	"github.com/kyma-project/kyma-environment-broker/internal/runtimeoverrides"
-	"github.com/kyma-project/kyma-environment-broker/internal/runtimeversion"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"github.com/sirupsen/logrus"
@@ -63,20 +52,18 @@ import (
 )
 
 const (
-	globalAccountLabel     = "account"
-	subAccountLabel        = "subaccount"
-	runtimeIDAnnotation    = "kcp.provisioner.kyma-project.io/runtime-id"
-	defaultNamespace       = "kcp-system"
-	defaultKymaVer         = "2.4.0"
-	kymaVersionsConfigName = "kyma-versions"
-	defaultRegion          = "cf-eu10"
-	globalAccountID        = "dummy-ga-id"
-	dashboardURL           = "http://console.garden-dummy.kyma.io"
-	operationID            = "provisioning-op-id"
-	deprovisioningOpID     = "deprovisioning-op-id"
-	reDeprovisioningOpID   = "re-deprovisioning-op-id"
-	instanceID             = "instance-id"
-	dbSecretKey            = "1234567890123456"
+	globalAccountLabel   = "account"
+	subAccountLabel      = "subaccount"
+	runtimeIDAnnotation  = "kcp.provisioner.kyma-project.io/runtime-id"
+	defaultKymaVer       = "2.4.0"
+	defaultRegion        = "cf-eu10"
+	globalAccountID      = "dummy-ga-id"
+	dashboardURL         = "http://console.garden-dummy.kyma.io"
+	operationID          = "provisioning-op-id"
+	deprovisioningOpID   = "deprovisioning-op-id"
+	reDeprovisioningOpID = "re-deprovisioning-op-id"
+	instanceID           = "instance-id"
+	dbSecretKey          = "1234567890123456"
 
 	pollingInterval = 3 * time.Millisecond
 )
@@ -88,65 +75,71 @@ var (
 type OrchestrationSuite struct {
 	gardenerNamespace string
 	provisionerClient *provisioner.FakeClient
-	kymaQueue         *process.Queue
 	clusterQueue      *process.Queue
 	storage           storage.BrokerStorage
 	gardenerClient    dynamic.Interface
-	reconcilerClient  *reconciler.FakeClient
 
 	t *testing.T
 }
 
+func (s *OrchestrationSuite) TearDown() {
+	if r := recover(); r != nil {
+		err := cleanupContainer()
+		assert.NoError(s.t, err)
+		panic(r)
+	}
+}
+
 func NewOrchestrationSuite(t *testing.T, additionalKymaVersions []string) *OrchestrationSuite {
+	defer func() {
+		if r := recover(); r != nil {
+			err := cleanupContainer()
+			assert.NoError(t, err)
+			panic(r)
+		}
+	}()
 	logs := logrus.New()
 	logs.Formatter.(*logrus.TextFormatter).TimestampFormat = "15:04:05.000"
 
 	var cfg Config
 	cfg.OrchestrationConfig = kebOrchestration.Config{
-		KymaVersion:       defaultKymaVer,
 		KubernetesVersion: "",
-	}
-	cfg.Reconciler = reconciler.Config{
-		ProvisioningTimeout: time.Second,
 	}
 	cfg.Notification = notification.Config{
 		Url: "",
 	}
 
-	optionalComponentsDisablers := kebRuntime.ComponentsDisablers{}
-	optComponentsSvc := kebRuntime.NewOptionalComponentsService(optionalComponentsDisablers)
-
-	disabledComponentsProvider := kebRuntime.NewDisabledComponentsProvider()
-
-	componentListProvider := &automock.ComponentListProvider{}
-	componentListProvider.On("AllComponents", mock.AnythingOfType("internal.RuntimeVersionData"), mock.AnythingOfType("*internal.ConfigForPlan")).Return([]internal.
-		KymaComponent{}, nil)
-
 	oidcDefaults := fixture.FixOIDCConfigDTO()
 
-	ctx, _ := context.WithTimeout(context.Background(), 20*time.Minute)
-	db := storage.NewMemoryStorage()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+	storageCleanup, db, err := GetStorageForE2ETests()
+	assert.NoError(t, err)
+	t.Cleanup(func() {
+		defer cancel()
+		if storageCleanup != nil {
+			err := storageCleanup()
+			assert.NoError(t, err)
+		}
+	})
 	sch := runtime.NewScheme()
 	require.NoError(t, coreV1.AddToScheme(sch))
 
 	kymaVer := "2.4.0"
 	cli := fake.NewClientBuilder().WithScheme(sch).WithRuntimeObjects(fixK8sResources(kymaVer, additionalKymaVersions)...).Build()
 	configProvider := kebConfig.NewConfigProvider(
-		kebConfig.NewConfigMapReader(ctx, cli, logrus.New(), defaultKymaVer),
+		kebConfig.NewConfigMapReader(ctx, cli, logrus.New(), "keb-runtime-config"),
 		kebConfig.NewConfigMapKeysValidator(),
 		kebConfig.NewConfigMapConverter())
-	inputFactory, err := input.NewInputBuilderFactory(optComponentsSvc, disabledComponentsProvider, componentListProvider,
-		configProvider, input.Config{
-			MachineImageVersion:         "coreos",
-			KubernetesVersion:           "1.18",
-			MachineImage:                "253",
-			ProvisioningTimeout:         time.Minute,
-			URL:                         "http://localhost",
-			DefaultGardenerShootPurpose: "testing",
-		}, kymaVer, map[string]string{"cf-eu10": "europe"}, cfg.FreemiumProviders, oidcDefaults)
+	inputFactory, err := input.NewInputBuilderFactory(configProvider, input.Config{
+		MachineImageVersion:         "coreos",
+		KubernetesVersion:           "1.18",
+		MachineImage:                "253",
+		ProvisioningTimeout:         time.Minute,
+		URL:                         "http://localhost",
+		DefaultGardenerShootPurpose: "testing",
+	}, map[string]string{"cf-eu10": "europe"}, cfg.FreemiumProviders, oidcDefaults, cfg.Broker.UseSmallerMachineTypes)
 	require.NoError(t, err)
 
-	reconcilerClient := reconciler.NewFakeClient()
 	gardenerClient := gardener.NewDynamicFakeClient()
 	provisionerClient := provisioner.NewFakeClient()
 	const gardenerProject = "testing"
@@ -154,44 +147,26 @@ func NewOrchestrationSuite(t *testing.T, additionalKymaVersions []string) *Orche
 
 	eventBroker := event.NewPubSub(logs)
 
-	runtimeOverrides := runtimeoverrides.NewRuntimeOverrides(ctx, cli)
-
-	runtimeVerConfigurator := runtimeversion.NewRuntimeVersionConfigurator(kymaVer, runtimeversion.NewAccountVersionMapping(ctx, cli, defaultNamespace, kymaVersionsConfigName, logs), nil)
-
-	avsClient, _ := avs.NewClient(ctx, avs.Config{}, logs)
-	avsDel := avs.NewDelegator(avsClient, avs.Config{}, db.Operations())
-	upgradeEvaluationManager := avs.NewEvaluationManager(avsDel, avs.Config{})
 	runtimeLister := kebOrchestration.NewRuntimeLister(db.Instances(), db.Operations(), kebRuntime.NewConverter(defaultRegion), logs)
 	runtimeResolver := orchestration.NewGardenerRuntimeResolver(gardenerClient, gardenerNamespace, runtimeLister, logs)
 
 	notificationFakeClient := notification.NewFakeClient()
 	notificationBundleBuilder := notification.NewBundleBuilder(notificationFakeClient, cfg.Notification)
 
-	k8sClientProvider := kubeconfig.NewFakeK8sClientProvider(cli)
-
-	kymaQueue := NewKymaOrchestrationProcessingQueue(ctx, db, runtimeOverrides, provisionerClient, eventBroker, inputFactory, &upgrade_kyma.TimeSchedule{
-		Retry:              2 * time.Millisecond,
-		StatusCheck:        20 * time.Millisecond,
-		UpgradeKymaTimeout: 4 * time.Second,
-	}, 250*time.Millisecond, runtimeVerConfigurator, runtimeResolver, upgradeEvaluationManager, &cfg, avs.NewInternalEvalAssistant(cfg.Avs), reconcilerClient, notificationBundleBuilder, k8sClientProvider, logs, cli, 1000)
-
 	clusterQueue := NewClusterOrchestrationProcessingQueue(ctx, db, provisionerClient, eventBroker, inputFactory, &upgrade_cluster.TimeSchedule{
 		Retry:                 2 * time.Millisecond,
 		StatusCheck:           20 * time.Millisecond,
 		UpgradeClusterTimeout: 4 * time.Second,
-	}, 250*time.Millisecond, runtimeResolver, upgradeEvaluationManager, notificationBundleBuilder, logs, cli, cfg, 1000)
+	}, 250*time.Millisecond, runtimeResolver, notificationBundleBuilder, logs, cli, cfg, 1000)
 
-	kymaQueue.SpeedUp(1000)
 	clusterQueue.SpeedUp(1000)
 
 	return &OrchestrationSuite{
 		gardenerNamespace: gardenerNamespace,
 		provisionerClient: provisionerClient,
-		kymaQueue:         kymaQueue,
 		clusterQueue:      clusterQueue,
 		storage:           db,
 		gardenerClient:    gardenerClient,
-		reconcilerClient:  reconcilerClient,
 
 		t: t,
 	}
@@ -205,8 +180,6 @@ type RuntimeOptions struct {
 	Region           string
 	PlanID           string
 	Provider         internal.CloudProvider
-	KymaVersion      string
-	OverridesVersion string
 	OIDC             *internal.OIDCConfigDTO
 	UserID           string
 	RuntimeAdmins    []string
@@ -366,7 +339,8 @@ func (s *OrchestrationSuite) CreateProvisionedRuntime(options RuntimeOptions) st
 	require.NoError(s.t, err)
 
 	provisioningOperation.InputCreator = fixture.FixInputCreator(internal.Azure)
-	s.provisionerClient.Provision(provisioningOperation)
+	_, err = s.provisionerClient.Provision(provisioningOperation)
+	require.NoError(s.t, err)
 
 	return runtimeID
 }
@@ -388,17 +362,13 @@ func (s *OrchestrationSuite) createOrchestration(oType orchestration.Type, queue
 	return o.OrchestrationID
 }
 
-func (s *OrchestrationSuite) CreateUpgradeKymaOrchestration(params orchestration.Parameters) string {
-	return s.createOrchestration(orchestration.UpgradeKymaOrchestration, s.kymaQueue, params)
-}
-
 func (s *OrchestrationSuite) CreateUpgradeClusterOrchestration(params orchestration.Parameters) string {
 	return s.createOrchestration(orchestration.UpgradeClusterOrchestration, s.clusterQueue, params)
 }
 
 func (s *OrchestrationSuite) finishOperationByProvisioner(operationType gqlschema.OperationType, runtimeID string) {
 	err := wait.Poll(time.Millisecond*100, 2*time.Second, func() (bool, error) {
-		status := s.provisionerClient.FindOperationByRuntimeIDAndType(runtimeID, operationType)
+		status := s.provisionerClient.FindInProgressOperationByRuntimeIDAndType(runtimeID, operationType)
 		if status.ID != nil {
 			s.provisionerClient.FinishProvisionerOperation(*status.ID, gqlschema.OperationStateSucceeded)
 			return true, nil
@@ -406,22 +376,6 @@ func (s *OrchestrationSuite) finishOperationByProvisioner(operationType gqlschem
 		return false, nil
 	})
 	assert.NoError(s.t, err, "timeout waiting for provisioner operation to exist")
-}
-
-func (s *OrchestrationSuite) FinishUpgradeOperationByReconciler(runtimeID string) {
-	err := wait.Poll(time.Millisecond*20, 2*time.Second, func() (bool, error) {
-		c, err := s.reconcilerClient.GetLatestCluster(runtimeID)
-		if err != nil {
-			return false, nil
-		}
-		if c.ConfigurationVersion == 0 {
-			return false, nil
-		}
-		s.reconcilerClient.ChangeClusterState(runtimeID, c.ConfigurationVersion, reconcilerApi.StatusReady)
-		return true, nil
-	})
-
-	assert.NoError(s.t, err, "timeout waiting for reconciler cluster to exist")
 }
 
 func (s *OrchestrationSuite) FinishUpgradeShootOperationByProvisioner(runtimeID string) {
@@ -435,17 +389,6 @@ func (s *OrchestrationSuite) WaitForOrchestrationState(orchestrationID string, s
 		return orchestration.State == state, nil
 	})
 	assert.NoError(s.t, err, "timeout waiting for the orchestration expected state %s. The existing orchestration %+v", state, orchestration)
-}
-
-func (s *OrchestrationSuite) AssertRuntimeUpgraded(runtimeID string, version string) {
-	c, _ := s.reconcilerClient.LastClusterConfig(runtimeID)
-	assert.Equal(s.t, version, c.KymaConfig.Version, "The runtime %s expected to be upgraded", runtimeID)
-}
-
-func (s *OrchestrationSuite) AssertRuntimeNotUpgraded(runtimeID string) {
-	_, err := s.reconcilerClient.LastClusterConfig(runtimeID)
-	// error means not found
-	assert.Error(s.t, err)
 }
 
 func (s *OrchestrationSuite) AssertShootUpgraded(runtimeID string) {
@@ -528,11 +471,10 @@ func fixK8sResources(defaultKymaVersion string, additionalKymaVersions []string)
 
 	kebCfg := &coreV1.ConfigMap{
 		ObjectMeta: metaV1.ObjectMeta{
-			Name:      "keb-config",
+			Name:      "keb-runtime-config",
 			Namespace: "kcp-system",
 			Labels: map[string]string{
 				"keb-config": "true",
-				fmt.Sprintf("runtime-version-%s", defaultKymaVersion): "true",
 			},
 		},
 		Data: map[string]string{
@@ -552,12 +494,7 @@ kyma-template: |-
             customResourcePolicy: CreateAndDelete
           - name: keda
             channel: fast
-
-additional-components:
-  - name: "btp-operator"
-    namespace: "kyma-system"
-    source:
-      url: "https://btp-operator"`,
+`,
 		},
 	}
 
@@ -575,30 +512,42 @@ type ProvisioningSuite struct {
 	provisioningManager *process.StagedManager
 	provisioningQueue   *process.Queue
 	storage             storage.BrokerStorage
-	directorClient      *director.FakeClient
 
-	t                *testing.T
-	avsServer        *avs.MockAvsServer
-	reconcilerClient *reconciler.FakeClient
-	k8sKcpCli        client.Client
+	t         *testing.T
+	k8sKcpCli client.Client
 }
 
-func NewProvisioningSuite(t *testing.T, multiZoneCluster bool, controlPlaneFailureTolerance string) *ProvisioningSuite {
-	ctx, _ := context.WithTimeout(context.Background(), 20*time.Minute)
+func (s *ProvisioningSuite) TearDown() {
+	if r := recover(); r != nil {
+		err := cleanupContainer()
+		assert.NoError(s.t, err)
+		panic(r)
+	}
+}
+
+func NewProvisioningSuite(t *testing.T, multiZoneCluster bool, controlPlaneFailureTolerance string, useSmallerMachineTypes bool) *ProvisioningSuite {
+	defer func() {
+		if r := recover(); r != nil {
+			err := cleanupContainer()
+			assert.NoError(t, err)
+			panic(r)
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	logs := logrus.New()
-	db := storage.NewMemoryStorage()
+	storageCleanup, db, err := GetStorageForE2ETests()
+	assert.NoError(t, err)
+	t.Cleanup(func() {
+		defer cancel()
+		if storageCleanup != nil {
+			err := storageCleanup()
+			assert.NoError(t, err)
+		}
+	})
 
 	cfg := fixConfig()
 
 	provisionerClient := provisioner.NewFakeClient()
-
-	optionalComponentsDisablers := kebRuntime.ComponentsDisablers{}
-	optComponentsSvc := kebRuntime.NewOptionalComponentsService(optionalComponentsDisablers)
-
-	disabledComponentsProvider := kebRuntime.NewDisabledComponentsProvider()
-
-	componentListProvider := &automock.ComponentListProvider{}
-	componentListProvider.On("AllComponents", mock.AnythingOfType("internal.RuntimeVersionData"), mock.AnythingOfType("*internal.ConfigForPlan")).Return([]internal.KymaComponent{}, nil)
 
 	oidcDefaults := fixture.FixOIDCConfigDTO()
 
@@ -607,54 +556,32 @@ func NewProvisioningSuite(t *testing.T, multiZoneCluster bool, controlPlaneFailu
 	additionalKymaVersions := []string{"1.19", "1.20", "main"}
 	cli := fake.NewFakeClientWithScheme(sch, fixK8sResources(defaultKymaVer, additionalKymaVersions)...)
 	configProvider := kebConfig.NewConfigProvider(
-		kebConfig.NewConfigMapReader(ctx, cli, logrus.New(), defaultKymaVer),
+		kebConfig.NewConfigMapReader(ctx, cli, logrus.New(), "keb-runtime-config"),
 		kebConfig.NewConfigMapKeysValidator(),
 		kebConfig.NewConfigMapConverter())
-	inputFactory, err := input.NewInputBuilderFactory(optComponentsSvc, disabledComponentsProvider, componentListProvider,
-		configProvider, input.Config{
-			MachineImageVersion:          "coreos",
-			KubernetesVersion:            "1.18",
-			MachineImage:                 "253",
-			ProvisioningTimeout:          time.Minute,
-			URL:                          "http://localhost",
-			DefaultGardenerShootPurpose:  "testing",
-			MultiZoneCluster:             multiZoneCluster,
-			ControlPlaneFailureTolerance: controlPlaneFailureTolerance,
-		}, defaultKymaVer, map[string]string{"cf-eu10": "europe"}, cfg.FreemiumProviders, oidcDefaults)
+	inputFactory, err := input.NewInputBuilderFactory(configProvider, input.Config{
+		MachineImageVersion:          "coreos",
+		KubernetesVersion:            "1.18",
+		MachineImage:                 "253",
+		ProvisioningTimeout:          time.Minute,
+		URL:                          "http://localhost",
+		DefaultGardenerShootPurpose:  "testing",
+		MultiZoneCluster:             multiZoneCluster,
+		ControlPlaneFailureTolerance: controlPlaneFailureTolerance,
+	}, map[string]string{"cf-eu10": "europe"}, cfg.FreemiumProviders, oidcDefaults, useSmallerMachineTypes)
 	require.NoError(t, err)
 
-	server := avs.NewMockAvsServer(t)
-	mockServer := avs.FixMockAvsServer(server)
-	avsConfig := avs.Config{
-		OauthTokenEndpoint: fmt.Sprintf("%s/oauth/token", mockServer.URL),
-		ApiEndpoint:        fmt.Sprintf("%s/api/v2/evaluationmetadata", mockServer.URL),
-	}
-
-	client, err := avs.NewClient(context.TODO(), avsConfig, logrus.New())
 	assert.NoError(t, err)
-	avsDel := avs.NewDelegator(client, avsConfig, db.Operations())
-	externalEvalAssistant := avs.NewExternalEvalAssistant(cfg.Avs)
-	internalEvalAssistant := avs.NewInternalEvalAssistant(cfg.Avs)
-	externalEvalCreator := provisioning.NewExternalEvalCreator(avsDel, cfg.Avs.Disabled, externalEvalAssistant)
-
-	runtimeOverrides := runtimeoverrides.NewRuntimeOverrides(ctx, cli)
-	accountVersionMapping := runtimeversion.NewAccountVersionMapping(ctx, cli, cfg.VersionConfig.Namespace, cfg.VersionConfig.Name, logs)
-	runtimeVerConfigurator := runtimeversion.NewRuntimeVersionConfigurator(cfg.KymaVersion, accountVersionMapping, nil)
 
 	edpClient := edp.NewFakeClient()
 
 	accountProvider := fixAccountProvider()
 
-	directorClient := director.NewFakeClient()
-
-	reconcilerClient := reconciler.NewFakeClient()
-
 	eventBroker := event.NewPubSub(logs)
 
 	provisionManager := process.NewStagedManager(db.Operations(), eventBroker, cfg.OperationTimeout, cfg.Provisioning, logs.WithField("provisioning", "manager"))
-	provisioningQueue := NewProvisioningProcessingQueue(ctx, provisionManager, workersAmount, cfg, db, provisionerClient, inputFactory, avsDel,
-		internalEvalAssistant, externalEvalCreator, runtimeVerConfigurator, runtimeOverrides, edpClient, accountProvider,
-		reconcilerClient, kubeconfig.NewFakeK8sClientProvider(cli), cli, logs)
+	provisioningQueue := NewProvisioningProcessingQueue(ctx, provisionManager, workersAmount, cfg, db, provisionerClient, inputFactory, edpClient, accountProvider,
+		kubeconfig.NewFakeK8sClientProvider(cli), cli, defaultOIDCValues(), logs)
 
 	provisioningQueue.SpeedUp(10000)
 	provisionManager.SpeedUp(10000)
@@ -664,9 +591,6 @@ func NewProvisioningSuite(t *testing.T, multiZoneCluster bool, controlPlaneFailu
 		provisioningManager: provisionManager,
 		provisioningQueue:   provisioningQueue,
 		storage:             db,
-		directorClient:      directorClient,
-		avsServer:           server,
-		reconcilerClient:    reconcilerClient,
 		k8sKcpCli:           cli,
 
 		t: t,
@@ -684,11 +608,10 @@ func (s *ProvisioningSuite) CreateProvisioning(options RuntimeOptions) string {
 		PlatformProvider: options.PlatformProvider,
 		Parameters: internal.ProvisioningParametersDTO{
 			Region:                options.ProvideRegion(),
-			KymaVersion:           options.KymaVersion,
-			OverridesVersion:      options.OverridesVersion,
 			OIDC:                  options.ProvideOIDC(),
 			RuntimeAdministrators: options.ProvideRuntimeAdmins(),
 		},
+		PlatformRegion: options.PlatformRegion,
 	}
 
 	shootName := gardener.CreateShootName()
@@ -758,7 +681,8 @@ func (s *ProvisioningSuite) CreateUnsuspension(options RuntimeOptions) string {
 	suspensionOp := internal.NewSuspensionOperationWithID("susp-id", instance)
 	suspensionOp.CreatedAt = time.Now().AddDate(0, 0, -10)
 	suspensionOp.State = domain.Succeeded
-	s.storage.Operations().InsertDeprovisioningOperation(suspensionOp)
+	err = s.storage.Operations().InsertDeprovisioningOperation(suspensionOp)
+	require.NoError(s.t, err)
 
 	s.provisioningQueue.Add(operation.ID)
 	return operation.ID
@@ -785,14 +709,15 @@ func (s *ProvisioningSuite) ProcessInfrastructureManagerProvisioningByRuntimeID(
 			return false, nil
 		}
 
-		unstructured.SetNestedField(gardenerCluster.Object, "Ready", "status", "state")
+		err = unstructured.SetNestedField(gardenerCluster.Object, "Ready", "status", "state")
+		assert.NoError(s.t, err)
 		err = s.k8sKcpCli.Update(context.Background(), gardenerCluster)
 		return err == nil, nil
 	})
 	assert.NoError(s.t, err)
 }
 
-func (s *ProvisioningSuite) FinishProvisioningOperationByProvisionerAndReconciler(operationID string) {
+func (s *ProvisioningSuite) FinishProvisioningOperationByProvisioner(operationID string) {
 	var op *internal.Operation
 	err := wait.PollImmediate(pollingInterval, 2*time.Second, func() (done bool, err error) {
 		op, _ = s.storage.Operations().GetOperationByID(operationID)
@@ -806,16 +731,6 @@ func (s *ProvisioningSuite) FinishProvisioningOperationByProvisionerAndReconcile
 	s.finishOperationByProvisioner(gqlschema.OperationTypeProvision, op.RuntimeID)
 
 	s.ProcessInfrastructureManagerProvisioningByRuntimeID(op.RuntimeID)
-	err = wait.PollImmediate(pollingInterval, 2*time.Second, func() (done bool, err error) {
-		op, _ = s.storage.Operations().GetOperationByID(operationID)
-		if op.ClusterConfigurationVersion != 0 {
-			return true, nil
-		}
-		return false, nil
-	})
-	assert.NoError(s.t, err, "timeout waiting for the operation with Cluster Configuration Version. The existing operation %+v", op)
-
-	s.finishOperationByReconciler(op)
 }
 
 func (s *ProvisioningSuite) AssertProvisionerStartedProvisioning(operationID string) {
@@ -834,7 +749,7 @@ func (s *ProvisioningSuite) AssertProvisionerStartedProvisioning(operationID str
 
 	var status gqlschema.OperationStatus
 	err = wait.Poll(pollingInterval, 2*time.Second, func() (bool, error) {
-		status = s.provisionerClient.FindOperationByRuntimeIDAndType(provisioningOp.RuntimeID, gqlschema.OperationTypeProvision)
+		status = s.provisionerClient.FindInProgressOperationByRuntimeIDAndType(provisioningOp.RuntimeID, gqlschema.OperationTypeProvision)
 		if status.ID != nil {
 			return true, nil
 		}
@@ -852,25 +767,9 @@ func (s *ProvisioningSuite) AssertAllStagesFinished(operationID string) {
 	}
 }
 
-func (s *ProvisioningSuite) finishOperationByReconciler(op *internal.Operation) {
-	time.Sleep(50 * time.Millisecond)
-	err := wait.Poll(pollingInterval, 10*time.Second, func() (bool, error) {
-		state, err := s.reconcilerClient.GetCluster(op.RuntimeID, op.ClusterConfigurationVersion)
-		if err != nil {
-			return false, err
-		}
-		if state.Cluster != "" {
-			s.reconcilerClient.ChangeClusterState(op.RuntimeID, op.ClusterConfigurationVersion, reconcilerApi.StatusReady)
-			return true, nil
-		}
-		return false, nil
-	})
-	assert.NoError(s.t, err)
-}
-
 func (s *ProvisioningSuite) finishOperationByProvisioner(operationType gqlschema.OperationType, runtimeID string) {
 	err := wait.Poll(pollingInterval, 2*time.Second, func() (bool, error) {
-		status := s.provisionerClient.FindOperationByRuntimeIDAndType(runtimeID, operationType)
+		status := s.provisionerClient.FindInProgressOperationByRuntimeIDAndType(runtimeID, operationType)
 		if status.ID != nil {
 			s.provisionerClient.FinishProvisionerOperation(*status.ID, gqlschema.OperationStateSucceeded)
 			return true, nil
@@ -887,14 +786,6 @@ func (s *ProvisioningSuite) AssertProvisioningRequest() {
 	assert.Equal(s.t, instanceID, labels["broker_instance_id"])
 	assert.Contains(s.t, labels, "global_subaccount_id")
 	assert.NotEmpty(s.t, input.ClusterConfig.GardenerConfig.Name)
-}
-
-func (s *ProvisioningSuite) AssertKymaProfile(opID string, expectedProfile gqlschema.KymaProfile) {
-	operation, _ := s.storage.Operations().GetProvisioningOperationByID(opID)
-	s.fetchProvisionInput()
-	c, _ := s.reconcilerClient.LastClusterConfig(operation.RuntimeID)
-
-	assert.Equal(s.t, string(expectedProfile), c.KymaConfig.Profile)
 }
 
 func (s *ProvisioningSuite) AssertProvider(provider string) {
@@ -1018,11 +909,11 @@ func fixConfig() *Config {
 			ProvisioningTimeout:        2 * time.Minute,
 			DeprovisioningTimeout:      2 * time.Minute,
 			GardenerClusterStepTimeout: time.Second,
+			MachineImage:               "gardenlinux",
+			MachineImageVersion:        "12345.6",
+			MultiZoneCluster:           true,
+			RuntimeResourceStepTimeout: time.Minute,
 		},
-		Reconciler: reconciler.Config{
-			ProvisioningTimeout: 5 * time.Second,
-		},
-		Director: director.Config{},
 		Database: storage.Config{
 			SecretKey: dbSecretKey,
 		},
@@ -1030,36 +921,41 @@ func fixConfig() *Config {
 			Project:     "kyma",
 			ShootDomain: "kyma.sap.com",
 		},
-		KymaVersion:             defaultKymaVer,
-		EnableOnDemandVersion:   true,
 		UpdateProcessingEnabled: true,
 		Broker: broker.Config{
-			EnablePlans: []string{"azure", "trial", "aws", "own_cluster", "preview", "sap-converged-cloud"},
+			EnablePlans: []string{"azure", "trial", "aws", "own_cluster", "preview", "sap-converged-cloud", "gcp", "free"},
 			Binding: broker.BindingConfig{
 				Enabled:       true,
 				BindablePlans: []string{"aws", "azure"},
 			},
+			AllowUpdateExpiredInstanceWithContext: true,
+			KimConfig: broker.KimConfig{
+				Enabled:      true,
+				Plans:        []string{"preview"},
+				KimOnlyPlans: []string{"preview"},
+			},
 		},
-		Avs: avs.Config{},
-		IAS: ias.Config{
-			IdentityProvider: ias.FakeIdentityProviderName,
-		},
+		TrialRegionMappingFilePath: "testdata/trial-regions.yaml",
+
 		Notification: notification.Config{
 			Url: "http://host:8080/",
 		},
 		OrchestrationConfig: kebOrchestration.Config{
-			KymaVersion: defaultKymaVer,
-			Namespace:   "kcp-system",
-			Name:        "orchestration-config",
+			Namespace: "kcp-system",
+			Name:      "orchestration-config",
 		},
 		MaxPaginationPage:                         100,
 		FreemiumProviders:                         []string{"aws", "azure"},
-		EuAccessWhitelistedGlobalAccountsFilePath: "testdata/eu_access_whitelist.yaml",
-		EuAccessRejectionMessage:                  "EU Access Rejection Message - see: http://google.pl",
+		FreemiumWhitelistedGlobalAccountsFilePath: "testdata/freemium_whitelist.yaml",
 
 		Provisioning:   process.StagedManagerConfiguration{MaxStepProcessingTime: time.Minute},
 		Deprovisioning: process.StagedManagerConfiguration{MaxStepProcessingTime: time.Minute},
 		Update:         process.StagedManagerConfiguration{MaxStepProcessingTime: time.Minute},
+
+		ArchiveEnabled:                          true,
+		CleaningEnabled:                         true,
+		SapConvergedCloudRegionMappingsFilePath: "testdata/old-sap-converged-cloud-region-mappings.yaml",
+		UpdateRuntimeResourceDelay:              time.Millisecond,
 	}
 }
 

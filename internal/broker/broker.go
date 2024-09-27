@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -14,6 +15,8 @@ import (
 const (
 	KymaServiceID   = "47c9dcbf-ff30-448e-ab36-d3bad66ba281"
 	KymaServiceName = "kymaruntime"
+	KymaNamespace   = "kyma-system"
+	KcpNamespace    = "kcp-system"
 )
 
 type PlanDefaults func(planID string, platformProvider internal.CloudProvider, parametersProvider *internal.CloudProvider) (*gqlschema.ClusterConfigInput, error)
@@ -36,13 +39,26 @@ type Config struct {
 	EnablePlans                             EnablePlans `envconfig:"default=azure"`
 	OnlySingleTrialPerGA                    bool        `envconfig:"default=true"`
 	URL                                     string
-	EnableKubeconfigURLLabel                bool   `envconfig:"default=false"`
-	IncludeAdditionalParamsInSchema         bool   `envconfig:"default=false"`
-	ShowTrialExpirationInfo                 bool   `envconfig:"default=false"`
-	SubaccountsIdsToShowTrialExpirationInfo string `envconfig:"default="`
-	TrialDocsURL                            string `envconfig:"default="`
+	EnableKubeconfigURLLabel                bool          `envconfig:"default=false"`
+	IncludeAdditionalParamsInSchema         bool          `envconfig:"default=false"`
+	ShowTrialExpirationInfo                 bool          `envconfig:"default=false"`
+	ShowFreeExpirationInfo                  bool          `envconfig:"default=false"`
+	OnlyOneFreePerGA                        bool          `envconfig:"default=false"`
+	FreeDocsURL                             string        `envconfig:"default="`
+	FreeExpirationPeriod                    time.Duration `envconfig:"default=720h"` // 30 days
+	SubaccountsIdsToShowTrialExpirationInfo string        `envconfig:"default="`
+	TrialDocsURL                            string        `envconfig:"default="`
+	EnableShootAndSeedSameRegion            bool          `envconfig:"default=false"`
+	AllowUpdateExpiredInstanceWithContext   bool          `envconfig:"default=false"`
 
-	Binding BindingConfig
+	Binding                BindingConfig
+	KimConfig              KimConfig
+	UseSmallerMachineTypes bool `envconfig:"default=false"`
+
+	DisableSapConvergedCloud bool `envconfig:"default=false"`
+
+	SubaccountMovementEnabled                bool `envconfig:"default=false"`
+	UpdateCustomResourcesLabelsOnAccountMove bool `envconfig:"default=false"`
 }
 
 type ServicesConfig map[string]Service

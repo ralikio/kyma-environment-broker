@@ -19,7 +19,6 @@ import (
 )
 
 const (
-	fixKymaVersion                   = "1.19.0"
 	fixKubernetesVersion             = "1.17.16"
 	fixMachineImage                  = "gardenlinux"
 	fixMachineImageVersion           = "184.0.0"
@@ -50,7 +49,7 @@ func TestUpgradeClusterStep_Run(t *testing.T) {
 		UsernameClaim:  expectedOIDC.UsernameClaim,
 		UsernamePrefix: expectedOIDC.UsernamePrefix,
 	}
-	memoryStorage.RuntimeStates().Insert(runtimeState)
+	err = memoryStorage.RuntimeStates().Insert(runtimeState)
 	assert.NoError(t, err)
 
 	// as autoscaler values are not nil in provisioningParameters, the provider values are not used
@@ -120,39 +119,23 @@ func fixUpgradeClusterOperationWithInputCreator(t *testing.T) internal.UpgradeCl
 }
 
 func fixInputCreator(t *testing.T) internal.ProvisionerInputCreator {
-	componentsProvider := &automock.ComponentListProvider{}
-	defer componentsProvider.AssertExpectations(t)
-
 	configProvider := &automock.ConfigurationProvider{}
-	configProvider.On("ProvideForGivenVersionAndPlan",
+	configProvider.On("ProvideForGivenPlan",
 		mock.AnythingOfType("string"),
 		mock.AnythingOfType("string")).
-		Return(&internal.ConfigForPlan{
-			AdditionalComponents: []internal.KymaComponent{
-				{
-					Name:      "kyma-component1",
-					Namespace: "kyma-system",
-				},
-			},
-		}, nil)
+		Return(&internal.ConfigForPlan{}, nil)
 
-	ibf, err := input.NewInputBuilderFactory(nil, nil, componentsProvider,
-		configProvider, input.Config{
-			KubernetesVersion:             fixKubernetesVersion,
-			MachineImage:                  fixMachineImage,
-			MachineImageVersion:           fixMachineImageVersion,
-			TrialNodesNumber:              1,
-			AutoUpdateKubernetesVersion:   fixAutoUpdateKubernetesVersion,
-			AutoUpdateMachineImageVersion: fixAutoUpdateMachineImageVersion,
-		}, fixKymaVersion, nil, nil, fixture.FixOIDCConfigDTO())
+	ibf, err := input.NewInputBuilderFactory(configProvider, input.Config{
+		KubernetesVersion:             fixKubernetesVersion,
+		MachineImage:                  fixMachineImage,
+		MachineImageVersion:           fixMachineImageVersion,
+		TrialNodesNumber:              1,
+		AutoUpdateKubernetesVersion:   fixAutoUpdateKubernetesVersion,
+		AutoUpdateMachineImageVersion: fixAutoUpdateMachineImageVersion,
+	}, nil, nil, fixture.FixOIDCConfigDTO(), false)
 	require.NoError(t, err, "Input factory creation error")
 
-	ver := internal.RuntimeVersionData{
-		Version: fixKymaVersion,
-		Origin:  internal.Defaults,
-	}
-
-	creator, err := ibf.CreateUpgradeShootInput(fixProvisioningParameters(), ver)
+	creator, err := ibf.CreateUpgradeShootInput(fixProvisioningParameters())
 	require.NoError(t, err, "Input creator creation error")
 
 	return creator

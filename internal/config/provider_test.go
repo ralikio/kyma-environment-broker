@@ -27,7 +27,7 @@ func TestConfigProvider(t *testing.T) {
 	fakeK8sClient := fake.NewClientBuilder().WithRuntimeObjects(cfgMap).Build()
 	logger := logrus.New()
 	logger.SetFormatter(&logrus.JSONFormatter{})
-	cfgReader := config.NewConfigMapReader(ctx, fakeK8sClient, logger, kymaVersion)
+	cfgReader := config.NewConfigMapReader(ctx, fakeK8sClient, logger, "keb-config")
 	cfgValidator := config.NewConfigMapKeysValidator()
 	cfgConverter := config.NewConfigMapConverter()
 	cfgProvider := config.NewConfigProvider(cfgReader, cfgValidator, cfgConverter)
@@ -36,11 +36,10 @@ func TestConfigProvider(t *testing.T) {
 		// given
 		expectedCfg := fixAzureConfig()
 		// when
-		cfg, err := cfgProvider.ProvideForGivenVersionAndPlan(kymaVersion, broker.AzurePlanName)
+		cfg, err := cfgProvider.ProvideForGivenPlan(broker.AzurePlanName)
 
 		// then
 		require.NoError(t, err)
-		assert.Len(t, cfg.AdditionalComponents, len(expectedCfg.AdditionalComponents))
 		assert.ObjectsAreEqual(expectedCfg, cfg)
 	})
 
@@ -48,48 +47,21 @@ func TestConfigProvider(t *testing.T) {
 		// given
 		expectedCfg := fixDefault()
 		// when
-		cfg, err := cfgProvider.ProvideForGivenVersionAndPlan(kymaVersion, broker.AWSPlanName)
+		cfg, err := cfgProvider.ProvideForGivenPlan(broker.AWSPlanName)
 
 		// then
 		require.NoError(t, err)
-		assert.Len(t, cfg.AdditionalComponents, len(expectedCfg.AdditionalComponents))
-		assert.ObjectsAreEqual(expectedCfg, cfg)
-	})
-
-	t.Run("should provide config for default Kyma version and azure plan when PR-* Kyma version is passed", func(t *testing.T) {
-		// given
-		expectedCfg := fixAzureConfig()
-		customKymaVer := "PR-1234"
-		// when
-		cfg, err := cfgProvider.ProvideForGivenVersionAndPlan(customKymaVer, broker.AzurePlanName)
-
-		// then
-		require.NoError(t, err)
-		assert.Len(t, cfg.AdditionalComponents, len(expectedCfg.AdditionalComponents))
-		assert.ObjectsAreEqual(expectedCfg, cfg)
-	})
-
-	t.Run("should provide config for default Kyma version and azure plan when main-* Kyma version is passed", func(t *testing.T) {
-		// given
-		expectedCfg := fixAzureConfig()
-		customKymaVer := "main-fffff"
-		// when
-		cfg, err := cfgProvider.ProvideForGivenVersionAndPlan(customKymaVer, broker.AzurePlanName)
-
-		// then
-		require.NoError(t, err)
-		assert.Len(t, cfg.AdditionalComponents, len(expectedCfg.AdditionalComponents))
 		assert.ObjectsAreEqual(expectedCfg, cfg)
 	})
 
 	t.Run("validator should return error indicating missing required fields", func(t *testing.T) {
 		// given
 		expectedMissingConfigKeys := []string{
-			"additional-components",
+			"kyma-template",
 		}
 		expectedErrMsg := fmt.Sprintf("missing required configuration entires: %s", strings.Join(expectedMissingConfigKeys, ","))
 		// when
-		cfg, err := cfgProvider.ProvideForGivenVersionAndPlan(kymaVersion, wrongConfigPlan)
+		cfg, err := cfgProvider.ProvideForGivenPlan(wrongConfigPlan)
 
 		// then
 		require.Error(t, err)
@@ -103,32 +75,17 @@ func TestConfigProvider(t *testing.T) {
 		require.NoError(t, err)
 
 		// when
-		cfg, err := cfgProvider.ProvideForGivenVersionAndPlan(kymaVersion, broker.AzurePlanName)
+		cfg, err := cfgProvider.ProvideForGivenPlan(broker.AzurePlanName)
 
 		// then
 		require.Error(t, err)
-		assert.Equal(t, "configmap with configuration does not exist", errors.Unwrap(err).Error())
+		assert.Equal(t, "configmap keb-config with configuration does not exist", errors.Unwrap(err).Error())
 		assert.Nil(t, cfg)
 	})
 }
 
 func fixAzureConfig() *internal.ConfigForPlan {
-	return &internal.ConfigForPlan{
-		AdditionalComponents: []internal.KymaComponent{
-			{
-				Name:      "additional-component1",
-				Namespace: "kyma-system",
-			},
-			{
-				Name:      "additional-component2",
-				Namespace: "test-system",
-			},
-			{
-				Name:      "azure-component",
-				Namespace: "azure-system",
-				Source:    &internal.ComponentSource{URL: "https://azure.domain/component/azure-component.git"},
-			},
-		}}
+	return &internal.ConfigForPlan{}
 }
 
 func fixDefault() *internal.ConfigForPlan {
@@ -142,19 +99,5 @@ spec:
   channel: stable
   modules:
   - name: istio`,
-		AdditionalComponents: []internal.KymaComponent{
-			{
-				Name:      "additional-component1",
-				Namespace: "kyma-system",
-			},
-			{
-				Name:      "additional-component2",
-				Namespace: "test-system",
-			},
-			{
-				Name:      "azure-component",
-				Namespace: "azure-system",
-				Source:    &internal.ComponentSource{URL: "https://azure.domain/component/azure-component.git"},
-			},
-		}}
+	}
 }

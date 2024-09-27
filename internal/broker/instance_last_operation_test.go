@@ -3,6 +3,7 @@ package broker_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/kyma-project/kyma-environment-broker/common/orchestration"
 	"github.com/kyma-project/kyma-environment-broker/internal"
@@ -27,7 +28,7 @@ func TestLastOperation_LastOperation(t *testing.T) {
 		err := memoryStorage.Operations().InsertOperation(fixOperation())
 		assert.NoError(t, err)
 
-		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), logrus.StandardLogger())
+		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), memoryStorage.InstancesArchived(), logrus.StandardLogger())
 
 		// when
 		response, err := lastOperationEndpoint.LastOperation(context.TODO(), instID, domain.PollDetails{OperationData: operationID})
@@ -45,7 +46,7 @@ func TestLastOperation_LastOperation(t *testing.T) {
 		err := memoryStorage.Operations().InsertOperation(fixOperation())
 		assert.NoError(t, err)
 
-		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), logrus.StandardLogger())
+		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), memoryStorage.InstancesArchived(), logrus.StandardLogger())
 
 		// when
 		response, err := lastOperationEndpoint.LastOperation(context.TODO(), instID, domain.PollDetails{OperationData: ""})
@@ -65,7 +66,7 @@ func TestLastOperation_LastOperation(t *testing.T) {
 		err := memoryStorage.Operations().InsertUpdatingOperation(updateOp)
 		assert.NoError(t, err)
 
-		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), logrus.StandardLogger())
+		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), memoryStorage.InstancesArchived(), logrus.StandardLogger())
 
 		// when
 		response, err := lastOperationEndpoint.LastOperation(context.TODO(), instID, domain.PollDetails{OperationData: ""})
@@ -93,7 +94,7 @@ func TestLastOperation_LastOperation(t *testing.T) {
 		err := memoryStorage.Operations().InsertUpdatingOperation(updateOp)
 		assert.NoError(t, err)
 
-		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), logrus.StandardLogger())
+		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), memoryStorage.InstancesArchived(), logrus.StandardLogger())
 
 		// when
 		response, err := lastOperationEndpoint.LastOperation(context.TODO(), instID, domain.PollDetails{OperationData: ""})
@@ -124,7 +125,37 @@ func TestLastOperation_LastOperation(t *testing.T) {
 		err := memoryStorage.Operations().InsertUpdatingOperation(updateOp)
 		assert.NoError(t, err)
 
-		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), logrus.StandardLogger())
+		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), memoryStorage.InstancesArchived(), logrus.StandardLogger())
+
+		// when
+		response, err := lastOperationEndpoint.LastOperation(context.TODO(), instID, domain.PollDetails{OperationData: ""})
+		assert.NoError(t, err)
+
+		// then
+		assert.Equal(t, domain.LastOperation{
+			State:       domain.Succeeded,
+			Description: updateOp.Description,
+		}, response)
+
+		// when
+		response, err = lastOperationEndpoint.LastOperation(context.TODO(), instID,
+			domain.PollDetails{OperationData: operationID})
+		assert.NoError(t, err)
+		// then
+		assert.Equal(t, domain.LastOperation{
+			State:       domain.Succeeded,
+			Description: updateOp.Description,
+		}, response)
+	})
+	t.Run("Should convert operation's canceled state to succeeded", func(t *testing.T) {
+		// given
+		memoryStorage := storage.NewMemoryStorage()
+		updateOp := fixture.FixUpdatingOperation(operationID, instID)
+		updateOp.State = orchestration.Canceled
+		err := memoryStorage.Operations().InsertUpdatingOperation(updateOp)
+		assert.NoError(t, err)
+
+		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), memoryStorage.InstancesArchived(), logrus.StandardLogger())
 
 		// when
 		response, err := lastOperationEndpoint.LastOperation(context.TODO(), instID, domain.PollDetails{OperationData: ""})
@@ -147,15 +178,19 @@ func TestLastOperation_LastOperation(t *testing.T) {
 			Description: updateOp.Description,
 		}, response)
 	})
-	t.Run("Should convert operation's canceled state to succeeded", func(t *testing.T) {
+	t.Run("Should return provisioning operation", func(t *testing.T) {
 		// given
 		memoryStorage := storage.NewMemoryStorage()
-		updateOp := fixture.FixUpdatingOperation(operationID, instID)
-		updateOp.State = orchestration.Canceled
-		err := memoryStorage.Operations().InsertUpdatingOperation(updateOp)
+
+		provisioning := fixOperation()
+		provisioning.ID = "provisioning-id"
+		provisioning.Description = "Provisioning description"
+		provisioning.CreatedAt = provisioning.CreatedAt.Truncate(time.Millisecond)
+		provisioning.UpdatedAt = provisioning.UpdatedAt.Truncate(time.Millisecond)
+		err := memoryStorage.Operations().InsertOperation(provisioning)
 		assert.NoError(t, err)
 
-		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), logrus.StandardLogger())
+		lastOperationEndpoint := broker.NewLastOperation(memoryStorage.Operations(), memoryStorage.InstancesArchived(), logrus.StandardLogger())
 
 		// when
 		response, err := lastOperationEndpoint.LastOperation(context.TODO(), instID, domain.PollDetails{OperationData: ""})
@@ -164,18 +199,7 @@ func TestLastOperation_LastOperation(t *testing.T) {
 		// then
 		assert.Equal(t, domain.LastOperation{
 			State:       domain.Succeeded,
-			Description: updateOp.Description,
-		}, response)
-
-		// when
-		response, err = lastOperationEndpoint.LastOperation(context.TODO(), instID,
-			domain.PollDetails{OperationData: operationID})
-		assert.NoError(t, err)
-
-		// then
-		assert.Equal(t, domain.LastOperation{
-			State:       domain.Succeeded,
-			Description: updateOp.Description,
+			Description: "Provisioning description",
 		}, response)
 	})
 }

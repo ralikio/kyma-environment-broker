@@ -1,17 +1,27 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"time"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+
+	"github.com/kyma-project/kyma-environment-broker/internal/process/steps"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/sirupsen/logrus"
+
+	"github.com/kyma-project/kyma-environment-broker/internal/broker"
 
 	"github.com/kyma-project/kyma-environment-broker/internal/provisioner"
 	"github.com/kyma-project/kyma-environment-broker/internal/ptr"
-	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"golang.org/x/exp/slices"
 
 	"github.com/gorilla/mux"
-	"github.com/kyma-project/kyma-environment-broker/common/orchestration"
 	"github.com/kyma-project/kyma-environment-broker/common/pagination"
 	pkg "github.com/kyma-project/kyma-environment-broker/common/runtime"
 	"github.com/kyma-project/kyma-environment-broker/internal"
@@ -24,22 +34,34 @@ import (
 const numberOfUpgradeOperationsToReturn = 2
 
 type Handler struct {
-	instancesDb       storage.Instances
-	operationsDb      storage.Operations
-	runtimeStatesDb   storage.RuntimeStates
-	converter         Converter
-	defaultMaxPage    int
-	provisionerClient provisioner.Client
+	instancesDb         storage.Instances
+	operationsDb        storage.Operations
+	runtimeStatesDb     storage.RuntimeStates
+	instancesArchivedDb storage.InstancesArchived
+	converter           Converter
+	defaultMaxPage      int
+	provisionerClient   provisioner.Client
+	k8sClient           client.Client
+	kimConfig           broker.KimConfig
+	logger              logrus.FieldLogger
 }
 
-func NewHandler(instanceDb storage.Instances, operationDb storage.Operations, runtimeStatesDb storage.RuntimeStates, defaultMaxPage int, defaultRequestRegion string, provisionerClient provisioner.Client) *Handler {
+func NewHandler(instanceDb storage.Instances, operationDb storage.Operations, runtimeStatesDb storage.RuntimeStates,
+	instancesArchived storage.InstancesArchived, defaultMaxPage int, defaultRequestRegion string,
+	provisionerClient provisioner.Client,
+	k8sClient client.Client, kimConfig broker.KimConfig,
+	logger logrus.FieldLogger) *Handler {
 	return &Handler{
-		instancesDb:       instanceDb,
-		operationsDb:      operationDb,
-		runtimeStatesDb:   runtimeStatesDb,
-		converter:         NewConverter(defaultRequestRegion),
-		defaultMaxPage:    defaultMaxPage,
-		provisionerClient: provisionerClient,
+		instancesDb:         instanceDb,
+		operationsDb:        operationDb,
+		runtimeStatesDb:     runtimeStatesDb,
+		converter:           NewConverter(defaultRequestRegion),
+		defaultMaxPage:      defaultMaxPage,
+		provisionerClient:   provisionerClient,
+		instancesArchivedDb: instancesArchived,
+		kimConfig:           kimConfig,
+		k8sClient:           k8sClient,
+		logger:              logger.WithField("service", "RuntimeHandler"),
 	}
 }
 
@@ -47,46 +69,8 @@ func (h *Handler) AttachRoutes(router *mux.Router) {
 	router.HandleFunc("/runtimes", h.getRuntimes)
 }
 
-func findLastDeprovisioning(operations []internal.Operation) internal.Operation {
-	for i := len(operations) - 1; i > 0; i-- {
-		o := operations[i]
-		if o.Type != internal.OperationTypeDeprovision {
-			continue
-		}
-		if o.State != domain.Succeeded {
-			continue
-		}
-		return o
-	}
-	return operations[len(operations)-1]
-}
-
-func recreateInstances(operations []internal.Operation) []internal.Instance {
-	byInstance := make(map[string][]internal.Operation)
-	for _, o := range operations {
-		byInstance[o.InstanceID] = append(byInstance[o.InstanceID], o)
-	}
-	var instances []internal.Instance
-	for id, op := range byInstance {
-		o := op[0]
-		last := findLastDeprovisioning(op)
-		instances = append(instances, internal.Instance{
-			InstanceID:      id,
-			GlobalAccountID: o.GlobalAccountID,
-			SubAccountID:    o.SubAccountID,
-			RuntimeID:       o.RuntimeID,
-			CreatedAt:       o.CreatedAt,
-			ServicePlanID:   o.ProvisioningParameters.PlanID,
-			DeletedAt:       last.UpdatedAt,
-			InstanceDetails: last.InstanceDetails,
-			Parameters:      last.ProvisioningParameters,
-		})
-	}
-	return instances
-}
-
-func unionInstances(sets ...[]internal.Instance) (union []internal.Instance) {
-	m := make(map[string]internal.Instance)
+func unionInstances(sets ...[]pkg.RuntimeDTO) (union []pkg.RuntimeDTO) {
+	m := make(map[string]pkg.RuntimeDTO)
 	for _, s := range sets {
 		for _, i := range s {
 			if _, exists := m[i.InstanceID]; !exists {
@@ -100,7 +84,7 @@ func unionInstances(sets ...[]internal.Instance) (union []internal.Instance) {
 	return
 }
 
-func (h *Handler) listInstances(filter dbmodel.InstanceFilter) ([]internal.Instance, int, int, error) {
+func (h *Handler) listInstances(filter dbmodel.InstanceFilter) ([]pkg.RuntimeDTO, int, int, error) {
 	if slices.Contains(filter.States, dbmodel.InstanceDeprovisioned) {
 		// try to list instances where deletion didn't finish successfully
 		// entry in the Instances table still exists but has deletion timestamp and contains list of incomplete steps
@@ -108,23 +92,88 @@ func (h *Handler) listInstances(filter dbmodel.InstanceFilter) ([]internal.Insta
 		filter.DeletionAttempted = &deletionAttempted
 		instances, instancesCount, instancesTotalCount, _ := h.instancesDb.List(filter)
 
-		// try to recreate instances from the operations table where entry in the instances table is gone
-		opFilter := dbmodel.OperationFilter{}
-		opFilter.InstanceFilter = &filter
-		opFilter.Page = filter.Page
-		opFilter.PageSize = filter.PageSize
-		operations, _, _, err := h.operationsDb.ListOperations(opFilter)
+		instancesArchived, instancesArchivedCount, instancesArchivedTotalCount, err := h.instancesArchivedDb.List(filter)
 		if err != nil {
-			return instances, instancesCount, instancesTotalCount, err
+			return []pkg.RuntimeDTO{}, instancesArchivedCount, instancesArchivedTotalCount, err
 		}
-		instancesFromOperations := recreateInstances(operations)
 
-		// return union of both sets of instances
-		instancesUnion := unionInstances(instances, instancesFromOperations)
-		count := len(instancesFromOperations)
-		return instancesUnion, count + instancesCount, count + instancesTotalCount, nil
+		// return union of all sets of instances
+		instanceDTOs := []pkg.RuntimeDTO{}
+		for _, i := range instances {
+			dto, err := h.converter.NewDTO(i)
+			if err != nil {
+				return []pkg.RuntimeDTO{}, instancesCount, instancesTotalCount, err
+			}
+			instanceDTOs = append(instanceDTOs, dto)
+		}
+		archived := []pkg.RuntimeDTO{}
+		for _, i := range instancesArchived {
+			instance := h.InstanceFromInstanceArchived(i)
+			dto, err := h.converter.NewDTO(instance)
+			if err != nil {
+				return archived, instancesArchivedCount, instancesArchivedTotalCount, err
+			}
+			dto.Status = pkg.RuntimeStatus{
+				CreatedAt: i.ProvisioningStartedAt,
+				DeletedAt: &i.LastDeprovisioningFinishedAt,
+				Provisioning: &pkg.Operation{
+					CreatedAt: i.ProvisioningStartedAt,
+					UpdatedAt: i.ProvisioningFinishedAt,
+					State:     string(i.ProvisioningState),
+				},
+				Deprovisioning: &pkg.Operation{
+					UpdatedAt: i.LastDeprovisioningFinishedAt,
+				},
+			}
+			archived = append(archived, dto)
+		}
+		instancesUnion := unionInstances(instanceDTOs, archived)
+		return instancesUnion, instancesCount + instancesArchivedCount, instancesTotalCount + instancesArchivedTotalCount, nil
 	}
-	return h.instancesDb.List(filter)
+
+	var result []pkg.RuntimeDTO
+	instances, count, total, err := h.instancesDb.List(filter)
+	if err != nil {
+		return []pkg.RuntimeDTO{}, 0, 0, err
+	}
+	for _, instance := range instances {
+		dto, err := h.converter.NewDTO(instance)
+		if err != nil {
+			return []pkg.RuntimeDTO{}, 0, 0, err
+		}
+		result = append(result, dto)
+	}
+	return result, count, total, nil
+}
+
+func (h *Handler) InstanceFromInstanceArchived(archived internal.InstanceArchived) internal.Instance {
+	return internal.Instance{
+		InstanceID:                  archived.InstanceID,
+		RuntimeID:                   archived.LastRuntimeID,
+		GlobalAccountID:             archived.GlobalAccountID,
+		SubscriptionGlobalAccountID: archived.SubscriptionGlobalAccountID,
+		SubAccountID:                archived.SubaccountID,
+		ServiceID:                   broker.KymaServiceID,
+		ServiceName:                 broker.KymaServiceName,
+		ServicePlanID:               archived.PlanID,
+		ServicePlanName:             archived.PlanName,
+		ProviderRegion:              archived.Region,
+		CreatedAt:                   archived.ProvisioningStartedAt,
+		Provider:                    internal.CloudProvider(archived.Provider),
+		Reconcilable:                false,
+
+		InstanceDetails: internal.InstanceDetails{
+			ShootName: archived.ShootName,
+		},
+
+		Parameters: internal.ProvisioningParameters{
+			ErsContext: internal.ERSContext{
+				UserID: archived.UserID(),
+			},
+			Parameters:     internal.ProvisioningParametersDTO{},
+			PlatformRegion: archived.SubaccountRegion,
+		},
+	}
 }
 
 func (h *Handler) getRuntimes(w http.ResponseWriter, req *http.Request) {
@@ -132,6 +181,7 @@ func (h *Handler) getRuntimes(w http.ResponseWriter, req *http.Request) {
 
 	pageSize, page, err := pagination.ExtractPaginationConfigFromRequest(req, h.defaultMaxPage)
 	if err != nil {
+		h.logger.Warn(fmt.Sprintf("unable to extract pagination: %s", err.Error()))
 		httputil.WriteErrorResponse(w, http.StatusBadRequest, fmt.Errorf("while getting query parameters: %w", err))
 		return
 	}
@@ -142,40 +192,73 @@ func (h *Handler) getRuntimes(w http.ResponseWriter, req *http.Request) {
 	kymaConfig := getBoolParam(pkg.KymaConfigParam, req)
 	clusterConfig := getBoolParam(pkg.ClusterConfigParam, req)
 	gardenerConfig := getBoolParam(pkg.GardenerConfigParam, req)
+	runtimeResourceConfig := getBoolParam(pkg.RuntimeConfigParam, req)
 
 	instances, count, totalCount, err := h.listInstances(filter)
 	if err != nil {
-		httputil.WriteErrorResponse(w, http.StatusInternalServerError, fmt.Errorf("while fetching instances: %w", err))
+		h.logger.Warn(fmt.Sprintf("unable to fetch instances: %s", err.Error()))
+		httputil.WriteErrorResponse(w, http.StatusInternalServerError, fmt.Errorf("while fetching instances: %s", err.Error()))
 		return
 	}
 
-	for _, instance := range instances {
-		dto, err := h.converter.NewDTO(instance)
-		if err != nil {
-			httputil.WriteErrorResponse(w, http.StatusInternalServerError, fmt.Errorf("while converting instance to DTO: %w", err))
-			return
-		}
+	for _, dto := range instances {
 
 		switch opDetail {
 		case pkg.AllOperation:
-			err = h.setRuntimeAllOperations(instance, &dto)
+			err = h.setRuntimeAllOperations(&dto)
 		case pkg.LastOperation:
-			err = h.setRuntimeLastOperation(instance, &dto)
+			err = h.setRuntimeLastOperation(&dto)
 		}
 		if err != nil {
+			h.logger.Warn(fmt.Sprintf("unable to set operations: %s", err.Error()))
 			httputil.WriteErrorResponse(w, http.StatusInternalServerError, err)
 			return
 		}
 
 		err = h.determineStatusModifiedAt(&dto)
 		if err != nil {
+			h.logger.Warn(fmt.Sprintf("unable to determine status: %s", err.Error()))
 			httputil.WriteErrorResponse(w, http.StatusInternalServerError, err)
 			return
 		}
-		err = h.setRuntimeOptionalAttributes(instance, &dto, kymaConfig, clusterConfig, gardenerConfig)
+
+		instanceDrivenByKimOnly := h.kimConfig.IsDrivenByKimOnly(dto.ServicePlanName)
+
+		err = h.setRuntimeOptionalAttributes(&dto, kymaConfig, clusterConfig, gardenerConfig, instanceDrivenByKimOnly)
 		if err != nil {
+			h.logger.Warn(fmt.Sprintf("unable to set optional attributes: %s", err.Error()))
 			httputil.WriteErrorResponse(w, http.StatusInternalServerError, err)
 			return
+		}
+
+		if runtimeResourceConfig && dto.RuntimeID != "" {
+			runtimeResourceName, runtimeNamespaceName := h.getRuntimeNamesFromLastOperation(dto)
+
+			runtimeResourceObject := &unstructured.Unstructured{}
+			runtimeResourceObject.SetGroupVersionKind(RuntimeResourceGVK())
+			err = h.k8sClient.Get(context.Background(), client.ObjectKey{
+				Namespace: runtimeNamespaceName,
+				Name:      runtimeResourceName,
+			}, runtimeResourceObject)
+			switch {
+			case errors.IsNotFound(err):
+				h.logger.Info(fmt.Sprintf("Runtime resource %s/%s: is not found: %s", dto.InstanceID, dto.RuntimeID, err.Error()))
+				dto.RuntimeConfig = nil
+			case err != nil:
+				h.logger.Warn(fmt.Sprintf("unable to get Runtime resource %s/%s: %s", dto.InstanceID, dto.RuntimeID, err.Error()))
+				dto.RuntimeConfig = nil
+			default:
+				// remove managedFields from the object to reduce the size of the response
+				_, ok := runtimeResourceObject.Object["metadata"].(map[string]interface{})
+				if !ok {
+					h.logger.Warn(fmt.Sprintf("unable to get Runtime resource metadata %s/%s: %s", dto.InstanceID, dto.RuntimeID, err.Error()))
+					dto.RuntimeConfig = nil
+
+				} else {
+					delete(runtimeResourceObject.Object["metadata"].(map[string]interface{}), "managedFields")
+					dto.RuntimeConfig = &runtimeResourceObject.Object
+				}
+			}
 		}
 
 		toReturn = append(toReturn, dto)
@@ -189,19 +272,18 @@ func (h *Handler) getRuntimes(w http.ResponseWriter, req *http.Request) {
 	httputil.WriteResponse(w, http.StatusOK, runtimePage)
 }
 
-func (h *Handler) takeLastNonDryRunOperations(oprs []internal.UpgradeKymaOperation) ([]internal.UpgradeKymaOperation, int) {
-	toReturn := make([]internal.UpgradeKymaOperation, 0)
-	totalCount := 0
-	for _, op := range oprs {
-		if op.DryRun {
-			continue
-		}
-		if len(toReturn) < numberOfUpgradeOperationsToReturn {
-			toReturn = append(toReturn, op)
-		}
-		totalCount = totalCount + 1
+func (h *Handler) getRuntimeNamesFromLastOperation(dto pkg.RuntimeDTO) (string, string) {
+	// TODO get rid of additional DB query - we have this info fetched from DB but it is tedious to pass it through
+	op, err := h.operationsDb.GetLastOperation(dto.InstanceID)
+	runtimeResourceName := steps.KymaRuntimeResourceNameFromID(dto.RuntimeID)
+	runtimeNamespaceName := "kcp-system"
+	if err != nil || op.RuntimeResourceName != "" {
+		runtimeResourceName = op.RuntimeResourceName
 	}
-	return toReturn, totalCount
+	if err != nil || op.KymaResourceNamespace != "" {
+		runtimeNamespaceName = op.KymaResourceNamespace
+	}
+	return runtimeResourceName, runtimeNamespaceName
 }
 
 func (h *Handler) takeLastNonDryRunClusterOperations(oprs []internal.UpgradeClusterOperation) ([]internal.UpgradeClusterOperation, int) {
@@ -231,11 +313,13 @@ func (h *Handler) determineStatusModifiedAt(dto *pkg.RuntimeDTO) error {
 	return nil
 }
 
-func (h *Handler) setRuntimeAllOperations(instance internal.Instance, dto *pkg.RuntimeDTO) error {
-	provOprs, err := h.operationsDb.ListProvisioningOperationsByInstanceID(instance.InstanceID)
+func (h *Handler) setRuntimeAllOperations(dto *pkg.RuntimeDTO) error {
+	operationsGroup, err := h.operationsDb.ListOperationsByInstanceIDGroupByType(dto.InstanceID)
 	if err != nil && !dberr.IsNotFound(err) {
-		return fmt.Errorf("while fetching provisioning operations list for instance %s: %w", instance.InstanceID, err)
+		return fmt.Errorf("while fetching operations for instance %s: %w", dto.InstanceID, err)
 	}
+
+	provOprs := operationsGroup.ProvisionOperations
 	if len(provOprs) != 0 {
 		firstProvOp := &provOprs[len(provOprs)-1]
 		lastProvOp := provOprs[0]
@@ -247,10 +331,7 @@ func (h *Handler) setRuntimeAllOperations(instance internal.Instance, dto *pkg.R
 		}
 	}
 
-	deprovOprs, err := h.operationsDb.ListDeprovisioningOperationsByInstanceID(instance.InstanceID)
-	if err != nil && !dberr.IsNotFound(err) {
-		return fmt.Errorf("while fetching deprovisioning operations list for instance %s: %w", instance.InstanceID, err)
-	}
+	deprovOprs := operationsGroup.DeprovisionOperations
 	var deprovOp *internal.DeprovisioningOperation
 	if len(deprovOprs) != 0 {
 		for _, op := range deprovOprs {
@@ -263,25 +344,11 @@ func (h *Handler) setRuntimeAllOperations(instance internal.Instance, dto *pkg.R
 	h.converter.ApplyDeprovisioningOperation(dto, deprovOp)
 	h.converter.ApplySuspensionOperations(dto, deprovOprs)
 
-	ukOprs, err := h.operationsDb.ListUpgradeKymaOperationsByInstanceID(instance.InstanceID)
-	if err != nil && !dberr.IsNotFound(err) {
-		return fmt.Errorf("while fetching upgrade kyma operation for instance %s: %w", instance.InstanceID, err)
-	}
-	dto.KymaVersion = determineKymaVersion(provOprs, ukOprs)
-	ukOprs, totalCount := h.takeLastNonDryRunOperations(ukOprs)
-	h.converter.ApplyUpgradingKymaOperations(dto, ukOprs, totalCount)
-
-	ucOprs, err := h.operationsDb.ListUpgradeClusterOperationsByInstanceID(instance.InstanceID)
-	if err != nil && !dberr.IsNotFound(err) {
-		return fmt.Errorf("while fetching upgrade cluster operation for instance %s: %w", instance.InstanceID, err)
-	}
-	ucOprs, totalCount = h.takeLastNonDryRunClusterOperations(ucOprs)
+	ucOprs := operationsGroup.UpgradeClusterOperations
+	ucOprs, totalCount := h.takeLastNonDryRunClusterOperations(ucOprs)
 	h.converter.ApplyUpgradingClusterOperations(dto, ucOprs, totalCount)
 
-	uOprs, err := h.operationsDb.ListUpdatingOperationsByInstanceID(instance.InstanceID)
-	if err != nil && !dberr.IsNotFound(err) {
-		return fmt.Errorf("while fetching update operation for instance %s: %w", instance.InstanceID, err)
-	}
+	uOprs := operationsGroup.UpdateOperations
 	totalCount = len(uOprs)
 	if len(uOprs) > numberOfUpgradeOperationsToReturn {
 		uOprs = uOprs[0:numberOfUpgradeOperationsToReturn]
@@ -291,10 +358,14 @@ func (h *Handler) setRuntimeAllOperations(instance internal.Instance, dto *pkg.R
 	return nil
 }
 
-func (h *Handler) setRuntimeLastOperation(instance internal.Instance, dto *pkg.RuntimeDTO) error {
-	lastOp, err := h.operationsDb.GetLastOperation(instance.InstanceID)
+func (h *Handler) setRuntimeLastOperation(dto *pkg.RuntimeDTO) error {
+	lastOp, err := h.operationsDb.GetLastOperation(dto.InstanceID)
 	if err != nil {
-		return fmt.Errorf("while fetching last operation instance %s: %w", instance.InstanceID, err)
+		if dberr.IsNotFound(err) {
+			h.logger.Infof("No operations found for instance %s", dto.InstanceID)
+			return nil
+		}
+		return fmt.Errorf("while fetching last operation instance %s: %w", dto.InstanceID, err)
 	}
 
 	// Set AVS evaluation ID based on the data in the last operation
@@ -302,9 +373,9 @@ func (h *Handler) setRuntimeLastOperation(instance internal.Instance, dto *pkg.R
 
 	switch lastOp.Type {
 	case internal.OperationTypeProvision:
-		provOps, err := h.operationsDb.ListProvisioningOperationsByInstanceID(instance.InstanceID)
+		provOps, err := h.operationsDb.ListProvisioningOperationsByInstanceID(dto.InstanceID)
 		if err != nil {
-			return fmt.Errorf("while fetching provisioning operations for instance %s: %w", instance.InstanceID, err)
+			return fmt.Errorf("while fetching provisioning operations for instance %s: %w", dto.InstanceID, err)
 		}
 		lastProvOp := &provOps[0]
 		if len(provOps) > 1 {
@@ -316,7 +387,7 @@ func (h *Handler) setRuntimeLastOperation(instance internal.Instance, dto *pkg.R
 	case internal.OperationTypeDeprovision:
 		deprovOp, err := h.operationsDb.GetDeprovisioningOperationByID(lastOp.ID)
 		if err != nil {
-			return fmt.Errorf("while fetching deprovisioning operation for instance %s: %w", instance.InstanceID, err)
+			return fmt.Errorf("while fetching deprovisioning operation for instance %s: %w", dto.InstanceID, err)
 		}
 		if deprovOp.Temporary {
 			h.converter.ApplySuspensionOperations(dto, []internal.DeprovisioningOperation{*deprovOp})
@@ -324,24 +395,17 @@ func (h *Handler) setRuntimeLastOperation(instance internal.Instance, dto *pkg.R
 			h.converter.ApplyDeprovisioningOperation(dto, deprovOp)
 		}
 
-	case internal.OperationTypeUpgradeKyma:
-		upgKymaOp, err := h.operationsDb.GetUpgradeKymaOperationByID(lastOp.ID)
-		if err != nil {
-			return fmt.Errorf("while fetching upgrade kyma operation for instance %s: %w", instance.InstanceID, err)
-		}
-		h.converter.ApplyUpgradingKymaOperations(dto, []internal.UpgradeKymaOperation{*upgKymaOp}, 1)
-
 	case internal.OperationTypeUpgradeCluster:
 		upgClusterOp, err := h.operationsDb.GetUpgradeClusterOperationByID(lastOp.ID)
 		if err != nil {
-			return fmt.Errorf("while fetching upgrade cluster operation for instance %s: %w", instance.InstanceID, err)
+			return fmt.Errorf("while fetching upgrade cluster operation for instance %s: %w", dto.InstanceID, err)
 		}
 		h.converter.ApplyUpgradingClusterOperations(dto, []internal.UpgradeClusterOperation{*upgClusterOp}, 1)
 
 	case internal.OperationTypeUpdate:
 		updOp, err := h.operationsDb.GetUpdatingOperationByID(lastOp.ID)
 		if err != nil {
-			return fmt.Errorf("while fetching update operation for instance %s: %w", instance.InstanceID, err)
+			return fmt.Errorf("while fetching update operation for instance %s: %w", dto.InstanceID, err)
 		}
 		h.converter.ApplyUpdateOperations(dto, []internal.UpdatingOperation{*updOp}, 1)
 
@@ -352,11 +416,12 @@ func (h *Handler) setRuntimeLastOperation(instance internal.Instance, dto *pkg.R
 	return nil
 }
 
-func (h *Handler) setRuntimeOptionalAttributes(instance internal.Instance, dto *pkg.RuntimeDTO, kymaConfig, clusterConfig, gardenerConfig bool) error {
+func (h *Handler) setRuntimeOptionalAttributes(dto *pkg.RuntimeDTO, kymaConfig, clusterConfig, gardenerConfig, drivenByKimOnly bool) error {
+
 	if kymaConfig || clusterConfig {
-		states, err := h.runtimeStatesDb.ListByRuntimeID(instance.RuntimeID)
+		states, err := h.runtimeStatesDb.ListByRuntimeID(dto.RuntimeID)
 		if err != nil && !dberr.IsNotFound(err) {
-			return fmt.Errorf("while fetching runtime states for instance %s: %w", instance.InstanceID, err)
+			return fmt.Errorf("while fetching runtime states for instance %s: %w", dto.InstanceID, err)
 		}
 		for _, state := range states {
 			if kymaConfig && dto.KymaConfig == nil && state.KymaConfig.Version != "" {
@@ -373,43 +438,17 @@ func (h *Handler) setRuntimeOptionalAttributes(instance internal.Instance, dto *
 		}
 	}
 
-	if gardenerConfig {
-		runtimeStatus, err := h.provisionerClient.RuntimeStatus(instance.GlobalAccountID, instance.RuntimeID)
+	if gardenerConfig && dto.RuntimeID != "" && !drivenByKimOnly {
+		runtimeStatus, err := h.provisionerClient.RuntimeStatus(dto.GlobalAccountID, dto.RuntimeID)
 		if err != nil {
-			return fmt.Errorf("while fetching runtime status from provisioner for instance %s: %w", instance.InstanceID, err)
+			dto.Status.GardenerConfig = nil
+			h.logger.Warnf("unable to fetch runtime status for instance %s: %s", dto.InstanceID, err.Error())
+		} else {
+			dto.Status.GardenerConfig = runtimeStatus.RuntimeConfiguration.ClusterConfig
 		}
-		dto.Status.GardenerConfig = runtimeStatus.RuntimeConfiguration.ClusterConfig
 	}
 
 	return nil
-}
-
-func determineKymaVersion(pOprs []internal.ProvisioningOperation, uOprs []internal.UpgradeKymaOperation) string {
-	kymaVersion := ""
-	kymaVersionSetAt := time.Time{}
-
-	// Set kyma version from the last provisioning operation
-	if len(pOprs) != 0 {
-		kymaVersion = pOprs[0].RuntimeVersion.Version
-		kymaVersionSetAt = pOprs[0].CreatedAt
-	}
-
-	// Take the last upgrade kyma operation which
-	//   - is not dry-run
-	//   - is created after the last provisioning operation
-	//   - has the kyma version set
-	//   - has been processed, i.e. not pending, canceling or canceled
-	// Use the last provisioning kyma version if no such upgrade operation was found, or the processed upgrade happened before the last provisioning operation.
-	for _, u := range uOprs {
-		if !u.DryRun && u.CreatedAt.After(kymaVersionSetAt) && u.RuntimeVersion.Version != "" && u.State != orchestration.Pending && u.State != orchestration.Canceling && u.State != orchestration.Canceled {
-			kymaVersion = u.RuntimeVersion.Version
-			break
-		} else if u.CreatedAt.Before(kymaVersionSetAt) {
-			break
-		}
-	}
-
-	return kymaVersion
 }
 
 func (h *Handler) getFilters(req *http.Request) dbmodel.InstanceFilter {
@@ -492,4 +531,12 @@ func getBoolParam(param string, req *http.Request) bool {
 	}
 
 	return requested
+}
+
+func RuntimeResourceGVK() schema.GroupVersionKind {
+	return schema.GroupVersionKind{
+		Group:   "infrastructuremanager.kyma-project.io",
+		Version: "v1",
+		Kind:    "Runtime",
+	}
 }

@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"log"
 	"time"
 
 	"github.com/gocraft/dbr"
@@ -22,7 +21,9 @@ type BrokerStorage interface {
 	Deprovisioning() Deprovisioning
 	Orchestrations() Orchestrations
 	RuntimeStates() RuntimeStates
+	SubaccountStates() SubaccountStates
 	Events() Events
+	InstancesArchived() InstancesArchived
 }
 
 const (
@@ -46,32 +47,38 @@ func NewFromConfig(cfg Config, evcfg events.Config, cipher postgres.Cipher, log 
 
 	operation := postgres.NewOperation(fact, cipher)
 	return storage{
-		instance:       postgres.NewInstance(fact, operation, cipher),
-		operation:      operation,
-		orchestrations: postgres.NewOrchestrations(fact),
-		runtimeStates:  postgres.NewRuntimeStates(fact, cipher),
-		events:         events.New(evcfg, eventstorage.New(fact, log)),
+		instance:          postgres.NewInstance(fact, operation, cipher),
+		operation:         operation,
+		orchestrations:    postgres.NewOrchestrations(fact),
+		runtimeStates:     postgres.NewRuntimeStates(fact, cipher),
+		events:            events.New(evcfg, eventstorage.New(fact, log)),
+		subaccountStates:  postgres.NewSubaccountStates(fact),
+		instancesArchived: postgres.NewInstanceArchived(fact),
 	}, connection, nil
 }
 
 func NewMemoryStorage() BrokerStorage {
 	op := memory.NewOperation()
 	return storage{
-		operation:      op,
-		instance:       memory.NewInstance(op),
-		orchestrations: memory.NewOrchestrations(),
-		runtimeStates:  memory.NewRuntimeStates(),
-		events:         events.New(events.Config{}, NewInMemoryEvents()),
+		operation:         op,
+		instance:          memory.NewInstance(op),
+		orchestrations:    memory.NewOrchestrations(),
+		runtimeStates:     memory.NewRuntimeStates(),
+		events:            events.New(events.Config{}, NewInMemoryEvents()),
+		subaccountStates:  memory.NewSubaccountStates(),
+		instancesArchived: memory.NewInstanceArchivedInMemoryStorage(),
 	}
 }
 
 type inMemoryEvents struct {
 	events []eventsapi.EventDTO
+	log    *logrus.Logger
 }
 
 func NewInMemoryEvents() *inMemoryEvents {
 	return &inMemoryEvents{
 		events: make([]eventsapi.EventDTO, 0),
+		log:    logrus.New(),
 	}
 }
 
@@ -81,7 +88,7 @@ func (_ inMemoryEvents) RunGarbageCollection(pollingPeriod, retention time.Durat
 
 func (e *inMemoryEvents) InsertEvent(eventLevel eventsapi.EventLevel, message, instanceID, operationID string) {
 	e.events = append(e.events, eventsapi.EventDTO{Level: eventLevel, InstanceID: &instanceID, OperationID: &operationID, Message: message})
-	log.Printf("EVENT [%v/%v] %v: %v\n", instanceID, operationID, eventLevel, message)
+	e.log.Printf("EVENT [%v/%v] %v: %v\n", instanceID, operationID, eventLevel, message)
 }
 
 func (e *inMemoryEvents) ListEvents(filter eventsapi.EventFilter) ([]eventsapi.EventDTO, error) {
@@ -114,11 +121,13 @@ func requiredContains[T comparable](el *T, sl []T) bool {
 }
 
 type storage struct {
-	instance       Instances
-	operation      Operations
-	orchestrations Orchestrations
-	runtimeStates  RuntimeStates
-	events         Events
+	instance          Instances
+	operation         Operations
+	orchestrations    Orchestrations
+	runtimeStates     RuntimeStates
+	events            Events
+	subaccountStates  SubaccountStates
+	instancesArchived InstancesArchived
 }
 
 func (s storage) Instances() Instances {
@@ -147,4 +156,12 @@ func (s storage) RuntimeStates() RuntimeStates {
 
 func (s storage) Events() Events {
 	return s.events
+}
+
+func (s storage) SubaccountStates() SubaccountStates {
+	return s.subaccountStates
+}
+
+func (s storage) InstancesArchived() InstancesArchived {
+	return s.instancesArchived
 }

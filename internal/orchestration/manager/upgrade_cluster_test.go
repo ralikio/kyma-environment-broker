@@ -21,10 +21,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
+const (
+	poolingInterval = 20 * time.Millisecond
+)
+
 func TestUpgradeClusterManager_Execute(t *testing.T) {
 	k8sClient := fake.NewFakeClient()
 	orchestrationConfig := internalOrchestration.Config{
-		KymaVersion:       "1.24.5",
 		KubernetesVersion: "1.22",
 		Namespace:         "default",
 		Name:              "policyConfig",
@@ -48,7 +51,6 @@ func TestUpgradeClusterManager_Execute(t *testing.T) {
 			State:           orchestration.Pending,
 			Type:            orchestration.UpgradeClusterOrchestration,
 			Parameters: orchestration.Parameters{
-				Kyma:       &orchestration.KymaParameters{Version: ""},
 				Kubernetes: &orchestration.KubernetesParameters{KubernetesVersion: ""},
 				Strategy: orchestration.StrategySpec{
 					ScheduleTime: time.Time{},
@@ -145,7 +147,6 @@ func TestUpgradeClusterManager_Execute(t *testing.T) {
 			Parameters: orchestration.Parameters{
 				DryRun:     true,
 				Kubernetes: &orchestration.KubernetesParameters{KubernetesVersion: ""},
-				Kyma:       &orchestration.KymaParameters{Version: ""},
 				Strategy: orchestration.StrategySpec{
 					ScheduleTime: time.Time{},
 				},
@@ -581,4 +582,39 @@ func TestUpgradeClusterManager_Execute(t *testing.T) {
 
 		assert.Equal(t, orchestration.Succeeded, string(op.State))
 	})
+}
+
+type testExecutor struct{}
+
+func (t *testExecutor) Execute(opID string) (time.Duration, error) {
+	return 0, nil
+}
+
+func (t *testExecutor) Reschedule(operationID string, maintenanceWindowBegin, maintenanceWindowEnd time.Time) error {
+	return nil
+}
+
+type retryTestExecutor struct {
+	store       storage.BrokerStorage
+	upgradeType orchestration.Type
+}
+
+func (t *retryTestExecutor) Execute(opID string) (time.Duration, error) {
+	switch t.upgradeType {
+	case orchestration.UpgradeClusterOrchestration:
+		op, err := t.store.Operations().GetUpgradeClusterOperationByID(opID)
+		if err != nil {
+			return 0, err
+		}
+		op.State = orchestration.Succeeded
+		_, err = t.store.Operations().UpdateUpgradeClusterOperation(*op)
+
+		return 0, err
+	}
+
+	return 0, fmt.Errorf("unknown upgrade type")
+}
+
+func (t *retryTestExecutor) Reschedule(operationID string, maintenanceWindowBegin, maintenanceWindowEnd time.Time) error {
+	return nil
 }

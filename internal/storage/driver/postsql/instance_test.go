@@ -26,7 +26,7 @@ import (
 func TestInstance(t *testing.T) {
 
 	t.Run("Should create and update instance", func(t *testing.T) {
-		storageCleanup, brokerStorage, err := GetStorageForTests()
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
 		defer func() {
@@ -59,19 +59,6 @@ func TestInstance(t *testing.T) {
 		fixProvisioningOperation2 := fixture.FixProvisioningOperation("latest-op-id", fixInstance.InstanceID)
 
 		err = brokerStorage.Operations().InsertOperation(fixProvisioningOperation2)
-		require.NoError(t, err)
-
-		upgradeOperation := fixture.FixUpgradeKymaOperation("operation-id-3", "inst-id")
-		upgradeOperation.State = orchestration.Pending
-		upgradeOperation.CreatedAt = time.Now().Truncate(time.Millisecond).Add(2 * time.Hour)
-		upgradeOperation.UpdatedAt = time.Now().Truncate(time.Millisecond).Add(2 * time.Hour).Add(10 * time.Minute)
-		upgradeOperation.ProvisionerOperationID = "target-op-id"
-		upgradeOperation.Description = "pending-operation"
-		upgradeOperation.Version = 1
-		upgradeOperation.OrchestrationID = "orch-id"
-		upgradeOperation.RuntimeOperation = fixRuntimeOperation("operation-id-3")
-
-		err = brokerStorage.Operations().InsertUpgradeKymaOperation(upgradeOperation)
 		require.NoError(t, err)
 
 		// then
@@ -114,7 +101,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("Should fetch instance statistics", func(t *testing.T) {
-		storageCleanup, brokerStorage, err := GetStorageForTests()
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
 		defer func() {
@@ -158,8 +145,58 @@ func TestInstance(t *testing.T) {
 		assert.Equal(t, 0, numberOfInstancesB)
 	})
 
+	t.Run("Should get distinct subaccounts from active instances", func(t *testing.T) {
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
+		require.NoError(t, err)
+		require.NotNil(t, brokerStorage)
+		defer func() {
+			err := storageCleanup()
+			assert.NoError(t, err)
+		}()
+
+		// populate database with samples
+		fixInstances := []internal.Instance{
+			*fixInstance(instanceData{val: "A1", globalAccountID: "ga1", subAccountID: "sa1", runtimeID: "runtimeID1"}),
+			*fixInstance(instanceData{val: "A2", globalAccountID: "ga1", subAccountID: "sa1", runtimeID: "runtimeID2"}),
+			*fixInstance(instanceData{val: "A3", globalAccountID: "ga1", subAccountID: "sa2", runtimeID: "runtimeID3"}),
+			*fixInstance(instanceData{val: "A4", globalAccountID: "ga2", subAccountID: "sa3", runtimeID: "runtimeID4"}),
+			*fixInstance(instanceData{val: "A5", globalAccountID: "ga2", subAccountID: "sa4", runtimeID: "runtimeID5"}),
+			*fixInstance(instanceData{val: "A6", globalAccountID: "ga2", subAccountID: "sa5", runtimeID: ""}),
+			*fixInstance(instanceData{val: "A7", globalAccountID: "ga2", subAccountID: "sa6", runtimeID: "runtimeID7"}),
+		}
+
+		for _, i := range fixInstances {
+			err = brokerStorage.Instances().Insert(i)
+			require.NoError(t, err)
+		}
+
+		// when
+		subaccounts, err := brokerStorage.Instances().GetDistinctSubAccounts()
+		require.NoError(t, err)
+
+		// then
+		assert.Equal(t, 6, len(subaccounts))
+	})
+
+	t.Run("Should no distinct subaccounts from empty table of active instances", func(t *testing.T) {
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
+		require.NoError(t, err)
+		require.NotNil(t, brokerStorage)
+		defer func() {
+			err := storageCleanup()
+			assert.NoError(t, err)
+		}()
+
+		// when
+		subaccounts, err := brokerStorage.Instances().GetDistinctSubAccounts()
+		require.NoError(t, err)
+
+		// then
+		assert.Equal(t, 0, len(subaccounts))
+	})
+
 	t.Run("Should fetch instances along with their operations", func(t *testing.T) {
-		storageCleanup, brokerStorage, err := GetStorageForTests()
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
 		defer func() {
@@ -230,7 +267,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("Should fetch instances based on subaccount list", func(t *testing.T) {
-		storageCleanup, brokerStorage, err := GetStorageForTests()
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
 		defer func() {
@@ -265,7 +302,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("Should list instances based on page and page size", func(t *testing.T) {
-		storageCleanup, brokerStorage, err := GetStorageForTests()
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
 		defer func() {
@@ -318,7 +355,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("Should list instances based on filters", func(t *testing.T) {
-		storageCleanup, brokerStorage, err := GetStorageForTests()
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
 		defer func() {
@@ -436,7 +473,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("Should list instances based on filters", func(t *testing.T) {
-		storageCleanup, brokerStorage, err := GetStorageForTests()
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
 		defer func() {
@@ -554,7 +591,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("Should list trial instances", func(t *testing.T) {
-		storageCleanup, brokerStorage, err := GetStorageForTests()
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
 		defer func() {
@@ -580,26 +617,16 @@ func TestInstance(t *testing.T) {
 		err = brokerStorage.Operations().InsertOperation(provOp1)
 		require.NoError(t, err)
 
-		// inst2 is in error state
+		// inst2 is in succeeded state
 		provOp2 := fixProvisionOperation("inst2")
 		provOp2.State = domain.Succeeded
 		err = brokerStorage.Operations().InsertOperation(provOp2)
 		require.NoError(t, err)
-		upgrOp2 := fixUpgradeKymaOperation("inst2")
-		upgrOp2.CreatedAt = upgrOp2.CreatedAt.Add(time.Minute)
-		upgrOp2.State = domain.Failed
-		err = brokerStorage.Operations().InsertUpgradeKymaOperation(upgrOp2)
-		require.NoError(t, err)
 
-		// inst3 is in suspended state
+		// inst3 is in succeeded state
 		provOp3 := fixProvisionOperation("inst3")
 		provOp3.State = domain.Succeeded
 		err = brokerStorage.Operations().InsertOperation(provOp3)
-		require.NoError(t, err)
-		upgrOp3 := fixUpgradeKymaOperation("inst3")
-		upgrOp3.CreatedAt = upgrOp2.CreatedAt.Add(time.Minute)
-		upgrOp3.State = domain.Failed
-		err = brokerStorage.Operations().InsertUpgradeKymaOperation(upgrOp3)
 		require.NoError(t, err)
 		deprovOp3 := fixDeprovisionOperation("inst3")
 		deprovOp3.Temporary = true
@@ -637,7 +664,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("Should list regular instances and not completely deprovisioned instances", func(t *testing.T) {
-		storageCleanup, brokerStorage, err := GetStorageForTests()
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
 		defer func() {
@@ -663,26 +690,16 @@ func TestInstance(t *testing.T) {
 		err = brokerStorage.Operations().InsertOperation(provOp1)
 		require.NoError(t, err)
 
-		// inst2 is in error state
+		// inst2 is in succeeded state
 		provOp2 := fixProvisionOperation("inst2")
 		provOp2.State = domain.Succeeded
 		err = brokerStorage.Operations().InsertOperation(provOp2)
 		require.NoError(t, err)
-		upgrOp2 := fixUpgradeKymaOperation("inst2")
-		upgrOp2.CreatedAt = upgrOp2.CreatedAt.Add(time.Minute)
-		upgrOp2.State = domain.Failed
-		err = brokerStorage.Operations().InsertUpgradeKymaOperation(upgrOp2)
-		require.NoError(t, err)
 
-		// inst3 is in suspended state
+		// inst3 is in succeeded state
 		provOp3 := fixProvisionOperation("inst3")
 		provOp3.State = domain.Succeeded
 		err = brokerStorage.Operations().InsertOperation(provOp3)
-		require.NoError(t, err)
-		upgrOp3 := fixUpgradeKymaOperation("inst3")
-		upgrOp3.CreatedAt = upgrOp2.CreatedAt.Add(time.Minute)
-		upgrOp3.State = domain.Failed
-		err = brokerStorage.Operations().InsertUpgradeKymaOperation(upgrOp3)
 		require.NoError(t, err)
 		deprovOp3 := fixDeprovisionOperation("inst3")
 		deprovOp3.Temporary = true
@@ -714,7 +731,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("Should list not completely deprovisioned instances", func(t *testing.T) {
-		storageCleanup, brokerStorage, err := GetStorageForTests()
+		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
 		defer func() {
@@ -740,26 +757,16 @@ func TestInstance(t *testing.T) {
 		err = brokerStorage.Operations().InsertOperation(provOp1)
 		require.NoError(t, err)
 
-		// inst2 is in error state
+		// inst2 is in succeeded state
 		provOp2 := fixProvisionOperation("inst2")
 		provOp2.State = domain.Succeeded
 		err = brokerStorage.Operations().InsertOperation(provOp2)
 		require.NoError(t, err)
-		upgrOp2 := fixUpgradeKymaOperation("inst2")
-		upgrOp2.CreatedAt = upgrOp2.CreatedAt.Add(time.Minute)
-		upgrOp2.State = domain.Failed
-		err = brokerStorage.Operations().InsertUpgradeKymaOperation(upgrOp2)
-		require.NoError(t, err)
 
-		// inst3 is in suspended state
+		// inst3 is in succeeded state
 		provOp3 := fixProvisionOperation("inst3")
 		provOp3.State = domain.Succeeded
 		err = brokerStorage.Operations().InsertOperation(provOp3)
-		require.NoError(t, err)
-		upgrOp3 := fixUpgradeKymaOperation("inst3")
-		upgrOp3.CreatedAt = upgrOp2.CreatedAt.Add(time.Minute)
-		upgrOp3.State = domain.Failed
-		err = brokerStorage.Operations().InsertUpgradeKymaOperation(upgrOp3)
 		require.NoError(t, err)
 		deprovOp3 := fixDeprovisionOperation("inst3")
 		deprovOp3.Temporary = true
@@ -813,6 +820,7 @@ type instanceData struct {
 	val             string
 	globalAccountID string
 	subAccountID    string
+	runtimeID       string
 	expired         bool
 	trial           bool
 	deletedAt       time.Time
@@ -878,9 +886,4 @@ func fixProvisionOperation(instanceId string) internal.Operation {
 func fixDeprovisionOperation(instanceId string) internal.DeprovisioningOperation {
 	operationId := fmt.Sprintf("%s-%d", instanceId, rand.Int())
 	return fixture.FixDeprovisioningOperation(operationId, instanceId)
-}
-
-func fixUpgradeKymaOperation(testData string) internal.UpgradeKymaOperation {
-	operationId := fmt.Sprintf("%s-%d", testData, rand.Int())
-	return fixture.FixUpgradeKymaOperation(operationId, testData)
 }

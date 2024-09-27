@@ -20,6 +20,8 @@ type runtime struct {
 	runtimeInput schema.ProvisionRuntimeInput
 }
 
+type runtimesSet map[string]interface{}
+
 type FakeClient struct {
 	mu          sync.Mutex
 	graphqlizer Graphqlizer
@@ -32,10 +34,25 @@ type FakeClient struct {
 
 	gardenerClient    dynamic.Interface
 	gardenerNamespace string
+
+	//needed in the transition period
+	kimOnlyDrivenRuntimes runtimesSet
 }
 
 func NewFakeClient() *FakeClient {
 	return NewFakeClientWithGardener(nil, "")
+}
+
+func NewFakeClientWithKimOnlyDrivenRuntimes(kimOnlyDrivenRuntimes runtimesSet) *FakeClient {
+	return &FakeClient{
+		graphqlizer:           Graphqlizer{},
+		runtimes:              []runtime{},
+		operations:            make(map[string]schema.OperationStatus),
+		upgrades:              make(map[string]schema.UpgradeRuntimeInput),
+		shootUpgrades:         make(map[string]schema.UpgradeShootInput),
+		gardenerClient:        nil,
+		kimOnlyDrivenRuntimes: kimOnlyDrivenRuntimes,
+	}
 }
 
 func NewFakeClientWithGardener(gc dynamic.Interface, ns string) *FakeClient {
@@ -70,12 +87,12 @@ func (c *FakeClient) FinishProvisionerOperation(id string, state schema.Operatio
 	c.operations[id] = op
 }
 
-func (c *FakeClient) FindOperationByRuntimeIDAndType(runtimeID string, operationType schema.OperationType) schema.OperationStatus {
+func (c *FakeClient) FindInProgressOperationByRuntimeIDAndType(runtimeID string, operationType schema.OperationType) schema.OperationStatus {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	for _, status := range c.operations {
-		if *status.RuntimeID == runtimeID && status.Operation == operationType {
+		if *status.RuntimeID == runtimeID && status.Operation == operationType && status.State == schema.OperationStateInProgress {
 			return status
 		}
 	}
@@ -160,7 +177,7 @@ func (c *FakeClient) ProvisionRuntimeWithIDs(accountID, subAccountID, runtimeID,
 				},
 			},
 		}
-		c.gardenerClient.Resource(gardener.ShootResource).Namespace(c.gardenerNamespace).Create(context.Background(), &shoot, v1.CreateOptions{})
+		_, _ = c.gardenerClient.Resource(gardener.ShootResource).Namespace(c.gardenerNamespace).Create(context.Background(), &shoot, v1.CreateOptions{})
 	}
 
 	return schema.OperationStatus{
@@ -205,6 +222,11 @@ func (c *FakeClient) RuntimeStatus(accountID, runtimeID string) (schema.RuntimeS
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// simulating provider behavior when runtime is KIM only driven
+	if _, ok := c.kimOnlyDrivenRuntimes[runtimeID]; ok {
+		return schema.RuntimeStatus{}, fmt.Errorf("not found")
+	}
+
 	for _, ops := range c.operations {
 		if *ops.RuntimeID == runtimeID {
 			return schema.RuntimeStatus{
@@ -214,6 +236,10 @@ func (c *FakeClient) RuntimeStatus(accountID, runtimeID string) (schema.RuntimeS
 						Region:   ptr.String("fake-region"),
 						Seed:     ptr.String("fake-seed"),
 						Provider: ptr.String("aws"),
+						ProviderSpecificConfig: &schema.AWSProviderConfig{
+							AwsZones: []*schema.AWSZone{},
+							VpcCidr:  ptr.String("0.0.0.0/25"),
+						},
 					},
 					Kubeconfig: ptr.String("kubeconfig-content"),
 				},
@@ -282,6 +308,11 @@ func (c *FakeClient) IsRuntimeUpgraded(runtimeID string, version string) bool {
 func (c *FakeClient) IsShootUpgraded(runtimeID string) bool {
 	_, found := c.shootUpgrades[runtimeID]
 	return found
+}
+
+func (c *FakeClient) IsSeedAndRegionValidationEnabled() bool {
+	input := c.LastProvisioning()
+	return input.ClusterConfig.GardenerConfig.ShootAndSeedSameRegion != nil
 }
 
 func (c *FakeClient) LastShootUpgrade(runtimeID string) (schema.UpgradeShootInput, bool) {

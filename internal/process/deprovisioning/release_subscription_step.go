@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kyma-project/kyma-environment-broker/internal/euaccess"
+
 	"github.com/kyma-project/kyma-environment-broker/common/hyperscaler"
 	"github.com/kyma-project/kyma-environment-broker/internal/broker"
 	"github.com/kyma-project/kyma-environment-broker/internal/process"
@@ -53,7 +55,7 @@ func (s ReleaseSubscriptionStep) Run(operation internal.Operation, log logrus.Fi
 			return operation, 0, nil
 		}
 
-		hypType, err := hyperscaler.HypTypeFromCloudProviderWithRegion(instance.Provider, &instance.ProviderRegion)
+		hypType, err := hyperscaler.HypTypeFromCloudProviderWithRegion(instance.Provider, &instance.ProviderRegion, &operation.ProvisioningParameters.PlatformRegion)
 		if err != nil {
 			msg := fmt.Sprintf("after successful deprovisioning failing to release hyperscaler subscription - determine the type of hyperscaler to use for planID [%s]: %s", planID, err.Error())
 			operation, repeat, err := s.operationManager.MarkStepAsExcutedButNotCompleted(operation, s.Name(), msg, log)
@@ -63,7 +65,7 @@ func (s ReleaseSubscriptionStep) Run(operation internal.Operation, log logrus.Fi
 			return operation, 0, nil
 		}
 
-		euAccess := internal.IsEuAccess(operation.ProvisioningParameters.PlatformRegion)
+		euAccess := euaccess.IsEURestrictedAccess(operation.ProvisioningParameters.PlatformRegion)
 		err = s.accountProvider.MarkUnusedGardenerSecretBindingAsDirty(hypType, instance.GetSubscriptionGlobalAccoundID(), euAccess)
 		if err != nil {
 			log.Errorf("after successful deprovisioning failed to release hyperscaler subscription: %s", err)

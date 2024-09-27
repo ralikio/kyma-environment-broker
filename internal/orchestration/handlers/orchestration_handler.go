@@ -31,7 +31,6 @@ type orchestrationHandler struct {
 	log       logrus.FieldLogger
 
 	canceler       *Canceler
-	kymaRetryer    *kymaRetryer
 	clusterRetryer *clusterRetryer
 
 	defaultMaxPage int
@@ -41,7 +40,6 @@ type orchestrationHandler struct {
 func NewOrchestrationStatusHandler(operations storage.Operations,
 	orchestrations storage.Orchestrations,
 	runtimeStates storage.RuntimeStates,
-	kymaQueue *process.Queue,
 	clusterQueue *process.Queue,
 	defaultMaxPage int,
 	log logrus.FieldLogger) *orchestrationHandler {
@@ -53,7 +51,6 @@ func NewOrchestrationStatusHandler(operations storage.Operations,
 		defaultMaxPage: defaultMaxPage,
 		converter:      Converter{},
 		canceler:       NewCanceler(orchestrations, log),
-		kymaRetryer:    NewKymaRetryer(orchestrations, operations, kymaQueue, log),
 		clusterRetryer: NewClusterRetryer(orchestrations, operations, clusterQueue, log),
 	}
 }
@@ -119,7 +116,6 @@ func (h *orchestrationHandler) retryOrchestrationByID(w http.ResponseWriter, r *
 
 	orchestrationID := mux.Vars(r)["orchestration_id"]
 	operationIDs := []string{}
-	var immediateID string
 
 	if r.Body != nil {
 		if err := r.ParseForm(); err != nil {
@@ -129,7 +125,6 @@ func (h *orchestrationHandler) retryOrchestrationByID(w http.ResponseWriter, r *
 		}
 
 		operationIDs = r.Form["operation-id"]
-		immediateID = r.FormValue("immediate")
 	}
 
 	o, err := h.orchestrations.GetByID(orchestrationID)
@@ -145,19 +140,6 @@ func (h *orchestrationHandler) retryOrchestrationByID(w http.ResponseWriter, r *
 
 	var response commonOrchestration.RetryResponse
 	switch o.Type {
-	case commonOrchestration.UpgradeKymaOrchestration:
-		allOps, _, _, err := h.operations.ListUpgradeKymaOperationsByOrchestrationID(o.OrchestrationID, filter)
-		if err != nil {
-			h.log.Errorf("while getting operations: %v", err)
-			httputil.WriteErrorResponse(w, http.StatusInternalServerError, fmt.Errorf("while getting operations: %w", err))
-			return
-		}
-
-		response, err = h.kymaRetryer.orchestrationRetry(o, allOps, operationIDs, immediateID)
-		if err != nil {
-			httputil.WriteErrorResponse(w, http.StatusInternalServerError, err)
-			return
-		}
 
 	case commonOrchestration.UpgradeClusterOrchestration:
 		allOps, _, _, err := h.operations.ListUpgradeClusterOperationsByOrchestrationID(o.OrchestrationID, filter)
@@ -236,19 +218,6 @@ func (h *orchestrationHandler) listOperations(w http.ResponseWriter, r *http.Req
 
 	var response commonOrchestration.OperationResponseList
 	switch o.Type {
-	case commonOrchestration.UpgradeKymaOrchestration:
-		operations, count, totalCount, err := h.operations.ListUpgradeKymaOperationsByOrchestrationID(orchestrationID, filter)
-		if err != nil {
-			h.log.Errorf("while getting operations: %v", err)
-			httputil.WriteErrorResponse(w, http.StatusInternalServerError, fmt.Errorf("while getting operations: %w", err))
-			return
-		}
-		response, err = h.converter.UpgradeKymaOperationListToDTO(operations, count, totalCount)
-		if err != nil {
-			h.log.Errorf("while converting operations: %v", err)
-			httputil.WriteErrorResponse(w, http.StatusInternalServerError, fmt.Errorf("while converting operations: %w", err))
-			return
-		}
 
 	case commonOrchestration.UpgradeClusterOrchestration:
 		operations, count, totalCount, err := h.operations.ListUpgradeClusterOperationsByOrchestrationID(orchestrationID, filter)
@@ -288,24 +257,8 @@ func (h *orchestrationHandler) getOperation(w http.ResponseWriter, r *http.Reque
 		h.log.Errorf("while getting runtime state for upgrade operation %s: %v", operationID, err)
 	}
 
-	kymaConfig := upgradeState.GetKymaConfig()
-
 	var response commonOrchestration.OperationDetailResponse
 	switch o.Type {
-	case commonOrchestration.UpgradeKymaOrchestration:
-		operation, err := h.operations.GetUpgradeKymaOperationByID(operationID)
-		if err != nil {
-			h.log.Errorf("while getting upgrade operation %s: %v", operationID, err)
-			httputil.WriteErrorResponse(w, h.resolveErrorStatus(err), fmt.Errorf("while getting upgrade operation %s: %w", operationID, err))
-			return
-		}
-
-		response, err = h.converter.UpgradeKymaOperationToDetailDTO(*operation, &kymaConfig)
-		if err != nil {
-			h.log.Errorf("while converting operation: %v", err)
-			httputil.WriteErrorResponse(w, http.StatusInternalServerError, fmt.Errorf("while converting operation: %w", err))
-			return
-		}
 
 	case commonOrchestration.UpgradeClusterOrchestration:
 		operation, err := h.operations.GetUpgradeClusterOperationByID(operationID)

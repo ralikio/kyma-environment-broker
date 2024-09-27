@@ -4,8 +4,6 @@ metadata:
   name: {{ include "kyma-env-broker.fullname" . }}
   labels:
 {{ include "kyma-env-broker.labels" . | indent 4 }}
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false
 data:
   additionalRuntimeComponents.yaml: |-
     components:
@@ -21,8 +19,8 @@ data:
 {{- with .Values.trialRegionsMapping }}
 {{ tpl . $ | indent 4 }}
 {{- end }}
-  euAccessWhitelistedGlobalAccountIds.yaml: |-
-{{- with .Values.euAccessWhitelistedGlobalAccountIds }}
+  sapConvergedCloudPlanRegionMappings.yaml: |-
+{{- with .Values.sapConvergedCloudPlanRegionMappings }}
 {{ tpl . $ | indent 4 }}
 {{- end }}
   skrOIDCDefaultValues.yaml: |-
@@ -40,3 +38,7 @@ data:
 {{- end }}
   catalog.yaml: |-
 {{ .Files.Get "files/catalog.yaml" | indent 4 }}
+  freemiumWhitelistedGlobalAccountIds.yaml: |-
+{{- with .Values.freemiumWhitelistedGlobalAccountIds }}
+{{ tpl . $ | indent 4 }}
+{{- end }}

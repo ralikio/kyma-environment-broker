@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	imv1 "github.com/kyma-project/infrastructure-manager/api/v1"
+
 	"github.com/kyma-project/kyma-environment-broker/internal/kubeconfig"
 
 	kebConfig "github.com/kyma-project/kyma-environment-broker/internal/config"
 
-	"github.com/kyma-project/kyma-environment-broker/internal/reconciler"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage/dberr"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -21,11 +22,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
 	"github.com/kyma-project/kyma-environment-broker/internal"
-	"github.com/kyma-project/kyma-environment-broker/internal/avs"
 	"github.com/kyma-project/kyma-environment-broker/internal/edp"
 	"github.com/kyma-project/kyma-environment-broker/internal/event"
 	"github.com/kyma-project/kyma-environment-broker/internal/fixture"
-	"github.com/kyma-project/kyma-environment-broker/internal/ias"
 	"github.com/kyma-project/kyma-environment-broker/internal/process"
 	"github.com/kyma-project/kyma-environment-broker/internal/provisioner"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
@@ -50,8 +49,23 @@ type DeprovisioningSuite struct {
 	t *testing.T
 }
 
+func (s *DeprovisioningSuite) TearDown() {
+	if r := recover(); r != nil {
+		err := cleanupContainer()
+		assert.NoError(s.t, err)
+		panic(r)
+	}
+}
+
 func NewDeprovisioningSuite(t *testing.T) *DeprovisioningSuite {
-	ctx, _ := context.WithTimeout(context.Background(), 20*time.Minute)
+	defer func() {
+		if r := recover(); r != nil {
+			err := cleanupContainer()
+			assert.NoError(t, err)
+			panic(r)
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 
 	logs := logrus.New()
 	logs.Formatter.(*logrus.TextFormatter).TimestampFormat = "15:04:05.000"
@@ -59,52 +73,44 @@ func NewDeprovisioningSuite(t *testing.T) *DeprovisioningSuite {
 	cfg := fixConfig()
 	cfg.EDP.Environment = edpEnvironment
 
-	db := storage.NewMemoryStorage()
+	storageCleanup, db, err := GetStorageForE2ETests()
+	assert.NoError(t, err)
+	t.Cleanup(func() {
+		defer cancel()
+		if storageCleanup != nil {
+			err := storageCleanup()
+			assert.NoError(t, err)
+		}
+	})
 	eventBroker := event.NewPubSub(logs)
 	provisionerClient := provisioner.NewFakeClient()
 
-	server := avs.NewMockAvsServer(t)
-	mockServer := avs.FixMockAvsServer(server)
-	avsConfig := avs.Config{
-		OauthTokenEndpoint: fmt.Sprintf("%s/oauth/token", mockServer.URL),
-		ApiEndpoint:        fmt.Sprintf("%s/api/v2/evaluationmetadata", mockServer.URL),
-	}
-	client, err := avs.NewClient(context.TODO(), avsConfig, logrus.New())
-	assert.NoError(t, err)
-	_, err = client.CreateEvaluation(&avs.BasicEvaluationCreateRequest{
-		Name: "fake-evaluation",
-	})
-	assert.NoError(t, err)
-	avsDel := avs.NewDelegator(client, avsConfig, db.Operations())
-	externalEvalAssistant := avs.NewExternalEvalAssistant(cfg.Avs)
-	internalEvalAssistant := avs.NewInternalEvalAssistant(cfg.Avs)
-
-	iasFakeClient := ias.NewFakeClient()
-	bundleBuilder := ias.NewBundleBuilder(iasFakeClient, cfg.IAS)
-
-	edpClient := fixEDPClient()
-	reconcilerClient := reconciler.NewFakeClient()
+	edpClient := fixEDPClient(t)
 
 	accountProvider := fixAccountProvider()
 
 	deprovisionManager := process.NewStagedManager(db.Operations(), eventBroker, time.Minute, cfg.Deprovisioning, logs.WithField("deprovisioning", "manager"))
 	deprovisionManager.SpeedUp(1000)
 	scheme := runtime.NewScheme()
-	apiextensionsv1.AddToScheme(scheme)
-	corev1.AddToScheme(scheme)
+	err = apiextensionsv1.AddToScheme(scheme)
+	assert.NoError(t, err)
+	err = corev1.AddToScheme(scheme)
+	assert.NoError(t, err)
+	err = imv1.AddToScheme(scheme)
+	require.NoError(t, err)
 	fakeK8sSKRClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	sch := internal.NewSchemeForTests()
+	sch := internal.NewSchemeForTests(t)
 	cli := fake.NewClientBuilder().WithScheme(sch).WithRuntimeObjects(fixK8sResources(defaultKymaVer, []string{})...).Build()
 
 	configProvider := kebConfig.NewConfigProvider(
-		kebConfig.NewConfigMapReader(ctx, cli, logrus.New(), defaultKymaVer),
+		kebConfig.NewConfigMapReader(ctx, cli, logrus.New(), "keb-runtime-config"),
 		kebConfig.NewConfigMapKeysValidator(),
 		kebConfig.NewConfigMapConverter())
 
 	deprovisioningQueue := NewDeprovisioningProcessingQueue(ctx, workersAmount, deprovisionManager, cfg, db, eventBroker,
-		provisionerClient, avsDel, internalEvalAssistant, externalEvalAssistant,
-		bundleBuilder, edpClient, accountProvider, reconcilerClient, kubeconfig.NewFakeK8sClientProvider(fakeK8sSKRClient), fakeK8sSKRClient, configProvider, logs,
+		provisionerClient,
+		edpClient, accountProvider, kubeconfig.NewFakeK8sClientProvider(fakeK8sSKRClient), fakeK8sSKRClient, configProvider, logs,
 	)
 
 	deprovisioningQueue.SpeedUp(10000)
@@ -145,7 +151,7 @@ func (s *DeprovisioningSuite) CreateProvisionedRuntime(options RuntimeOptions) s
 
 func (s *DeprovisioningSuite) finishProvisioningOperationByProvisioner(operationType gqlschema.OperationType, runtimeID string) {
 	err := wait.Poll(pollingInterval, 2*time.Second, func() (bool, error) {
-		status := s.provisionerClient.FindOperationByRuntimeIDAndType(runtimeID, operationType)
+		status := s.provisionerClient.FindInProgressOperationByRuntimeIDAndType(runtimeID, operationType)
 		if status.ID != nil {
 			s.provisionerClient.FinishProvisionerOperation(*status.ID, gqlschema.OperationStateSucceeded)
 			return true, nil
@@ -256,13 +262,14 @@ func (s *DeprovisioningSuite) AssertInstanceNotRemoved(instanceId string) {
 	assert.NotNil(s.t, instance)
 }
 
-func fixEDPClient() *edp.FakeClient {
+func fixEDPClient(t *testing.T) *edp.FakeClient {
 	client := edp.NewFakeClient()
-	client.CreateDataTenant(edp.DataTenantPayload{
+	err := client.CreateDataTenant(edp.DataTenantPayload{
 		Name:        subAccountID,
 		Environment: edpEnvironment,
 		Secret:      base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s%s", subAccountID, edpEnvironment))),
-	})
+	}, logrus.New())
+	assert.NoError(t, err)
 
 	metadataTenantKeys := []string{
 		edp.MaasConsumerEnvironmentKey,
@@ -272,10 +279,11 @@ func fixEDPClient() *edp.FakeClient {
 	}
 
 	for _, key := range metadataTenantKeys {
-		client.CreateMetadataTenant(subAccountID, edpEnvironment, edp.MetadataTenantPayload{
+		err = client.CreateMetadataTenant(subAccountID, edpEnvironment, edp.MetadataTenantPayload{
 			Key:   key,
 			Value: "-",
-		})
+		}, logrus.New())
+		assert.NoError(t, err)
 	}
 
 	return client

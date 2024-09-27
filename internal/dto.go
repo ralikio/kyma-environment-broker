@@ -176,12 +176,9 @@ type ProvisioningParametersDTO struct {
 	// LicenceType - based on this parameter, some options can be enabled/disabled when preparing the input
 	// for the provisioner e.g. use default overrides for SKR instead overrides from resource
 	// with "provisioning-runtime-override" label when LicenceType is "TestDevelopmentAndDemo"
-	LicenceType                 *string  `json:"licence_type,omitempty"`
-	Zones                       []string `json:"zones,omitempty"`
-	OptionalComponentsToInstall []string `json:"components,omitempty"`
-	KymaVersion                 string   `json:"kymaVersion,omitempty"`
-	OverridesVersion            string   `json:"overridesVersion,omitempty"`
-	RuntimeAdministrators       []string `json:"administrators,omitempty"`
+	LicenceType           *string  `json:"licence_type,omitempty"`
+	Zones                 []string `json:"zones,omitempty"`
+	RuntimeAdministrators []string `json:"administrators,omitempty"`
 	// Provider - used in Trial plan to determine which cloud provider to use during provisioning
 	Provider *CloudProvider `json:"provider,omitempty"`
 
@@ -189,9 +186,10 @@ type ProvisioningParametersDTO struct {
 	ShootName   string `json:"shootName,omitempty"`
 	ShootDomain string `json:"shootDomain,omitempty"`
 
-	OIDC       *OIDCConfigDTO `json:"oidc,omitempty"`
-	Networking *NetworkingDTO `json:"networking,omitempty""`
-	Modules    *ModulesDTO    `json:"modules,omitempty"`
+	OIDC                   *OIDCConfigDTO `json:"oidc,omitempty"`
+	Networking             *NetworkingDTO `json:"networking,omitempty"`
+	Modules                *ModulesDTO    `json:"modules,omitempty"`
+	ShootAndSeedSameRegion *bool          `json:"shootAndSeedSameRegion,omitempty"`
 }
 
 type UpdatingParametersDTO struct {

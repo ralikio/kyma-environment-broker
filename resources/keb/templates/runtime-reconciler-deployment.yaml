@@ -6,8 +6,6 @@ metadata:
   namespace: kcp-system
   labels:
     app: runtime-reconciler
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false
 spec:
   replicas: 1
   selector:
@@ -22,6 +20,10 @@ spec:
       {{- with .Values.deployment.securityContext }}
       securityContext:
         {{ toYaml . | nindent 12 }}
+      {{- end }}
+      {{- if ne .Values.imagePullSecret "" }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
       {{- end }}
       containers:
         - name: runtime-reconciler
@@ -38,12 +40,6 @@ spec:
               value: "{{ .Values.runtimeReconciler.jobInterval }}"
             - name: RUNTIME_RECONCILER_JOB_RECONCILIATION_DELAY
               value: "{{ .Values.runtimeReconciler.jobReconciliationDelay }}"
-            - name: RUNTIME_RECONCILER_WATCHER_ENABLED
-              value: "{{ .Values.runtimeReconciler.watcherEnabled }}"
-            - name: RUNTIME_RECONCILER_BTP_MANAGER_SECRET_WATCHER_ADDR
-              value: "{{ .Values.runtimeReconciler.watcherAddress }}"
-            - name: RUNTIME_RECONCILER_BTP_MANAGER_SECRET_WATCHER_COMPONENT_NAME
-              value: "{{ .Values.runtimeReconciler.watcherName }}"
             - name: RUNTIME_RECONCILER_DATABASE_SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -82,8 +78,6 @@ spec:
                   key: postgresql-sslMode
             - name: RUNTIME_RECONCILER_DATABASE_SSLROOTCERT
               value: /secrets/cloudsql-sslrootcert/server-ca.pem
-            - name: RUNTIME_RECONCILER_PROVISIONER_URL
-              value: {{ .Values.provisioner.URL }}
         {{- if and (eq .Values.global.database.embedded.enabled false) (eq .Values.global.database.cloudsqlproxy.enabled false)}}
           volumeMounts:
               - name: cloudsql-sslrootcert
@@ -92,14 +86,18 @@ spec:
         {{- end}}
         {{- if and (eq .Values.global.database.embedded.enabled false) (eq .Values.global.database.cloudsqlproxy.enabled true)}}
         - name: cloudsql-proxy
-          image: {{ .Values.global.images.cloudsql_proxy_image }}
+          image: {{ .Values.global.images.cloudsql_proxy.repository }}:{{ .Values.global.images.cloudsql_proxy.tag }}
           {{- if .Values.global.database.cloudsqlproxy.workloadIdentity.enabled }}
-          command: ["/cloud_sql_proxy",
-                    "-instances={{ .Values.global.database.managedGCP.instanceConnectionName }}=tcp:5432"]
+          command: ["/cloud-sql-proxy",
+                    "{{ .Values.global.database.managedGCP.instanceConnectionName }}",
+                    "--exit-zero-on-sigterm",
+                    "--private-ip"]
           {{- else }}
-          command: ["/cloud_sql_proxy",
-                    "-instances={{ .Values.global.database.managedGCP.instanceConnectionName }}=tcp:5432",
-                    "-credential_file=/secrets/cloudsql-instance-credentials/credentials.json"]
+          command: ["/cloud-sql-proxy",
+                    "{{ .Values.global.database.managedGCP.instanceConnectionName }}",
+                    "--exit-zero-on-sigterm",
+                    "--private-ip",
+                    "--credentials-file=/secrets/cloudsql-instance-credentials/credentials.json"]
           volumeMounts:
             - name: cloudsql-instance-credentials
               mountPath: /secrets/cloudsql-instance-credentials

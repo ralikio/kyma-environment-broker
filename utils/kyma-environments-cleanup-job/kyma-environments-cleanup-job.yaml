@@ -28,17 +28,17 @@ spec:
           containers:
             - name: kyma-environments-cleanup
               command: ["/bin/main"]
-              image: europe-docker.pkg.dev/kyma-project/prod/kyma-environments-cleanup-job:1.1.6
+              image: europe-docker.pkg.dev/kyma-project/prod/kyma-environments-cleanup-job:1.10.12
               imagePullPolicy: IfNotPresent
               env:
+                - name: DATABASE_EMBEDDED
+                  value: "false"
                 - name: APP_MAX_AGE_HOURS
                   value: 24h
                 - name: APP_GARDENER_PROJECT
                   value: kyma-dev
                 - name: APP_GARDENER_KUBECONFIG_PATH
                   value: /gardener/kubeconfig/kubeconfig
-                - name: APP_PROVISIONER_URL
-                  value: http://kcp-provisioner.kcp-system.svc.cluster.local:3000/graphql
                 - name: APP_DATABASE_SECRET_KEY
                   valueFrom:
                     secretKeyRef:
@@ -84,7 +84,7 @@ spec:
                   mountPath: /gardener/kubeconfig
                   readOnly: true
             - name: cloudsql-proxy
-              image: europe-docker.pkg.dev/kyma-project/prod/tpi/cloudsql-docker/gce-proxy:v1.33.8-afb993b8
+              image: ${SCRIPT_CLOUDSQL_PROXY_IMAGE}
               imagePullPolicy: IfNotPresent
               command: ${SCRIPT_CLOUDSQL_PROXY_COMMAND} # set by script
           volumes:

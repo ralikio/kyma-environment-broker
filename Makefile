@@ -1,4 +1,7 @@
 GOLINT_VER = v1.55.2
+ifeq (,$(GOLINT_TIMEOUT))
+GOLINT_TIMEOUT=2m
+endif
 
  ## The headers are represented by '##@' like 'General' and the descriptions of given command is text after '##''.
 .PHONY: help
@@ -15,7 +18,7 @@ checks: check-go-mod-tidy ## run different Go related checks
 
 .PHONY: go-lint
 go-lint: go-lint-install ## linter config in file at root of project -> '.golangci.yaml'
-	golangci-lint run --new
+	golangci-lint run --timeout=$(GOLINT_TIMEOUT)
 
 go-lint-install: ## linter config in file at root of project -> '.golangci.yaml'
 	@if [ "$(shell command golangci-lint version --format short)" != "$(GOLINT_VER)" ]; then \
@@ -34,7 +37,7 @@ test: ## run Go tests
 
 .PHONY: check-go-mod-tidy
 check-go-mod-tidy: ## check if go mod tidy needed
-	go mod tidy
+	go mod tidy -v
 	@if [ -n "$$(git status -s go.*)" ]; then \
 		echo -e "${RED}✗ go mod tidy modified go.mod or go.sum files${NC}"; \
 		git status -s go.*; \
@@ -45,5 +48,5 @@ check-go-mod-tidy: ## check if go mod tidy needed
 
 .PHONY: fix
 fix: go-lint-install ## try to fix automatically issues
-	go mod tidy
-	golangci-lint run --fix --new
+	go mod tidy -v
+	golangci-lint run --fix

@@ -303,7 +303,7 @@ func Test_GardenerConfigInputToGraphQLWithDNS(t *testing.T) {
 		DNSConfig: &gqlschema.DNSConfigInput{
 			Domain: name + ".kymatest.ondemand.com",
 			Providers: []*gqlschema.DNSProviderInput{
-				&gqlschema.DNSProviderInput{
+				{
 					DomainsInclude: []string{"kymatest.ondemand.com"},
 					Primary:        true,
 					SecretName:     "aws-secret-for-custom-domain",
@@ -621,8 +621,8 @@ func TestSapConvergedCloud(t *testing.T) {
 	input := gqlschema.ProviderSpecificInput{
 		OpenStackConfig: &gqlschema.OpenStackProviderConfigInput{
 			Zones:                []string{"z1"},
-			FloatingPoolName:     "fp",
-			CloudProfileName:     "cp",
+			FloatingPoolName:     ptr.String("fp"),
+			CloudProfileName:     ptr.String("cp"),
 			LoadBalancerProvider: "lbp",
 		},
 	}
@@ -652,8 +652,6 @@ func TestSapConvergedCloud(t *testing.T) {
 		providerSpecificConfig: {
 			openStackConfig: {
 				zones: ["z1"],
-				floatingPoolName: "fp",
-				cloudProfileName: "cp",
 				loadBalancerProvider: "lbp"
 			},
 		}

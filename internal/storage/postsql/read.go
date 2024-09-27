@@ -21,6 +21,38 @@ type readSession struct {
 	session *dbr.Session
 }
 
+func (r readSession) ListSubaccountStates() ([]dbmodel.SubaccountStateDTO, dberr.Error) {
+	var states []dbmodel.SubaccountStateDTO
+
+	_, err := r.session.
+		Select("*").
+		From(SubaccountStatesTableName).
+		Load(&states)
+	if err != nil {
+		return nil, dberr.Internal("Failed to get subaccount states: %s", err)
+	}
+	return states, nil
+}
+
+func (r readSession) GetDistinctSubAccounts() ([]string, dberr.Error) {
+	var subAccounts []string
+
+	err := r.session.
+		Select("distinct(sub_account_id)").
+		From(InstancesTableName).
+		Where(dbr.Neq("runtime_id", "")).
+		LoadOne(&subAccounts)
+
+	if err != nil {
+		if err == dbr.ErrNotFound {
+			return []string{}, nil
+		}
+		return []string{}, dberr.Internal("Failed to get distinct subaccounts: %s", err)
+	}
+
+	return subAccounts, nil
+}
+
 func (r readSession) getInstancesJoinedWithOperationStatement() *dbr.SelectStmt {
 	join := fmt.Sprintf("%s.instance_id = %s.instance_id", InstancesTableName, OperationTableName)
 	stmt := r.session.
@@ -67,6 +99,23 @@ func (r readSession) GetInstanceByID(instanceID string) (dbmodel.InstanceDTO, db
 	return instance, nil
 }
 
+func (r readSession) GetInstanceArchivedByID(instanceId string) (dbmodel.InstanceArchivedDTO, error) {
+	var result dbmodel.InstanceArchivedDTO
+
+	err := r.session.Select("*").
+		From(InstancesArchivedTableName).
+		Where(dbr.Eq("instance_id", instanceId)).
+		LoadOne(&result)
+
+	if err != nil {
+		if err == dbr.ErrNotFound {
+			return dbmodel.InstanceArchivedDTO{}, dberr.NotFound("unable to find InstanceArchived %s", instanceId)
+		}
+		return dbmodel.InstanceArchivedDTO{}, dberr.Internal("Failed to get instance archived %s: %s", instanceId, err.Error())
+	}
+	return result, nil
+}
+
 func (r readSession) FindAllInstancesForRuntimes(runtimeIdList []string) ([]dbmodel.InstanceDTO, dberr.Error) {
 	var instances []dbmodel.InstanceDTO
 
@@ -103,10 +152,13 @@ func (r readSession) FindAllInstancesForSubAccounts(subAccountslist []string) ([
 	return instances, nil
 }
 
-func (r readSession) GetLastOperation(instanceID string) (dbmodel.OperationDTO, dberr.Error) {
+func (r readSession) GetLastOperation(instanceID string, types []internal.OperationType) (dbmodel.OperationDTO, dberr.Error) {
 	inst := dbr.Eq("instance_id", instanceID)
 	state := dbr.Neq("state", []string{orchestration.Pending, orchestration.Canceled})
 	condition := dbr.And(inst, state)
+	if len(types) > 0 {
+		condition = dbr.And(condition, dbr.Expr("type IN ?", types))
+	}
 	operation, err := r.getLastOperation(condition)
 	if err != nil {
 		switch {
@@ -173,6 +225,19 @@ func (r readSession) ListOperations(filter dbmodel.OperationFilter) ([]dbmodel.O
 		len(operations),
 		totalCount,
 		nil
+}
+
+func (r readSession) GetAllOperations() ([]dbmodel.OperationDTO, error) {
+	var operations []dbmodel.OperationDTO
+
+	_, err := r.session.Select("*").
+		From(OperationTableName).
+		Load(&operations)
+
+	if err != nil {
+		return nil, dberr.Internal("Failed to get operations: %s", err)
+	}
+	return operations, nil
 }
 
 func (r readSession) GetOrchestrationByID(oID string) (dbmodel.OrchestrationDTO, dberr.Error) {
@@ -454,58 +519,6 @@ func (r readSession) GetLatestRuntimeStateByRuntimeID(runtimeID string) (dbmodel
 	return state, nil
 }
 
-func (r readSession) GetLatestRuntimeStateWithReconcilerInputByRuntimeID(runtimeID string) (dbmodel.RuntimeStateDTO, dberr.Error) {
-	var state dbmodel.RuntimeStateDTO
-	runtimeIDIsEqual := dbr.Eq("runtime_id", runtimeID)
-	reconcilerInputIsNotEmptyString := dbr.Neq("cluster_setup", "")
-	reconcilerInputIsNotNil := dbr.Neq("cluster_setup", nil)
-	innerCondition := dbr.And(reconcilerInputIsNotEmptyString, reconcilerInputIsNotNil)
-	condition := dbr.And(runtimeIDIsEqual, innerCondition)
-
-	count, err := r.session.
-		Select("*").
-		From(RuntimeStateTableName).
-		Where(condition).
-		OrderDesc(CreatedAtField).
-		Limit(1).
-		Load(&state)
-	if err != nil {
-		if err == dbr.ErrNotFound {
-			return dbmodel.RuntimeStateDTO{}, dberr.NotFound("cannot find runtime state: %s", err)
-		}
-		return dbmodel.RuntimeStateDTO{}, dberr.Internal("Failed to get the latest runtime state with reconciler input: %s", err)
-	}
-	if count == 0 {
-		return dbmodel.RuntimeStateDTO{}, dberr.NotFound("cannot find runtime state with reconciler input: %s", err)
-	}
-	return state, nil
-}
-
-func (r readSession) GetLatestRuntimeStateWithKymaVersionByRuntimeID(runtimeID string) (dbmodel.RuntimeStateDTO, dberr.Error) {
-	var state dbmodel.RuntimeStateDTO
-	condition := dbr.And(dbr.Eq("runtime_id", runtimeID),
-		dbr.And(dbr.Neq("kyma_version", nil), dbr.Neq("kyma_version", "")),
-	)
-
-	count, err := r.session.
-		Select("*").
-		From(RuntimeStateTableName).
-		Where(condition).
-		OrderDesc(CreatedAtField).
-		Limit(1).
-		Load(&state)
-	if err != nil {
-		if err == dbr.ErrNotFound {
-			return state, dberr.NotFound("cannot find latest runtime state with kyma version: %s", err)
-		}
-		return state, dberr.Internal("Failed to get the latest runtime state with kyma version: %s", err)
-	}
-	if count == 0 {
-		return state, dberr.NotFound("found 0 latest runtime states with kyma version: %s", err)
-	}
-	return state, nil
-}
-
 func (r readSession) GetLatestRuntimeStateWithOIDCConfigByRuntimeID(runtimeID string) (dbmodel.RuntimeStateDTO, dberr.Error) {
 	var state dbmodel.RuntimeStateDTO
 	condition := dbr.And(dbr.Eq("runtime_id", runtimeID),
@@ -597,6 +610,12 @@ func (r readSession) GetOperationStats() ([]dbmodel.OperationStatEntry, error) {
 	return rows, err
 }
 
+func (r readSession) GetOperationsStatsV2() ([]dbmodel.OperationStatEntryV2, error) {
+	var rows []dbmodel.OperationStatEntryV2
+	_, err := r.session.SelectBySql(fmt.Sprintf("select count(*), type, state, provisioning_parameters ->> 'plan_id' AS plan_id from %s where state='in progress' group by type, state, plan_id", OperationTableName)).Load(&rows)
+	return rows, err
+}
+
 func (r readSession) GetOperationStatsForOrchestration(orchestrationID string) ([]dbmodel.OperationStatEntry, error) {
 	var rows []dbmodel.OperationStatEntry
 	_, err := r.session.SelectBySql(fmt.Sprintf("select type, state, instance_id, provisioning_parameters ->> 'plan_id' AS plan_id from %s where orchestration_id='%s'",
@@ -642,15 +661,18 @@ func (r readSession) GetNumberOfInstancesForGlobalAccountID(globalAccountID stri
 	return res.Total, err
 }
 
-func (r readSession) ListInstances(filter dbmodel.InstanceFilter) ([]dbmodel.InstanceDTO, int, int, error) {
-	var instances []dbmodel.InstanceDTO
+func (r readSession) ListInstances(filter dbmodel.InstanceFilter) ([]dbmodel.InstanceWithExtendedOperationDTO, int, int, error) {
+	var instances []dbmodel.InstanceWithExtendedOperationDTO
 
 	// Base select and order by created at
 	var stmt *dbr.SelectStmt
 	// Find and join the last operation for each instance matching the state filter(s).
 	// Last operation is found with the greatest-n-per-group problem solved with OUTER JOIN, followed by a (INNER) JOIN to get instance columns.
 	stmt = r.session.
-		Select(fmt.Sprintf("%s.*", InstancesTableName)).
+		// Order in select is important - dbr iterates over result and checks for matching fields in go structures.
+		// Because of that and Operation having common fields with Instance with current order operation attributes will
+		// be loaded into structures (e.g. created_at, provisioning_parameters, etc.) and will be overwritten by instance attributes.
+		Select("o1.data", "o1.state", "o1.type", fmt.Sprintf("%s.*", InstancesTableName)).
 		From(InstancesTableName).
 		Join(dbr.I(OperationTableName).As("o1"), fmt.Sprintf("%s.instance_id = o1.instance_id", InstancesTableName)).
 		LeftJoin(dbr.I(OperationTableName).As("o2"), fmt.Sprintf("%s.instance_id = o2.instance_id AND o1.created_at < o2.created_at AND o2.state NOT IN ('%s', '%s')", InstancesTableName, orchestration.Pending, orchestration.Canceled)).
@@ -888,4 +910,128 @@ func (r readSession) getOrchestrationCount(filter dbmodel.OrchestrationFilter) (
 	err := stmt.LoadOne(&res)
 
 	return res.Total, err
+}
+
+func (r readSession) ListDeletedInstanceIDs(amount int) ([]string, error) {
+	rows, err := r.session.Query(fmt.Sprintf("select distinct(instance_id) from operations where instance_id not in (select instance_id from instances) limit %d", amount))
+	if err != nil {
+		return []string{}, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		err := rows.Scan(&id)
+		if err != nil {
+			return ids, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, err
+}
+
+func (r readSession) NumberOfOperationsForDeletedInstances() (int, error) {
+	var res struct {
+		Total int
+	}
+	err := r.session.Select("count(*) as total").
+		From(OperationTableName).
+		Where("instance_id not in (select instance_id from instances)").
+		LoadOne(&res)
+	return res.Total, err
+}
+
+func (r readSession) NumberOfDeletedInstances() (int, error) {
+	var res struct {
+		Total int
+	}
+	err := r.session.Select("count(distinct(instance_id)) as total").
+		From(OperationTableName).
+		Where("instance_id not in (select instance_id from instances)").
+		LoadOne(&res)
+	return res.Total, err
+}
+
+func (r readSession) TotalNumberOfInstancesArchived() (int, error) {
+	var res struct {
+		Total int
+	}
+	err := r.session.Select("count(*) as total").
+		From(InstancesArchivedTableName).
+		LoadOne(&res)
+	return res.Total, err
+}
+
+func (r readSession) TotalNumberOfInstancesArchivedForGlobalAccountID(globalAccountID string, planID string) (int, error) {
+	var res struct {
+		Total int
+	}
+	err := r.session.Select("count(*) as total").
+		From(InstancesArchivedTableName).
+		Where(dbr.Eq("global_account_id", globalAccountID)).
+		Where(dbr.Eq("plan_id", planID)).
+		Where(dbr.Eq("provisioning_state", domain.Succeeded)).
+		LoadOne(&res)
+
+	return res.Total, err
+}
+
+func (r readSession) ListInstancesArchived(filter dbmodel.InstanceFilter) ([]dbmodel.InstanceArchivedDTO, int, int, error) {
+	var instancesArchived []dbmodel.InstanceArchivedDTO
+
+	stmt := r.session.Select("*").
+		From(InstancesArchivedTableName).
+		OrderDesc("last_deprovisioning_finished_at")
+
+	if filter.Page > 0 && filter.PageSize > 0 {
+		stmt.Paginate(uint64(filter.Page), uint64(filter.PageSize))
+	}
+
+	addInstanceArchivedFilter(stmt, filter)
+
+	_, err := stmt.Load(&instancesArchived)
+
+	totalCount, err := r.getInstanceArchivedCount(filter)
+	if err != nil {
+		return []dbmodel.InstanceArchivedDTO{}, -1, -1, err
+	}
+
+	return instancesArchived, len(instancesArchived), totalCount, nil
+}
+
+func (r readSession) getInstanceArchivedCount(filter dbmodel.InstanceFilter) (int, error) {
+	var res struct {
+		Total int
+	}
+	stmt := r.session.Select("count(*) as total").
+		From(InstancesArchivedTableName)
+
+	addInstanceArchivedFilter(stmt, filter)
+	err := stmt.LoadOne(&res)
+
+	return res.Total, err
+}
+
+func addInstanceArchivedFilter(stmt *dbr.SelectStmt, filter dbmodel.InstanceFilter) {
+	if len(filter.InstanceIDs) > 0 {
+		stmt.Where("instance_id IN ?", filter.InstanceIDs)
+	}
+	if len(filter.GlobalAccountIDs) > 0 {
+		stmt.Where("global_account_id IN ?", filter.GlobalAccountIDs)
+	}
+	if len(filter.SubAccountIDs) > 0 {
+		stmt.Where("subaccount_id IN ?", filter.SubAccountIDs)
+	}
+	if len(filter.Plans) > 0 {
+		stmt.Where("plan_name IN ?", filter.Plans)
+	}
+	if len(filter.Regions) > 0 {
+		stmt.Where("region IN ?", filter.Regions)
+	}
+	if len(filter.RuntimeIDs) > 0 {
+		stmt.Where("last_runtime_id IN ?", filter.RuntimeIDs)
+	}
+	if len(filter.Shoots) > 0 {
+		stmt.Where("shoot_name IN ?", filter.Shoots)
+	}
 }

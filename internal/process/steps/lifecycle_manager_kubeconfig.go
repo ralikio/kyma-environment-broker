@@ -63,8 +63,8 @@ func (s deleteKubeconfig) Run(o internal.Operation, log logrus.FieldLogger) (int
 	secret := initSecret(o)
 	if err := s.k8sClient.Delete(context.Background(), secret); err != nil && !errors.IsNotFound(err) {
 		msg := fmt.Sprintf("failed to delete kubeconfig Secret %v/%v for lifecycle manager: %v", secret.Namespace, secret.Name, err)
-		log.Error(msg)
-		return s.operationManager.RetryOperationWithoutFail(o, s.Name(), msg, time.Minute, time.Minute*5, log)
+		log.Warnf(msg)
+		return s.operationManager.RetryOperationWithoutFail(o, s.Name(), msg, time.Minute, time.Minute*5, log, fmt.Errorf(msg))
 	}
 	return o, 0, nil
 }
@@ -81,18 +81,4 @@ func initSecret(o internal.Operation) *corev1.Secret {
 	}
 	ApplyLabelsAndAnnotationsForLM(secret, o)
 	return secret
-}
-
-// NOTE: adapter for upgrade_kyma which is currently not using shared staged_manager
-type syncKubeconfigUpgradeKyma struct {
-	syncKubeconfig
-}
-
-func SyncKubeconfigUpgradeKyma(os storage.Operations, k8sClient client.Client) syncKubeconfigUpgradeKyma {
-	return syncKubeconfigUpgradeKyma{SyncKubeconfig(os, k8sClient)}
-}
-
-func (s syncKubeconfigUpgradeKyma) Run(o internal.UpgradeKymaOperation, logger logrus.FieldLogger) (internal.UpgradeKymaOperation, time.Duration, error) {
-	o2, w, err := s.syncKubeconfig.Run(o.Operation, logger)
-	return internal.UpgradeKymaOperation{o2}, w, err
 }

@@ -51,9 +51,9 @@ type RuntimeDTO struct {
 	Status                      RuntimeStatus                  `json:"status"`
 	UserID                      string                         `json:"userID"`
 	AVSInternalEvaluationID     int64                          `json:"avsInternalEvaluationID"`
-	KymaVersion                 string                         `json:"kymaVersion,omitempty"`
 	KymaConfig                  *gqlschema.KymaConfigInput     `json:"kymaConfig,omitempty"`
 	ClusterConfig               *gqlschema.GardenerConfigInput `json:"clusterConfig,omitempty"`
+	RuntimeConfig               *map[string]interface{}        `json:"runtimeConfig,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -64,7 +64,6 @@ type RuntimeStatus struct {
 	State            State                     `json:"state"`
 	Provisioning     *Operation                `json:"provisioning,omitempty"`
 	Deprovisioning   *Operation                `json:"deprovisioning,omitempty"`
-	UpgradingKyma    *OperationsData           `json:"upgradingKyma,omitempty"`
 	UpgradingCluster *OperationsData           `json:"upgradingCluster,omitempty"`
 	Update           *OperationsData           `json:"update,omitempty"`
 	Suspension       *OperationsData           `json:"suspension,omitempty"`
@@ -77,7 +76,6 @@ type OperationType string
 const (
 	Provision      OperationType = "provision"
 	Deprovision    OperationType = "deprovision"
-	UpgradeKyma    OperationType = "kyma upgrade"
 	UpgradeCluster OperationType = "cluster upgrade"
 	Update         OperationType = "update"
 	Suspension     OperationType = "suspension"
@@ -100,7 +98,6 @@ type Operation struct {
 	OrchestrationID              string        `json:"orchestrationID,omitempty"`
 	FinishedStages               []string      `json:"finishedStages"`
 	ExecutedButNotCompletedSteps []string      `json:"executedButNotCompletedSteps,omitempty"`
-	RuntimeVersion               string        `json:"runtimeVersion"`
 }
 
 type RuntimesPage struct {
@@ -123,6 +120,7 @@ const (
 	ClusterConfigParam   = "cluster_config"
 	ExpiredParam         = "expired"
 	GardenerConfigParam  = "gardener_config"
+	RuntimeConfigParam   = "runtime_config"
 )
 
 type OperationDetail string
@@ -143,6 +141,8 @@ type ListParameters struct {
 	KymaConfig bool
 	// ClusterConfig specifies whether Gardener cluster configuration details should be included in the response for each runtime
 	ClusterConfig bool
+	// RuntimeResourceConfig specifies whether current Runtime Custom Resource details should be included in the response for each runtime
+	RuntimeResourceConfig bool
 	// GardenerConfig specifies whether current Gardener cluster configuration details from provisioner should be included in the response for each runtime
 	GardenerConfig bool
 	// GlobalAccountIDs parameter filters runtimes by specified global account IDs
@@ -178,11 +178,6 @@ func (rt RuntimeDTO) LastOperation() Operation {
 	if rt.Status.UpgradingCluster != nil && rt.Status.UpgradingCluster.Count > 0 {
 		op = rt.Status.UpgradingCluster.Data[0]
 		op.Type = UpgradeCluster
-	}
-	// Take the first upgrade operation, assuming that Data is sorted by CreatedAt DESC.
-	if rt.Status.UpgradingKyma != nil && rt.Status.UpgradingKyma.Count > 0 && rt.Status.UpgradingKyma.Data[0].CreatedAt.After(op.CreatedAt) {
-		op = rt.Status.UpgradingKyma.Data[0]
-		op.Type = UpgradeKyma
 	}
 
 	// Take the first unsuspension operation, assuming that Data is sorted by CreatedAt DESC.

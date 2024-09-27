@@ -37,8 +37,15 @@ type OperationDTO struct {
 type OperationStatEntry struct {
 	Type       string
 	State      string
-	PlanID     string
+	PlanID     sql.NullString
 	InstanceID string
+}
+
+type OperationStatEntryV2 struct {
+	Count  int
+	Type   string
+	State  string
+	PlanID sql.NullString
 }
 
 type InstanceByGlobalAccountIDStatEntry struct {

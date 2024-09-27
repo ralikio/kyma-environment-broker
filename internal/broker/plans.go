@@ -10,6 +10,9 @@ import (
 	"github.com/kyma-project/kyma-environment-broker/internal"
 )
 
+type PlanID string
+type PlanName string
+
 const (
 	AllPlansSelector = "all_plans"
 
@@ -90,14 +93,65 @@ func AzureRegions(euRestrictedAccess bool) []string {
 		"westeurope",
 		"japaneast",
 		"southeastasia",
+		"australiaeast",
+		"brazilsouth",
 	}
 }
 
-func GCPRegions() []string {
+func AzureRegionsDisplay(euRestrictedAccess bool) map[string]string {
+	if euRestrictedAccess {
+		return map[string]string{
+			"switzerlandnorth": "switzerlandnorth (Switzerland, Zurich)",
+		}
+	}
+	return map[string]string{
+		"eastus":        "eastus (US East, VA)",
+		"centralus":     "centralus (US Central, IA)",
+		"westus2":       "westus2 (US West, WA)",
+		"uksouth":       "uksouth (UK South, London)",
+		"northeurope":   "northeurope (Europe, Ireland)",
+		"westeurope":    "westeurope (Europe, Netherlands)",
+		"japaneast":     "japaneast (Japan, Tokyo)",
+		"southeastasia": "southeastasia (Asia Pacific, Singapore)",
+		"australiaeast": "australiaeast (Australia, Sydney)",
+		"brazilsouth":   "brazilsouth (Brazil, São Paulo)",
+	}
+}
+
+func GcpRegions(assuredWorkloads bool) []string {
+	if assuredWorkloads {
+		return []string{
+			"me-central2",
+		}
+	}
 	return []string{
 		"europe-west3",
 		"asia-south1",
-		"us-central1"}
+		"us-central1",
+		"me-central2",
+		"asia-northeast2",
+		"me-west1",
+		"southamerica-east1",
+		"australia-southeast1",
+	}
+}
+
+func GcpRegionsDisplay(assuredWorkloads bool) map[string]string {
+	if assuredWorkloads {
+		return map[string]string{
+			"me-central2": "me-central2 (KSA, Dammam)",
+		}
+	}
+	return map[string]string{
+		"europe-west3":         "europe-west3 (Europe, Frankfurt)",
+		"asia-south1":          "asia-south1 (India, Mumbai)",
+		"us-central1":          "us-central1 (US Central, IA)",
+		"me-central2":          "me-central2 (KSA, Dammam)",
+		"asia-northeast2":      "asia-northeast2 (Japan, Osaka)",
+		"me-west1":             "me-west1 (Israel, Tel Aviv)",
+		"southamerica-east1":   "southamerica-east1 (Brazil, São Paulo)",
+		"australia-southeast1": "australia-southeast1 (Australia, Sydney)",
+	}
 }
 
 func AWSRegions(euRestrictedAccess bool) []string {
@@ -109,12 +163,51 @@ func AWSRegions(euRestrictedAccess bool) []string {
 		"ap-northeast-1", "ap-northeast-2", "ap-south-1", "ap-southeast-1", "ap-southeast-2"}
 }
 
-func SapConvergedCloudRegions() []string {
-	return []string{"eu-de-1"}
+func AWSRegionsDisplay() map[string]string {
+	return nil
 }
 
-func AzureMachinesTypes() []string {
+func SapConvergedCloudRegionsDisplay() map[string]string {
+	return nil
+}
+
+func AwsMachinesNames() []string {
 	return []string{
+		"m6i.large",
+		"m6i.xlarge",
+		"m6i.2xlarge",
+		"m6i.4xlarge",
+		"m6i.8xlarge",
+		"m6i.12xlarge",
+		"m5.large",
+		"m5.xlarge",
+		"m5.2xlarge",
+		"m5.4xlarge",
+		"m5.8xlarge",
+		"m5.12xlarge",
+	}
+}
+
+func AwsMachinesDisplay() map[string]string {
+	return map[string]string{
+		"m6i.large":    "m6i.large (2vCPU, 8GB RAM)",
+		"m6i.xlarge":   "m6i.xlarge (4vCPU, 16GB RAM)",
+		"m6i.2xlarge":  "m6i.2xlarge (8vCPU, 32GB RAM)",
+		"m6i.4xlarge":  "m6i.4xlarge (16vCPU, 64GB RAM)",
+		"m6i.8xlarge":  "m6i.8xlarge (32vCPU, 128GB RAM)",
+		"m6i.12xlarge": "m6i.12xlarge (48vCPU, 192GB RAM)",
+		"m5.large":     "m5.large (2vCPU, 8GB RAM)",
+		"m5.xlarge":    "m5.xlarge (4vCPU, 16GB RAM)",
+		"m5.2xlarge":   "m5.2xlarge (8vCPU, 32GB RAM)",
+		"m5.4xlarge":   "m5.4xlarge (16vCPU, 64GB RAM)",
+		"m5.8xlarge":   "m5.8xlarge (32vCPU, 128GB RAM)",
+		"m5.12xlarge":  "m5.12xlarge (48vCPU, 192GB RAM)",
+	}
+}
+
+func AzureMachinesNames() []string {
+	return []string{
+		"Standard_D2s_v5",
 		"Standard_D4s_v5",
 		"Standard_D8s_v5",
 		"Standard_D16s_v5",
@@ -130,8 +223,9 @@ func AzureMachinesTypes() []string {
 	}
 }
 
-func AzureMachinesDisplayNames() map[string]string {
+func AzureMachinesDisplay() map[string]string {
 	return map[string]string{
+		"Standard_D2s_v5":  "Standard_D2s_v5 (2vCPU, 8GB RAM)",
 		"Standard_D4s_v5":  "Standard_D4s_v5 (4vCPU, 16GB RAM)",
 		"Standard_D8s_v5":  "Standard_D8s_v5 (8vCPU, 32GB RAM)",
 		"Standard_D16s_v5": "Standard_D16s_v5 (16vCPU, 64GB RAM)",
@@ -147,18 +241,82 @@ func AzureMachinesDisplayNames() map[string]string {
 	}
 }
 
-func AzureLiteMachinesTypes() []string {
+func AzureLiteMachinesNames() []string {
 	return []string{
+		"Standard_D2s_v5",
 		"Standard_D4s_v5",
 		"Standard_D4_v3",
 	}
 }
 
-func AzureLiteMachinesDisplayNames() map[string]string {
+func AzureLiteMachinesDisplay() map[string]string {
 	return map[string]string{
+		"Standard_D2s_v5": "Standard_D2s_v5 (2vCPU, 8GB RAM)",
 		"Standard_D4s_v5": "Standard_D4s_v5 (4vCPU, 16GB RAM)",
 		"Standard_D4_v3":  "Standard_D4_v3 (4vCPU, 16GB RAM)",
 	}
+}
+
+func GcpMachinesNames() []string {
+	return []string{
+		"n2-standard-2",
+		"n2-standard-4",
+		"n2-standard-8",
+		"n2-standard-16",
+		"n2-standard-32",
+		"n2-standard-48",
+	}
+}
+
+func GcpMachinesDisplay() map[string]string {
+	return map[string]string{
+		"n2-standard-2":  "n2-standard-2 (2vCPU, 8GB RAM)",
+		"n2-standard-4":  "n2-standard-4 (4vCPU, 16GB RAM)",
+		"n2-standard-8":  "n2-standard-8 (8vCPU, 32GB RAM)",
+		"n2-standard-16": "n2-standard-16 (16vCPU, 64GB RAM)",
+		"n2-standard-32": "n2-standard-32 (32vCPU, 128GB RAM)",
+		"n2-standard-48": "n2-standard-48 (48vCPU, 192B RAM)",
+	}
+}
+
+func SapConvergedCloudMachinesNames() []string {
+	return []string{
+		"g_c2_m8",
+		"g_c4_m16",
+		"g_c6_m24",
+		"g_c8_m32",
+		"g_c12_m48",
+		"g_c16_m64",
+		"g_c32_m128",
+		"g_c64_m256",
+	}
+}
+
+func SapConvergedCloudMachinesDisplay() map[string]string {
+	return map[string]string{
+		"g_c2_m8":    "g_c2_m8 (2vCPU, 8GB RAM)",
+		"g_c4_m16":   "g_c4_m16 (4vCPU, 16GB RAM)",
+		"g_c6_m24":   "g_c6_m24 (6vCPU, 24GB RAM)",
+		"g_c8_m32":   "g_c8_m32 (8vCPU, 32GB RAM)",
+		"g_c12_m48":  "g_c12_m48 (12vCPU, 48GB RAM)",
+		"g_c16_m64":  "g_c16_m64 (16vCPU, 64GB RAM)",
+		"g_c32_m128": "g_c32_m128 (32vCPU, 128GB RAM)",
+		"g_c64_m256": "g_c64_m256 (64vCPU, 256GB RAM)",
+	}
+}
+
+func removeMachinesNamesFromList(machinesNames []string, machinesNamesToRemove ...string) []string {
+	for i, machineName := range machinesNames {
+		for _, machineNameToRemove := range machinesNamesToRemove {
+			if machineName == machineNameToRemove {
+				copy(machinesNames[i:], machinesNames[i+1:])
+				machinesNames[len(machinesNames)-1] = ""
+				machinesNames = machinesNames[:len(machinesNames)-1]
+			}
+		}
+	}
+
+	return machinesNames
 }
 
 func requiredSchemaProperties() []string {
@@ -173,34 +331,34 @@ func requiredOwnClusterSchemaProperties() []string {
 	return []string{"name", "kubeconfig", "shootName", "shootDomain"}
 }
 
-func SapConvergedCloudSchema(machineTypesDisplay map[string]string, machineTypes []string, additionalParams, update bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, machineTypes, SapConvergedCloudRegions(), update)
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+func SapConvergedCloudSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool, shootAndSeedFeatureFlag bool, sapConvergedCloudRegions []string) *map[string]interface{} {
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, sapConvergedCloudRegions, update)
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), true, shootAndSeedFeatureFlag)
 }
 
-func PreviewSchema(machineTypesDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, machineTypes, AWSRegions(euAccessRestricted), update)
+func PreviewSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AWSRegions(euAccessRestricted), update)
 	properties.Networking = NewNetworkingSchema()
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), false, false)
 }
 
-func GCPSchema(machineTypesDisplay map[string]string, machineTypes []string, additionalParams, update bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, machineTypes, GCPRegions(), update)
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+func GCPSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool, shootAndSeedFeatureFlag bool, assuredWorkloads bool) *map[string]interface{} {
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, GcpRegions(assuredWorkloads), update)
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), true, shootAndSeedFeatureFlag)
 }
 
-func AWSSchema(machineTypesDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, machineTypes, AWSRegions(euAccessRestricted), update)
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+func AWSSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool, shootAndSeedSameRegion bool) *map[string]interface{} {
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AWSRegions(euAccessRestricted), update)
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), true, shootAndSeedSameRegion)
 }
 
-func AzureSchema(machineTypesDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, machineTypes, AzureRegions(euAccessRestricted), update)
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+func AzureSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool, shootAndSeedFeatureFlag bool) *map[string]interface{} {
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AzureRegions(euAccessRestricted), update)
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), true, shootAndSeedFeatureFlag)
 }
 
-func AzureLiteSchema(machineTypesDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
-	properties := NewProvisioningProperties(machineTypesDisplay, machineTypes, AzureRegions(euAccessRestricted), update)
+func AzureLiteSchema(machineTypesDisplay, regionsDisplay map[string]string, machineTypes []string, additionalParams, update bool, euAccessRestricted bool, shootAndSeedFeatureFlag bool) *map[string]interface{} {
+	properties := NewProvisioningProperties(machineTypesDisplay, regionsDisplay, machineTypes, AzureRegions(euAccessRestricted), update)
 
 	properties.AutoScalerMax.Minimum = 2
 	properties.AutoScalerMin.Minimum = 2
@@ -211,10 +369,10 @@ func AzureLiteSchema(machineTypesDisplay map[string]string, machineTypes []strin
 		properties.AutoScalerMin.Default = 2
 	}
 
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), true, shootAndSeedFeatureFlag)
 }
 
-func FreemiumSchema(provider internal.CloudProvider, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
+func FreemiumSchema(provider internal.CloudProvider, regionsDisplay map[string]string, additionalParams, update bool, euAccessRestricted bool) *map[string]interface{} {
 	if update && !additionalParams {
 		return empty()
 	}
@@ -231,9 +389,10 @@ func FreemiumSchema(provider internal.CloudProvider, additionalParams, update bo
 	properties := ProvisioningProperties{
 		Name: NameProperty(),
 		Region: &Type{
-			Type:      "string",
-			Enum:      ToInterfaceSlice(regions),
-			MinLength: 1,
+			Type:            "string",
+			Enum:            ToInterfaceSlice(regions),
+			MinLength:       1,
+			EnumDisplayName: regionsDisplay,
 		},
 	}
 	if !update {
@@ -241,7 +400,7 @@ func FreemiumSchema(provider internal.CloudProvider, additionalParams, update bo
 		properties.Modules = NewModulesSchema()
 	}
 
-	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties())
+	return createSchemaWithProperties(properties, additionalParams, update, requiredSchemaProperties(), false, false)
 }
 
 func TrialSchema(additionalParams, update bool) *map[string]interface{} {
@@ -257,7 +416,7 @@ func TrialSchema(additionalParams, update bool) *map[string]interface{} {
 		return empty()
 	}
 
-	return createSchemaWithProperties(properties, additionalParams, update, requiredTrialSchemaProperties())
+	return createSchemaWithProperties(properties, additionalParams, update, requiredTrialSchemaProperties(), false, false)
 }
 
 func OwnClusterSchema(update bool) *map[string]interface{} {
@@ -283,15 +442,19 @@ func empty() *map[string]interface{} {
 	return &empty
 }
 
-func createSchemaWithProperties(properties ProvisioningProperties, additionalParams, update bool, requiered []string) *map[string]interface{} {
+func createSchemaWithProperties(properties ProvisioningProperties, additionalParams, update bool, required []string, shootAndSeedSameRegion bool, shootAndSeedFeatureFlag bool) *map[string]interface{} {
 	if additionalParams {
 		properties.IncludeAdditional()
 	}
 
+	if shootAndSeedFeatureFlag && additionalParams && shootAndSeedSameRegion {
+		properties.ShootAndSeedSameRegion = ShootAndSeedSameRegionProperty()
+	}
+
 	if update {
-		return createSchemaWith(properties.UpdateProperties, update, requiered)
+		return createSchemaWith(properties.UpdateProperties, update, required)
 	} else {
-		return createSchemaWith(properties, update, requiered)
+		return createSchemaWith(properties, update, required)
 	}
 }
 
@@ -317,94 +480,52 @@ func unmarshalSchema(schema *RootSchema) *map[string]interface{} {
 
 // Plans is designed to hold plan defaulting logic
 // keep internal/hyperscaler/azure/config.go in sync with any changes to available zones
-func Plans(plans PlansConfig, provider internal.CloudProvider, includeAdditionalParamsInSchema bool, euAccessRestricted bool) map[string]domain.ServicePlan {
-	awsMachines := []string{"m5.xlarge", "m5.2xlarge", "m5.4xlarge", "m5.8xlarge", "m5.12xlarge", "m6i.xlarge", "m6i.2xlarge", "m6i.4xlarge", "m6i.8xlarge", "m6i.12xlarge"}
-	awsMachinesDisplay := map[string]string{
-		// source: https://aws.amazon.com/ec2/instance-types/m5/
-		"m5.xlarge":   "m5.xlarge (4vCPU, 16GB RAM)",
-		"m5.2xlarge":  "m5.2xlarge (8vCPU, 32GB RAM)",
-		"m5.4xlarge":  "m5.4xlarge (16vCPU, 64GB RAM)",
-		"m5.8xlarge":  "m5.8xlarge (32vCPU, 128GB RAM)",
-		"m5.12xlarge": "m5.12xlarge (48vCPU, 192GB RAM)",
-		// source: https://aws.amazon.com/ec2/instance-types/m6i/
-		"m6i.xlarge":   "m6i.xlarge (4vCPU, 16GB RAM)",
-		"m6i.2xlarge":  "m6i.2xlarge (8vCPU, 32GB RAM)",
-		"m6i.4xlarge":  "m6i.4xlarge (16vCPU, 64GB RAM)",
-		"m6i.8xlarge":  "m6i.8xlarge (32vCPU, 128GB RAM)",
-		"m6i.12xlarge": "m6i.12xlarge (48vCPU, 192GB RAM)",
+func Plans(plans PlansConfig, provider internal.CloudProvider, includeAdditionalParamsInSchema bool, euAccessRestricted bool, useSmallerMachineTypes bool, shootAndSeedFeatureFlag bool, sapConvergedCloudRegions []string, assuredWorkloads bool) map[string]domain.ServicePlan {
+	awsMachineNames := AwsMachinesNames()
+	awsMachinesDisplay := AwsMachinesDisplay()
+	awsRegionsDisplay := AWSRegionsDisplay()
+	azureMachinesNames := AzureMachinesNames()
+	azureMachinesDisplay := AzureMachinesDisplay()
+	azureRegionsDisplay := AzureRegionsDisplay(euAccessRestricted)
+	azureLiteMachinesNames := AzureLiteMachinesNames()
+	azureLiteMachinesDisplay := AzureLiteMachinesDisplay()
+	gcpMachinesNames := GcpMachinesNames()
+	gcpMachinesDisplay := GcpMachinesDisplay()
+	gcpRegionsDisplay := GcpRegionsDisplay(assuredWorkloads)
+
+	if !useSmallerMachineTypes {
+		azureLiteMachinesNames = removeMachinesNamesFromList(azureLiteMachinesNames, "Standard_D2s_v5")
+		delete(azureLiteMachinesDisplay, "Standard_D2s_v5")
 	}
 
+	awsSchema := AWSSchema(awsMachinesDisplay, awsRegionsDisplay, awsMachineNames, includeAdditionalParamsInSchema, false, euAccessRestricted, shootAndSeedFeatureFlag)
 	// awsHASchema := AWSHASchema(awsMachinesDisplay, awsMachines, includeAdditionalParamsInSchema, false)
-
-	// source: https://cloud.google.com/compute/docs/general-purpose-machines#e2_limitations
-	gcpMachines := []string{"n2-standard-4", "n2-standard-8", "n2-standard-16", "n2-standard-32", "n2-standard-48"}
-	gcpMachinesDisplay := map[string]string{
-		"n2-standard-4":  "n2-standard-4 (4vCPU, 16GB RAM)",
-		"n2-standard-8":  "n2-standard-8 (8vCPU, 32GB RAM)",
-		"n2-standard-16": "n2-standard-16 (16vCPU, 64GB RAM)",
-		"n2-standard-32": "n2-standard-32 (32vCPU, 128GB RAM)",
-		"n2-standard-48": "n2-standard-48 (48vCPU, 192B RAM)",
-	}
-	gcpSchema := GCPSchema(gcpMachinesDisplay, gcpMachines, includeAdditionalParamsInSchema, false)
-
-	sapConvergedCloudMachines := []string{
-		"g_c4_m16",
-		"g_c6_m24",
-		"g_c8_m32",
-		"g_c12_m48",
-		"g_c16_m64",
-		"g_c32_m128",
-		"g_c64_m256",
-	}
-	sapConvergedCloudMachinesDisplay := map[string]string{
-		"g_c4_m16":   "g_c4_m16 (4vCPU, 16GB RAM)",
-		"g_c6_m24":   "g_c6_m24 (6vCPU, 24GB RAM)",
-		"g_c8_m32":   "g_c8_m32 (8vCPU, 32GB RAM)",
-		"g_c12_m48":  "g_c12_m48 (12vCPU, 48GB RAM)",
-		"g_c16_m64":  "g_c16_m64 (16vCPU, 64GB RAM)",
-		"g_c32_m128": "g_c32_m128 (32vCPU, 128GB RAM)",
-		"g_c64_m256": "g_c64_m256 (64vCPU, 256GB RAM)",
-	}
-	sapConvergedCloudSchema := SapConvergedCloudSchema(sapConvergedCloudMachinesDisplay, sapConvergedCloudMachines, includeAdditionalParamsInSchema, false)
-
-	// source: https://docs.microsoft.com/en-us/azure/cloud-services/cloud-services-sizes-specs#dv3-series
-	azureMachines := AzureMachinesTypes()
-	azureMachinesDisplay := AzureMachinesDisplayNames()
-	azureSchema := AzureSchema(azureMachinesDisplay, azureMachines, includeAdditionalParamsInSchema, false, euAccessRestricted)
-
-	azureLiteMachines := AzureLiteMachinesTypes()
-	azureLiteMachinesDisplay := AzureLiteMachinesDisplayNames()
-
-	azureLiteSchema := AzureLiteSchema(azureLiteMachinesDisplay, azureLiteMachines, includeAdditionalParamsInSchema, false, euAccessRestricted)
-	freemiumSchema := FreemiumSchema(provider, includeAdditionalParamsInSchema, false, euAccessRestricted)
-	trialSchema := TrialSchema(includeAdditionalParamsInSchema, false)
+	azureSchema := AzureSchema(azureMachinesDisplay, azureRegionsDisplay, azureMachinesNames, includeAdditionalParamsInSchema, false, euAccessRestricted, shootAndSeedFeatureFlag)
+	azureLiteSchema := AzureLiteSchema(azureLiteMachinesDisplay, azureRegionsDisplay, azureLiteMachinesNames, includeAdditionalParamsInSchema, false, euAccessRestricted, shootAndSeedFeatureFlag)
+	freemiumSchema := FreemiumSchema(provider, azureRegionsDisplay, includeAdditionalParamsInSchema, false, euAccessRestricted)
+	gcpSchema := GCPSchema(gcpMachinesDisplay, gcpRegionsDisplay, gcpMachinesNames, includeAdditionalParamsInSchema, false, shootAndSeedFeatureFlag, assuredWorkloads)
 	ownClusterSchema := OwnClusterSchema(false)
+	previewCatalogSchema := PreviewSchema(awsMachinesDisplay, awsRegionsDisplay, awsMachineNames, includeAdditionalParamsInSchema, false, euAccessRestricted)
 
-	// Schemas exposed on v2/catalog endpoint - different than provisioningRawSchema to allow backwards compatibility
-	// when a machine type switch is introduced
-	// switch to m6 if m6 is available in all regions
-	awsCatalogMachines := []string{"m5.xlarge", "m5.2xlarge", "m5.4xlarge", "m5.8xlarge", "m5.12xlarge"}
-	awsCatalogMachinesDisplay := map[string]string{
-		"m5.xlarge":   awsMachinesDisplay["m5.xlarge"],
-		"m5.2xlarge":  awsMachinesDisplay["m5.2xlarge"],
-		"m5.4xlarge":  awsMachinesDisplay["m5.4xlarge"],
-		"m5.8xlarge":  awsMachinesDisplay["m5.8xlarge"],
-		"m5.12xlarge": awsMachinesDisplay["m5.12xlarge"],
-	}
-	awsCatalogSchema := AWSSchema(awsCatalogMachinesDisplay, awsCatalogMachines, includeAdditionalParamsInSchema, false, euAccessRestricted)
-
-	previewCatalogSchema := PreviewSchema(awsMachinesDisplay, awsMachines, includeAdditionalParamsInSchema, false, euAccessRestricted)
+	trialSchema := TrialSchema(includeAdditionalParamsInSchema, false)
 
 	outputPlans := map[string]domain.ServicePlan{
-		AWSPlanID:               defaultServicePlan(AWSPlanID, AWSPlanName, plans, awsCatalogSchema, AWSSchema(awsMachinesDisplay, awsMachines, includeAdditionalParamsInSchema, true, euAccessRestricted)),
-		GCPPlanID:               defaultServicePlan(GCPPlanID, GCPPlanName, plans, gcpSchema, GCPSchema(gcpMachinesDisplay, gcpMachines, includeAdditionalParamsInSchema, true)),
-		SapConvergedCloudPlanID: defaultServicePlan(SapConvergedCloudPlanID, SapConvergedCloudPlanName, plans, sapConvergedCloudSchema, SapConvergedCloudSchema(sapConvergedCloudMachinesDisplay, sapConvergedCloudMachines, includeAdditionalParamsInSchema, true)),
-		AzurePlanID:             defaultServicePlan(AzurePlanID, AzurePlanName, plans, azureSchema, AzureSchema(azureMachinesDisplay, azureMachines, includeAdditionalParamsInSchema, true, euAccessRestricted)),
-		AzureLitePlanID:         defaultServicePlan(AzureLitePlanID, AzureLitePlanName, plans, azureLiteSchema, AzureLiteSchema(azureLiteMachinesDisplay, azureLiteMachines, includeAdditionalParamsInSchema, true, euAccessRestricted)),
-		FreemiumPlanID:          defaultServicePlan(FreemiumPlanID, FreemiumPlanName, plans, freemiumSchema, FreemiumSchema(provider, includeAdditionalParamsInSchema, true, euAccessRestricted)),
-		TrialPlanID:             defaultServicePlan(TrialPlanID, TrialPlanName, plans, trialSchema, TrialSchema(includeAdditionalParamsInSchema, true)),
-		OwnClusterPlanID:        defaultServicePlan(OwnClusterPlanID, OwnClusterPlanName, plans, ownClusterSchema, OwnClusterSchema(true)),
-		PreviewPlanID:           defaultServicePlan(PreviewPlanID, PreviewPlanName, plans, previewCatalogSchema, AWSSchema(awsMachinesDisplay, awsMachines, includeAdditionalParamsInSchema, true, euAccessRestricted)),
+		AWSPlanID:        defaultServicePlan(AWSPlanID, AWSPlanName, plans, awsSchema, AWSSchema(awsMachinesDisplay, awsRegionsDisplay, awsMachineNames, includeAdditionalParamsInSchema, true, euAccessRestricted, shootAndSeedFeatureFlag)),
+		GCPPlanID:        defaultServicePlan(GCPPlanID, GCPPlanName, plans, gcpSchema, GCPSchema(gcpMachinesDisplay, gcpRegionsDisplay, gcpMachinesNames, includeAdditionalParamsInSchema, true, shootAndSeedFeatureFlag, assuredWorkloads)),
+		AzurePlanID:      defaultServicePlan(AzurePlanID, AzurePlanName, plans, azureSchema, AzureSchema(azureMachinesDisplay, azureRegionsDisplay, azureMachinesNames, includeAdditionalParamsInSchema, true, euAccessRestricted, shootAndSeedFeatureFlag)),
+		AzureLitePlanID:  defaultServicePlan(AzureLitePlanID, AzureLitePlanName, plans, azureLiteSchema, AzureLiteSchema(azureLiteMachinesDisplay, azureRegionsDisplay, azureLiteMachinesNames, includeAdditionalParamsInSchema, true, euAccessRestricted, shootAndSeedFeatureFlag)),
+		FreemiumPlanID:   defaultServicePlan(FreemiumPlanID, FreemiumPlanName, plans, freemiumSchema, FreemiumSchema(provider, azureRegionsDisplay, includeAdditionalParamsInSchema, true, euAccessRestricted)),
+		TrialPlanID:      defaultServicePlan(TrialPlanID, TrialPlanName, plans, trialSchema, TrialSchema(includeAdditionalParamsInSchema, true)),
+		OwnClusterPlanID: defaultServicePlan(OwnClusterPlanID, OwnClusterPlanName, plans, ownClusterSchema, OwnClusterSchema(true)),
+		PreviewPlanID:    defaultServicePlan(PreviewPlanID, PreviewPlanName, plans, previewCatalogSchema, AWSSchema(awsMachinesDisplay, awsRegionsDisplay, awsMachineNames, includeAdditionalParamsInSchema, true, euAccessRestricted, false)),
+	}
+
+	if len(sapConvergedCloudRegions) != 0 {
+		sapConvergedCloudMachinesNames := SapConvergedCloudMachinesNames()
+		sapConvergedCloudMachinesDisplay := SapConvergedCloudMachinesDisplay()
+		sapConvergedCloudRegionsDisplay := SapConvergedCloudRegionsDisplay()
+		sapConvergedCloudSchema := SapConvergedCloudSchema(sapConvergedCloudMachinesDisplay, sapConvergedCloudRegionsDisplay, sapConvergedCloudMachinesNames, includeAdditionalParamsInSchema, false, shootAndSeedFeatureFlag, sapConvergedCloudRegions)
+		outputPlans[SapConvergedCloudPlanID] = defaultServicePlan(SapConvergedCloudPlanID, SapConvergedCloudPlanName, plans, sapConvergedCloudSchema, SapConvergedCloudSchema(sapConvergedCloudMachinesDisplay, sapConvergedCloudRegionsDisplay, sapConvergedCloudMachinesNames, includeAdditionalParamsInSchema, true, shootAndSeedFeatureFlag, sapConvergedCloudRegions))
 	}
 
 	return outputPlans

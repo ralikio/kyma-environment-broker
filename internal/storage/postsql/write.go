@@ -21,6 +21,40 @@ type writeSession struct {
 	transaction *dbr.Tx
 }
 
+func (ws writeSession) InsertInstanceArchived(instance dbmodel.InstanceArchivedDTO) dberr.Error {
+	_, err := ws.insertInto(InstancesArchivedTableName).
+		Pair("instance_id", instance.InstanceID).
+		Pair("last_runtime_id", instance.LastRuntimeID).
+		Pair("global_account_id", instance.GlobalAccountID).
+		Pair("subscription_global_account_id", instance.SubscriptionGlobalAccountID).
+		Pair("subaccount_id", instance.SubaccountID).
+		Pair("plan_id", instance.PlanID).
+		Pair("plan_name", instance.PlanName).
+		Pair("internal_user", instance.InternalUser).
+		Pair("region", instance.Region).
+		Pair("subaccount_region", instance.SubaccountRegion).
+		Pair("provider", instance.Provider).
+		Pair("shoot_name", instance.ShootName).
+		Pair("provisioning_started_at", instance.ProvisioningStartedAt).
+		Pair("provisioning_finished_at", instance.ProvisioningFinishedAt).
+		Pair("provisioning_state", instance.ProvisioningState).
+		Pair("first_deprovisioning_started_at", instance.FirstDeprovisioningStartedAt).
+		Pair("first_deprovisioning_finished_at", instance.FirstDeprovisioningFinishedAt).
+		Pair("last_deprovisioning_finished_at", instance.LastDeprovisioningFinishedAt).
+		Exec()
+
+	if err != nil {
+		if err, ok := err.(*pq.Error); ok {
+			if err.Code == UniqueViolationErrorCode {
+				return dberr.AlreadyExists("instance archived with id %s already exist", instance.InstanceID)
+			}
+		}
+		return dberr.Internal("Failed to insert record to Instance table: %s", err)
+	}
+
+	return nil
+}
+
 func (ws writeSession) InsertInstance(instance dbmodel.InstanceDTO) dberr.Error {
 	_, err := ws.insertInto(InstancesTableName).
 		Pair("instance_id", instance.InstanceID).
@@ -185,11 +219,9 @@ func (ws writeSession) InsertRuntimeState(state dbmodel.RuntimeStateDTO) dberr.E
 		Pair("operation_id", state.OperationID).
 		Pair("runtime_id", state.RuntimeID).
 		Pair("created_at", state.CreatedAt).
-		Pair("kyma_version", state.KymaVersion).
 		Pair("k8s_version", state.K8SVersion).
 		Pair("kyma_config", state.KymaConfig).
 		Pair("cluster_config", state.ClusterConfig).
-		Pair("cluster_setup", state.ClusterSetup).
 		Exec()
 
 	if err != nil {
@@ -201,6 +233,51 @@ func (ws writeSession) InsertRuntimeState(state dbmodel.RuntimeStateDTO) dberr.E
 		return dberr.Internal("Failed to insert record to RuntimeState table: %s", err)
 	}
 
+	return nil
+}
+
+func (ws writeSession) DeleteRuntimeStatesByOperationID(operationID string) error {
+	_, err := ws.deleteFrom("runtime_states").
+		Where(dbr.Eq("operation_id", operationID)).
+		Exec()
+	if err != nil {
+		return dberr.Internal("failed to delete runtime states by operation ID %s: %s", operationID, err.Error())
+	}
+	return nil
+}
+
+func (ws writeSession) UpsertSubaccountState(state dbmodel.SubaccountStateDTO) dberr.Error {
+	result, err := ws.update(SubaccountStatesTableName).
+		Where(dbr.Eq("id", state.ID)).
+		Set("beta_enabled", state.BetaEnabled).
+		Set("used_for_production", state.UsedForProduction).
+		Set("modified_at", state.ModifiedAt).
+		Exec()
+	if err != nil {
+		return dberr.Internal("Failed to update record to subaccount_states table: %s", err)
+	}
+	rAffected, err := result.RowsAffected()
+	if rAffected == int64(0) {
+		_, err = ws.insertInto(SubaccountStatesTableName).
+			Pair("id", state.ID).
+			Pair("beta_enabled", state.BetaEnabled).
+			Pair("used_for_production", state.UsedForProduction).
+			Pair("modified_at", state.ModifiedAt).
+			Exec()
+		if err != nil {
+			return dberr.Internal("Failed to upsert record to subaccount_states table: %s", err)
+		}
+	}
+	return nil
+}
+
+func (ws writeSession) DeleteState(subaccountID string) dberr.Error {
+	_, err := ws.deleteFrom(SubaccountStatesTableName).
+		Where(dbr.Eq("id", subaccountID)).
+		Exec()
+	if err != nil {
+		return dberr.Internal("failed to delete state for subaccount %s: %v", subaccountID, err)
+	}
 	return nil
 }
 
@@ -261,6 +338,16 @@ func (ws writeSession) DeleteEvents(until time.Time) dberr.Error {
 		Exec()
 	if err != nil {
 		return dberr.Internal("failed to delete events created until %v: %v", until.Format(time.RFC1123Z), err)
+	}
+	return nil
+}
+
+func (ws writeSession) DeleteOperationByID(id string) dberr.Error {
+	_, err := ws.deleteFrom("operations").
+		Where(dbr.Eq("id", id)).
+		Exec()
+	if err != nil {
+		return dberr.Internal("unable to delete operation %s: %s", id, err.Error())
 	}
 	return nil
 }

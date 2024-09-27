@@ -10,6 +10,7 @@ const {
 
 const {provisionSKR}= require('../../kyma-environment-broker');
 const {BTPOperatorCreds} = require('../../smctl/helpers');
+const {getSecret} = require('../../utils');
 
 async function provisionSKRAndInitK8sConfig(options, provisioningTimeout) {
   console.log('Provisioning new SKR instance...');
@@ -21,10 +22,26 @@ async function provisionSKRAndInitK8sConfig(options, provisioningTimeout) {
   } else {
     console.log('Initiating K8s client...');
     await initializeK8sClient({kubeconfigPath: shoot.kubeconfig});
+
+    let retryCount = 0;
+    const maxRetries = 10;
+    const cooldown = 1000 * 60 * 1; // 1m
+
+    while (retryCount < maxRetries) {
+      try {
+        await getSecret('sap-btp-manager', 'kyma-system');
+        break;
+      } catch (error) {
+        console.log('An error occurred while testing the K8s client');
+        console.log(`Downloading the kubeconfig again. Trying to initialize the client. Retry count: ${retryCount}`);
+        const kubeconfigPath = await kcp.getKubeconfig(shoot.name);
+        await initializeK8sClient({kubeconfigPath: kubeconfigPath});
+        retryCount++;
+        await new Promise((resolve) => setTimeout(resolve, cooldown));
+      }
+    }
   }
-
   console.log('Initialization of K8s finished...');
-
 
   return {
     options,
@@ -57,7 +74,6 @@ async function provisionSKRInstance(options, timeout) {
     const runtimeStatus = await kcp.getRuntimeStatusOperations(options.instanceID);
     const events = await kcp.getRuntimeEvents(options.instanceID);
     console.log(`\nRuntime status after provisioning: ${runtimeStatus}\nEvents:\n${events}`);
-    await kcp.reconcileInformationLog(runtimeStatus);
   }
 }
 
@@ -72,5 +88,6 @@ async function getSKRKymaVersion(instanceID) {
 module.exports = {
   provisionSKRAndInitK8sConfig,
   getSKRKymaVersion,
+  provisionSKRInstance,
 };
 

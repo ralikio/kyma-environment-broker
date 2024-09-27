@@ -2,9 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: "kcp-subaccount-cleaner-v1.0"
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false
+  name: "{{- .Values.subaccountCleanup.nameV1 -}}"
 spec:
   schedule: "{{ .Values.subaccountCleanup.schedule }}"
   failedJobsHistoryLimit: 5
@@ -30,6 +28,10 @@ spec:
           {{- with .Values.deployment.securityContext }}
           securityContext:
             {{ toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if ne .Values.imagePullSecret "" }}
+          imagePullSecrets:
+            - name: {{ .Values.imagePullSecret }}
           {{- end }}
           containers:
             - name: cleaner
@@ -110,14 +112,18 @@ spec:
               {{- end}}
             {{- if and (eq .Values.global.database.embedded.enabled false) (eq .Values.global.database.cloudsqlproxy.enabled true)}}
             - name: cloudsql-proxy
-              image: {{ .Values.global.images.cloudsql_proxy_image }}
+              image: {{ .Values.global.images.cloudsql_proxy.repository }}:{{ .Values.global.images.cloudsql_proxy.tag }}
               {{- if .Values.global.database.cloudsqlproxy.workloadIdentity.enabled }}
-              command: ["/cloud_sql_proxy",
-                        "-instances={{ .Values.global.database.managedGCP.instanceConnectionName }}=tcp:5432"]
+              command: ["/cloud-sql-proxy",
+                        "{{ .Values.global.database.managedGCP.instanceConnectionName }}",
+                        "--exit-zero-on-sigterm",
+                        "--private-ip"]
               {{- else }}
-              command: ["/cloud_sql_proxy",
-                        "-instances={{ .Values.global.database.managedGCP.instanceConnectionName }}=tcp:5432",
-                        "-credential_file=/secrets/cloudsql-instance-credentials/credentials.json"]
+              command: ["/cloud-sql-proxy",
+                        "{{ .Values.global.database.managedGCP.instanceConnectionName }}",
+                        "--exit-zero-on-sigterm",
+                        "--private-ip",
+                        "--credentials-file=/secrets/cloudsql-instance-credentials/credentials.json"]
               volumeMounts:
                 - name: cloudsql-instance-credentials
                   mountPath: /secrets/cloudsql-instance-credentials
@@ -148,9 +154,7 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: "kcp-subaccount-cleaner-v2.0"
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false
+  name: "{{- .Values.subaccountCleanup.nameV2 -}}"
 spec:
   schedule: "{{ .Values.subaccountCleanup.schedule }}"
   failedJobsHistoryLimit: 5
@@ -259,14 +263,18 @@ spec:
               {{- end}}
             {{- if and (eq .Values.global.database.embedded.enabled false) (eq .Values.global.database.cloudsqlproxy.enabled true)}}
             - name: cloudsql-proxy
-              image: {{ .Values.global.images.cloudsql_proxy_image }}
+              image: {{ .Values.global.images.cloudsql_proxy.repository }}:{{ .Values.global.images.cloudsql_proxy.tag }}
               {{- if .Values.global.database.cloudsqlproxy.workloadIdentity.enabled }}
-              command: ["/cloud_sql_proxy",
-                        "-instances={{ .Values.global.database.managedGCP.instanceConnectionName }}=tcp:5432"]
+              command: ["/cloud-sql-proxy",
+                        "{{ .Values.global.database.managedGCP.instanceConnectionName }}",
+                        "--exit-zero-on-sigterm",
+                        "--private-ip"]
               {{- else }}
-              command: ["/cloud_sql_proxy",
-                        "-instances={{ .Values.global.database.managedGCP.instanceConnectionName }}=tcp:5432",
-                        "-credential_file=/secrets/cloudsql-instance-credentials/credentials.json"]
+              command: ["/cloud-sql-proxy",
+                        "{{ .Values.global.database.managedGCP.instanceConnectionName }}",
+                        "--private-ip",
+                        "--exit-zero-on-sigterm",
+                        "--credentials-file=/secrets/cloudsql-instance-credentials/credentials.json"]
               volumeMounts:
                 - name: cloudsql-instance-credentials
                   mountPath: /secrets/cloudsql-instance-credentials

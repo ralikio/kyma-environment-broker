@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	reconcilerApi "github.com/kyma-incubator/reconciler/pkg/keb"
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
 	"github.com/kyma-project/kyma-environment-broker/internal"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage/dberr"
@@ -25,6 +24,10 @@ func NewRuntimeStates(sess postsql.Factory, cipher Cipher) *runtimeState {
 		Factory: sess,
 		cipher:  cipher,
 	}
+}
+
+func (s *runtimeState) DeleteByOperationID(operationID string) error {
+	return s.NewWriteSession().DeleteRuntimeStatesByOperationID(operationID)
 }
 
 func (s *runtimeState) Insert(runtimeState internal.RuntimeState) error {
@@ -120,68 +123,6 @@ func (s *runtimeState) GetLatestByRuntimeID(runtimeID string) (internal.RuntimeS
 	return result, nil
 }
 
-func (s *runtimeState) GetLatestWithReconcilerInputByRuntimeID(runtimeID string) (internal.RuntimeState, error) {
-	sess := s.NewReadSession()
-	var state dbmodel.RuntimeStateDTO
-	var lastErr dberr.Error
-	err := wait.PollImmediate(defaultRetryInterval, defaultRetryTimeout, func() (bool, error) {
-		state, lastErr = sess.GetLatestRuntimeStateWithReconcilerInputByRuntimeID(runtimeID)
-		if lastErr != nil {
-			if dberr.IsNotFound(lastErr) {
-				return false, dberr.NotFound("RuntimeState for runtime %s not found", runtimeID)
-			}
-			log.Errorf("while getting RuntimeState: %v", lastErr)
-			return false, nil
-		}
-		return true, nil
-	})
-	if err != nil {
-		return internal.RuntimeState{}, lastErr
-	}
-	result, err := s.toRuntimeState(&state)
-	if err != nil {
-		return internal.RuntimeState{}, fmt.Errorf("while converting runtime state: %w", err)
-	}
-
-	return result, nil
-}
-
-func (s *runtimeState) GetLatestWithKymaVersionByRuntimeID(runtimeID string) (internal.RuntimeState, error) {
-	sess := s.NewReadSession()
-	var state dbmodel.RuntimeStateDTO
-	var lastErr dberr.Error
-	err := wait.PollImmediate(defaultRetryInterval, defaultRetryTimeout, func() (bool, error) {
-		state, lastErr = sess.GetLatestRuntimeStateWithKymaVersionByRuntimeID(runtimeID)
-		if lastErr != nil {
-			if dberr.IsNotFound(lastErr) {
-				return false, dberr.NotFound("RuntimeState for runtime %s not found", runtimeID)
-			}
-			log.Errorf("while getting RuntimeState: %v", lastErr)
-			return false, nil
-		}
-		return true, nil
-	})
-	if err != nil {
-		return internal.RuntimeState{}, lastErr
-	}
-
-	result, err := s.toRuntimeState(&state)
-	if err != nil {
-		return internal.RuntimeState{}, fmt.Errorf("while converting runtime state: %w", err)
-	}
-	if result.ClusterSetup != nil && result.ClusterSetup.KymaConfig.Version != "" {
-		return result, nil
-	}
-	if result.KymaConfig.Version != "" {
-		return result, nil
-	}
-	if result.KymaVersion != "" {
-		return result, nil
-	}
-
-	return internal.RuntimeState{}, fmt.Errorf("failed to find RuntimeState with kyma version for runtime %s ", runtimeID)
-}
-
 func (s *runtimeState) GetLatestWithOIDCConfigByRuntimeID(runtimeID string) (internal.RuntimeState, error) {
 	sess := s.NewReadSession()
 	var state dbmodel.RuntimeStateDTO
@@ -221,10 +162,6 @@ func (s *runtimeState) runtimeStateToDB(state internal.RuntimeState) (dbmodel.Ru
 	if err != nil {
 		return dbmodel.RuntimeStateDTO{}, fmt.Errorf("while encoding cluster config: %w", err)
 	}
-	clusterSetup, err := s.provideClusterSetup(state.ClusterSetup)
-	if err != nil {
-		return dbmodel.RuntimeStateDTO{}, err
-	}
 
 	encKymaCfg, err := s.cipher.Encrypt(kymaCfg)
 	if err != nil {
@@ -238,17 +175,14 @@ func (s *runtimeState) runtimeStateToDB(state internal.RuntimeState) (dbmodel.Ru
 		OperationID:   state.OperationID,
 		KymaConfig:    string(encKymaCfg),
 		ClusterConfig: string(clusterCfg),
-		ClusterSetup:  string(clusterSetup),
-		KymaVersion:   state.GetKymaVersion(),
 		K8SVersion:    state.ClusterConfig.KubernetesVersion,
 	}, nil
 }
 
 func (s *runtimeState) toRuntimeState(dto *dbmodel.RuntimeStateDTO) (internal.RuntimeState, error) {
 	var (
-		kymaCfg      gqlschema.KymaConfigInput
-		clusterCfg   gqlschema.GardenerConfigInput
-		clusterSetup *reconcilerApi.Cluster
+		kymaCfg    gqlschema.KymaConfigInput
+		clusterCfg gqlschema.GardenerConfigInput
 	)
 	if dto.KymaConfig != "" {
 		cfg, err := s.cipher.Decrypt([]byte(dto.KymaConfig))
@@ -264,16 +198,6 @@ func (s *runtimeState) toRuntimeState(dto *dbmodel.RuntimeStateDTO) (internal.Ru
 			return internal.RuntimeState{}, fmt.Errorf("while unmarshall cluster config: %w", err)
 		}
 	}
-	if dto.ClusterSetup != "" {
-		setup, err := s.cipher.Decrypt([]byte(dto.ClusterSetup))
-		if err != nil {
-			return internal.RuntimeState{}, fmt.Errorf("while decrypting cluster setup: %w", err)
-		}
-		clusterSetup = &reconcilerApi.Cluster{}
-		if err := json.Unmarshal(setup, clusterSetup); err != nil {
-			return internal.RuntimeState{}, fmt.Errorf("while unmarshall cluster setup: %w", err)
-		}
-	}
 	return internal.RuntimeState{
 		ID:            dto.ID,
 		CreatedAt:     dto.CreatedAt,
@@ -281,8 +205,6 @@ func (s *runtimeState) toRuntimeState(dto *dbmodel.RuntimeStateDTO) (internal.Ru
 		OperationID:   dto.OperationID,
 		KymaConfig:    kymaCfg,
 		ClusterConfig: clusterCfg,
-		ClusterSetup:  clusterSetup,
-		KymaVersion:   dto.KymaVersion,
 	}, nil
 }
 
@@ -298,39 +220,4 @@ func (s *runtimeState) toRuntimeStates(states []dbmodel.RuntimeStateDTO) ([]inte
 	}
 
 	return result, nil
-}
-
-func (s *runtimeState) provideClusterSetup(clusterSetup *reconcilerApi.Cluster) ([]byte, error) {
-	marshalledClusterSetup, err := s.marshalClusterSetup(clusterSetup)
-	if err != nil {
-		return nil, fmt.Errorf("while encoding reconciler input: %w", err)
-	}
-	encryptedClusterSetup, err := s.encryptClusterSetup(marshalledClusterSetup)
-	if err != nil {
-		return nil, fmt.Errorf("while encrypting reconciler input: %w", err)
-	}
-	return encryptedClusterSetup, nil
-}
-
-func (s *runtimeState) marshalClusterSetup(clusterSetup *reconcilerApi.Cluster) ([]byte, error) {
-	var (
-		result []byte
-		err    error
-	)
-	if clusterSetup != nil {
-		result, err = json.Marshal(clusterSetup)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		result = make([]byte, 0, 0)
-	}
-	return result, nil
-}
-
-func (s *runtimeState) encryptClusterSetup(marshalledClusterSetup []byte) ([]byte, error) {
-	if string(marshalledClusterSetup) == "" {
-		return marshalledClusterSetup, nil
-	}
-	return s.cipher.Encrypt(marshalledClusterSetup)
 }

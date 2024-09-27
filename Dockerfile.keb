@@ -1,5 +1,5 @@
 # Build image
-FROM golang:1.21.6-alpine3.18 AS build
+FROM golang:1.23.1-alpine3.20 AS build
 
 WORKDIR /go/src/github.com/kyma-project/kyma-environment-broker
 
@@ -17,20 +17,19 @@ RUN CGO_ENABLED=0 go build -o /bin/kyma-env-broker ./cmd/broker/
 RUN touch /swagger.yaml
 
 # Get latest CA certs
-FROM alpine:latest as certs
+FROM alpine:3.20.3 as certs
 RUN apk --update add ca-certificates
 
 # Final image
 FROM scratch
-LABEL source=git@github.com:kyma-project/control-plane.git
+LABEL source=git@github.com:kyma-project/kyma-environment-broker.git
 
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /bin/kyma-env-broker /bin/kyma-env-broker
-COPY /files/swagger /swagger
-
 COPY --from=build /user/group /user/passwd /etc/
 USER appuser:appuser
 
+COPY --chown=appuser /files/swagger /swagger
 COPY --from=build --chown=appuser /swagger.yaml /swagger/swagger.yaml
 
 CMD ["/bin/kyma-env-broker"]

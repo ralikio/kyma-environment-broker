@@ -9,7 +9,7 @@ import (
 )
 
 // comma separated list of required fields
-const requiredFields = "additional-components"
+const requiredFields = "kyma-template"
 
 type ConfigMapKeysValidator struct{}
 
@@ -47,7 +47,7 @@ func (v *ConfigMapKeysValidator) getKeysFromConfigString(cfgString string) ([]st
 	}
 
 	keys := make([]string, 0)
-	for k, _ := range keysAndValues {
+	for k := range keysAndValues {
 		keys = append(keys, k)
 	}
 

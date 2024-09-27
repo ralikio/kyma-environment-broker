@@ -2,15 +2,11 @@ package internal
 
 import (
 	"database/sql"
-	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/kyma-project/kyma-environment-broker/internal/euaccess"
 
 	"github.com/google/uuid"
-	reconcilerApi "github.com/kyma-incubator/reconciler/pkg/keb"
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
 	"github.com/kyma-project/kyma-environment-broker/common/gardener"
 	"github.com/kyma-project/kyma-environment-broker/common/orchestration"
@@ -25,19 +21,12 @@ type ProvisionerInputCreator interface {
 	SetProvisioningParameters(params ProvisioningParameters) ProvisionerInputCreator
 	SetShootName(string) ProvisionerInputCreator
 	SetLabel(key, value string) ProvisionerInputCreator
-	// Deprecated, use: AppendOverrides
-	SetOverrides(component string, overrides []*gqlschema.ConfigEntryInput) ProvisionerInputCreator
-	AppendOverrides(component string, overrides []*gqlschema.ConfigEntryInput) ProvisionerInputCreator
-	AppendGlobalOverrides(overrides []*gqlschema.ConfigEntryInput) ProvisionerInputCreator
 	CreateProvisionRuntimeInput() (gqlschema.ProvisionRuntimeInput, error)
 	CreateUpgradeRuntimeInput() (gqlschema.UpgradeRuntimeInput, error)
 	CreateUpgradeShootInput() (gqlschema.UpgradeShootInput, error)
-	EnableOptionalComponent(componentName string) ProvisionerInputCreator
-	DisableOptionalComponent(componentName string) ProvisionerInputCreator
 	Provider() CloudProvider
 	Configuration() *ConfigForPlan
 
-	CreateClusterConfiguration() (reconcilerApi.Cluster, error)
 	CreateProvisionClusterInput() (gqlschema.ProvisionRuntimeInput, error)
 	SetKubeconfig(kcfg string) ProvisionerInputCreator
 	SetRuntimeID(runtimeID string) ProvisionerInputCreator
@@ -47,13 +36,6 @@ type ProvisionerInputCreator interface {
 	SetClusterName(name string) ProvisionerInputCreator
 	SetOIDCLastValues(oidcConfig gqlschema.OIDCConfigInput) ProvisionerInputCreator
 }
-
-// GitKymaProject and GitKymaRepo define public Kyma GitHub parameters used for
-// external evaluation.
-const (
-	GitKymaProject = "kyma-project"
-	GitKymaRepo    = "kyma"
-)
 
 type AvsEvaluationStatus struct {
 	Current  string `json:"current_value"`
@@ -69,50 +51,6 @@ type AvsLifecycleData struct {
 
 	AVSInternalEvaluationDeleted bool `json:"avs_internal_evaluation_deleted"`
 	AVSExternalEvaluationDeleted bool `json:"avs_external_evaluation_deleted"`
-}
-
-// RuntimeVersionOrigin defines the possible sources of the Kyma Version parameter
-type RuntimeVersionOrigin string
-
-const (
-	Parameters     RuntimeVersionOrigin = "parameters"
-	Defaults       RuntimeVersionOrigin = "defaults"
-	AccountMapping RuntimeVersionOrigin = "account-mapping"
-)
-
-// RuntimeVersionData describes the Kyma Version used for the cluster
-// provisioning or upgrade
-type RuntimeVersionData struct {
-	Version      string               `json:"version"`
-	Origin       RuntimeVersionOrigin `json:"origin"`
-	MajorVersion int                  `json:"major_version"`
-}
-
-func (rv RuntimeVersionData) IsEmpty() bool {
-	return rv.Version == ""
-}
-
-func NewEmptyRuntimeVersion() *RuntimeVersionData {
-	return &RuntimeVersionData{Version: "not-defined", Origin: Defaults, MajorVersion: 2}
-}
-
-func NewRuntimeVersionFromParameters(version string, majorVersion int) *RuntimeVersionData {
-	return &RuntimeVersionData{Version: version, Origin: Parameters, MajorVersion: majorVersion}
-}
-
-func NewRuntimeVersionFromDefaults(version string) *RuntimeVersionData {
-	defaultMajorVerNum := DetermineMajorVersion(version)
-	return &RuntimeVersionData{Version: version, Origin: Defaults, MajorVersion: defaultMajorVerNum}
-}
-
-func DetermineMajorVersion(version string) int {
-	splitVer := strings.Split(version, ".")
-	majorVerNum, _ := strconv.Atoi(splitVer[0])
-	return majorVerNum
-}
-
-func NewRuntimeVersionFromAccountMapping(version string, majorVersion int) *RuntimeVersionData {
-	return &RuntimeVersionData{Version: version, Origin: AccountMapping, MajorVersion: majorVersion}
 }
 
 type EventHub struct {
@@ -185,9 +123,7 @@ const (
 )
 
 type Operation struct {
-	// following fields are serialized to JSON and stored in the storage
-	InstanceDetails
-
+	// following fields are stored in the storage
 	ID        string        `json:"-"`
 	Version   int           `json:"-"`
 	CreatedAt time.Time     `json:"-"`
@@ -200,38 +136,25 @@ type Operation struct {
 	Description            string                    `json:"-"`
 	ProvisioningParameters ProvisioningParameters    `json:"-"`
 
-	InputCreator ProvisionerInputCreator `json:"-"`
-
 	// OrchestrationID specifies the origin orchestration which triggers the operation, empty for OSB operations (provisioning/deprovisioning)
-	OrchestrationID string             `json:"-"`
-	FinishedStages  []string           `json:"-"`
-	LastError       kebError.LastError `json:"-"`
+	OrchestrationID string   `json:"-"`
+	FinishedStages  []string `json:"-"`
+
+	// following fields are serialized to JSON and stored in the storage
+	InstanceDetails
 
 	// PROVISIONING
-	RuntimeVersion RuntimeVersionData `json:"runtime_version"`
-	DashboardURL   string             `json:"dashboardURL"`
+	DashboardURL string `json:"dashboardURL"`
 
 	// DEPROVISIONING
 	// Temporary indicates that this deprovisioning operation must not remove the instance
-	Temporary                   bool      `json:"temporary"`
-	ClusterConfigurationDeleted bool      `json:"clusterConfigurationDeleted"`
-	Retries                     int       `json:"-"`
-	ReconcilerDeregistrationAt  time.Time `json:"reconcilerDeregistrationAt"`
-	ExcutedButNotCompleted      []string  `json:"excutedButNotCompleted"`
-	UserAgent                   string    `json:"userAgent,omitempty"`
+	Temporary                   bool     `json:"temporary"`
+	ClusterConfigurationDeleted bool     `json:"clusterConfigurationDeleted"`
+	ExcutedButNotCompleted      []string `json:"excutedButNotCompleted"`
+	UserAgent                   string   `json:"userAgent,omitempty"`
 
 	// UPDATING
-	UpdatingParameters    UpdatingParametersDTO `json:"updating_parameters"`
-	CheckReconcilerStatus bool                  `json:"check_reconciler_status"`
-
-	// following fields are not stored in the storage
-
-	// Last runtime state payload
-	LastRuntimeState RuntimeState `json:"-"`
-
-	// Flag used by the steps regarding BTP-Operator credentials update
-	// denotes whether the payload to reconciler differs from last runtime state
-	RequiresReconcilerUpdate bool `json:"-"`
+	UpdatingParameters UpdatingParametersDTO `json:"updating_parameters"`
 
 	// UPGRADE KYMA
 	orchestration.RuntimeOperation `json:"runtime_operation"`
@@ -239,6 +162,21 @@ type Operation struct {
 
 	// KymaTemplate is read from the configuration then used in the apply_kyma step
 	KymaTemplate string `json:"KymaTemplate"`
+
+	LastError kebError.LastError `json:"last_error"`
+
+	// Used during KIM integration while deprovisioning - to be removed later on when provisioner not used anymore
+	KimDeprovisionsOnly bool `json:"kim_deprovisions_only"`
+
+	// following fields are not stored in the storage and should be added to the Merge function
+	InputCreator ProvisionerInputCreator `json:"-"`
+}
+
+type GroupedOperations struct {
+	ProvisionOperations      []ProvisioningOperation
+	DeprovisionOperations    []DeprovisioningOperation
+	UpgradeClusterOperations []UpgradeClusterOperation
+	UpdateOperations         []UpdatingOperation
 }
 
 func (o *Operation) IsFinished() bool {
@@ -253,8 +191,12 @@ func (o *Operation) EventErrorf(err error, fmt string, args ...any) {
 	events.Errorf(o.InstanceID, o.ID, err, fmt, args...)
 }
 
+func (o *Operation) Merge(operation *Operation) {
+	o.InputCreator = operation.InputCreator
+}
+
 // Orchestration holds all information about an orchestration.
-// Orchestration performs operations of a specific type (UpgradeKymaOperation, UpgradeClusterOperation)
+// Orchestration performs operations of a specific type UpgradeClusterOperation
 // on specific targets of SKRs.
 type Orchestration struct {
 	OrchestrationID string
@@ -306,6 +248,7 @@ type InstanceDetails struct {
 	KymaResourceNamespace string `json:"kyma_resource_namespace"`
 	KymaResourceName      string `json:"kyma_resource_name"`
 	GardenerClusterName   string `json:"gardener_cluster_name"`
+	RuntimeResourceName   string `json:"runtime_resource_name"`
 
 	EuAccess bool `json:"eu_access"`
 
@@ -333,9 +276,56 @@ func (i *InstanceDetails) GetCompassRuntimeId() string {
 	return *i.CompassRuntimeId
 }
 
+func (i *InstanceDetails) GetRuntimeResourceName() string {
+	name := i.RuntimeResourceName
+	if name == "" {
+		// fallback to runtime ID
+		name = i.RuntimeID
+	}
+	return name
+}
+
+func (i *InstanceDetails) GetRuntimeResourceNamespace() string {
+	namespace := i.KymaResourceNamespace
+	if namespace == "" {
+		// fallback to default namespace
+		namespace = "kcp-system"
+	}
+	return namespace
+}
+
 // ProvisioningOperation holds all information about provisioning operation
 type ProvisioningOperation struct {
 	Operation
+}
+
+type InstanceArchived struct {
+	InstanceID                  string
+	GlobalAccountID             string
+	SubaccountID                string
+	SubscriptionGlobalAccountID string
+	PlanID                      string
+	PlanName                    string
+	SubaccountRegion            string
+	Region                      string
+	Provider                    string
+	LastRuntimeID               string
+	InternalUser                bool
+	ShootName                   string
+
+	ProvisioningStartedAt         time.Time
+	ProvisioningFinishedAt        time.Time
+	ProvisioningState             domain.LastOperationState
+	FirstDeprovisioningStartedAt  time.Time
+	FirstDeprovisioningFinishedAt time.Time
+	LastDeprovisioningFinishedAt  time.Time
+}
+
+func (a InstanceArchived) UserID() string {
+	if a.InternalUser {
+		return "somebody (at) sap.com"
+	}
+	return "- deleted -"
 }
 
 type MonitoringData struct {
@@ -348,19 +338,7 @@ type DeprovisioningOperation struct {
 	Operation
 }
 
-func (op *Operation) TimeSinceReconcilerDeregistrationTriggered() time.Duration {
-	if op.ReconcilerDeregistrationAt.IsZero() {
-		return 0
-	}
-	return time.Since(op.ReconcilerDeregistrationAt)
-}
-
 type UpdatingOperation struct {
-	Operation
-}
-
-// UpgradeKymaOperation holds all information about upgrade Kyma operation
-type UpgradeKymaOperation struct {
 	Operation
 }
 
@@ -391,16 +369,6 @@ func NewRuntimeState(runtimeID, operationID string, kymaConfig *gqlschema.KymaCo
 	}
 }
 
-func NewRuntimeStateWithReconcilerInput(runtimeID, operationID string, reconcilerInput *reconcilerApi.Cluster) RuntimeState {
-	return RuntimeState{
-		ID:           uuid.New().String(),
-		CreatedAt:    time.Now(),
-		RuntimeID:    runtimeID,
-		OperationID:  operationID,
-		ClusterSetup: reconcilerInput,
-	}
-}
-
 type RuntimeState struct {
 	ID string `json:"id"`
 
@@ -411,64 +379,19 @@ type RuntimeState struct {
 
 	KymaConfig    gqlschema.KymaConfigInput     `json:"kymaConfig"`
 	ClusterConfig gqlschema.GardenerConfigInput `json:"clusterConfig"`
-	ClusterSetup  *reconcilerApi.Cluster        `json:"clusterSetup,omitempty"`
-
-	KymaVersion string `json:"kyma_version"`
-}
-
-func (r *RuntimeState) GetKymaConfig() gqlschema.KymaConfigInput {
-	if r.ClusterSetup != nil {
-		return r.buildKymaConfigFromClusterSetup()
-	}
-	return r.KymaConfig
-}
-
-func (r *RuntimeState) GetKymaVersion() string {
-	if r.KymaVersion != "" {
-		return r.KymaVersion
-	}
-	if r.ClusterSetup != nil {
-		return r.ClusterSetup.KymaConfig.Version
-	}
-	return r.KymaConfig.Version
-}
-
-func (r *RuntimeState) buildKymaConfigFromClusterSetup() gqlschema.KymaConfigInput {
-	var components []*gqlschema.ComponentConfigurationInput
-	for _, cmp := range r.ClusterSetup.KymaConfig.Components {
-		var config []*gqlschema.ConfigEntryInput
-		for _, cfg := range cmp.Configuration {
-			configEntryInput := &gqlschema.ConfigEntryInput{
-				Key:    cfg.Key,
-				Value:  fmt.Sprint(cfg.Value),
-				Secret: ptr.Bool(cfg.Secret),
-			}
-			config = append(config, configEntryInput)
-		}
-
-		componentConfigurationInput := &gqlschema.ComponentConfigurationInput{
-			Component:     cmp.Component,
-			Namespace:     cmp.Namespace,
-			SourceURL:     &cmp.URL,
-			Configuration: config,
-		}
-		components = append(components, componentConfigurationInput)
-	}
-
-	profile := gqlschema.KymaProfile(r.ClusterSetup.KymaConfig.Profile)
-	kymaConfig := gqlschema.KymaConfigInput{
-		Version:    r.ClusterSetup.KymaConfig.Version,
-		Profile:    &profile,
-		Components: components,
-	}
-
-	return kymaConfig
 }
 
 // OperationStats provide number of operations per type and state
 type OperationStats struct {
 	Provisioning   map[domain.LastOperationState]int
 	Deprovisioning map[domain.LastOperationState]int
+}
+
+type OperationStatsV2 struct {
+	Count  int
+	Type   OperationType
+	State  domain.LastOperationState
+	PlanID string
 }
 
 // InstanceStats provide number of instances per Global Account ID
@@ -625,56 +548,34 @@ func (o *Operation) IsStageFinished(stage string) bool {
 	return false
 }
 
-type ComponentConfigurationInputList []*gqlschema.ComponentConfigurationInput
+func (o *Operation) SuccessMustBeSaved() bool {
 
-func (l ComponentConfigurationInputList) DeepCopy() []*gqlschema.ComponentConfigurationInput {
-	var copiedList []*gqlschema.ComponentConfigurationInput
-	for _, component := range l {
-		var cpyCfg []*gqlschema.ConfigEntryInput
-		for _, cfg := range component.Configuration {
-			mapped := &gqlschema.ConfigEntryInput{
-				Key:   cfg.Key,
-				Value: cfg.Value,
-			}
-			if cfg.Secret != nil {
-				mapped.Secret = ptr.Bool(*cfg.Secret)
-			}
-			cpyCfg = append(cpyCfg, mapped)
-		}
-
-		copiedList = append(copiedList, &gqlschema.ComponentConfigurationInput{
-			Component:     component.Component,
-			Namespace:     component.Namespace,
-			SourceURL:     component.SourceURL,
-			Configuration: cpyCfg,
-		})
+	// if the operation is temporary, it must be saved
+	if o.Temporary {
+		return true
 	}
-	return copiedList
-}
 
-// KymaComponent represents single Kyma component
-type KymaComponent struct {
-	Name        string           `json:"name"`
-	ReleaseName string           `json:"release"`
-	Namespace   string           `json:"namespace"`
-	Source      *ComponentSource `json:"source,omitempty"`
-}
-
-type ComponentSource struct {
-	URL string `json:"url"`
+	// if the operation is not temporary and the last stage is success, it must not be saved
+	// because all operations for that instance are gone
+	if o.Type == OperationTypeDeprovision {
+		return false
+	}
+	return true
 }
 
 type ConfigForPlan struct {
-	AdditionalComponents []KymaComponent `json:"additional-components" yaml:"additional-components"`
-	KymaTemplate         string          `json:"kyma-template" yaml:"kyma-template"`
+	KymaTemplate string `json:"kyma-template" yaml:"kyma-template"`
 }
 
-func (c *ConfigForPlan) ContainsAdditionalComponent(componentName string) bool {
-	for _, c := range c.AdditionalComponents {
-		fmt.Println(c.Name)
-		if c.Name == componentName {
-			return true
-		}
-	}
-	return false
+type SubaccountState struct {
+	ID string `json:"id"`
+
+	BetaEnabled       string `json:"betaEnabled"`
+	UsedForProduction string `json:"usedForProduction"`
+	ModifiedAt        int64  `json:"modifiedAt"`
+}
+
+type DeletedStats struct {
+	NumberOfDeletedInstances              int
+	NumberOfOperationsForDeletedInstances int
 }

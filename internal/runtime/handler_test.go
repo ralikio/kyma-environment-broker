@@ -8,6 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kyma-project/kyma-environment-broker/internal/broker"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/kyma-project/kyma-environment-broker/internal/storage"
+
 	"github.com/gorilla/mux"
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
 	pkg "github.com/kyma-project/kyma-environment-broker/common/runtime"
@@ -16,7 +23,6 @@ import (
 	"github.com/kyma-project/kyma-environment-broker/internal/provisioner"
 	"github.com/kyma-project/kyma-environment-broker/internal/ptr"
 	"github.com/kyma-project/kyma-environment-broker/internal/runtime"
-	"github.com/kyma-project/kyma-environment-broker/internal/storage/driver/memory"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -25,12 +31,20 @@ import (
 )
 
 func TestRuntimeHandler(t *testing.T) {
+	k8sClient := fake.NewClientBuilder().Build()
+	kimConfig := broker.KimConfig{
+		Enabled: false,
+	}
+
 	t.Run("test pagination should work", func(t *testing.T) {
 		// given
 		provisionerClient := provisioner.NewFakeClient()
-		operations := memory.NewOperation()
-		instances := memory.NewInstance(operations)
-		states := memory.NewRuntimeStates()
+
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
 		testID1 := "Test1"
 		testID2 := "Test2"
 		testTime1 := time.Now()
@@ -51,7 +65,7 @@ func TestRuntimeHandler(t *testing.T) {
 		err = instances.Insert(testInstance2)
 		require.NoError(t, err)
 
-		runtimeHandler := runtime.NewHandler(instances, operations, states, 2, "", provisionerClient)
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
 
 		req, err := http.NewRequest("GET", "/runtimes?page_size=1", nil)
 		require.NoError(t, err)
@@ -99,11 +113,14 @@ func TestRuntimeHandler(t *testing.T) {
 	t.Run("test validation should work", func(t *testing.T) {
 		// given
 		provisionerClient := provisioner.NewFakeClient()
-		operations := memory.NewOperation()
-		instances := memory.NewInstance(operations)
-		states := memory.NewRuntimeStates()
 
-		runtimeHandler := runtime.NewHandler(instances, operations, states, 2, "region", provisionerClient)
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
+
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "region", provisionerClient, k8sClient, kimConfig, logrus.New())
 
 		req, err := http.NewRequest("GET", "/runtimes?page_size=a", nil)
 		require.NoError(t, err)
@@ -136,9 +153,12 @@ func TestRuntimeHandler(t *testing.T) {
 	t.Run("test filtering should work", func(t *testing.T) {
 		// given
 		provisionerClient := provisioner.NewFakeClient()
-		operations := memory.NewOperation()
-		instances := memory.NewInstance(operations)
-		states := memory.NewRuntimeStates()
+
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
 		testID1 := "Test1"
 		testID2 := "Test2"
 		testTime1 := time.Now()
@@ -159,7 +179,7 @@ func TestRuntimeHandler(t *testing.T) {
 		err = operations.InsertOperation(testOp2)
 		require.NoError(t, err)
 
-		runtimeHandler := runtime.NewHandler(instances, operations, states, 2, "", provisionerClient)
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
 
 		req, err := http.NewRequest("GET", fmt.Sprintf("/runtimes?account=%s&subaccount=%s&instance_id=%s&runtime_id=%s&region=%s&shoot=%s", testID1, testID1, testID1, testID1, testID1, fmt.Sprintf("Shoot-%s", testID1)), nil)
 		require.NoError(t, err)
@@ -187,9 +207,11 @@ func TestRuntimeHandler(t *testing.T) {
 	t.Run("test state filtering should work", func(t *testing.T) {
 		// given
 		provisionerClient := provisioner.NewFakeClient()
-		operations := memory.NewOperation()
-		instances := memory.NewInstance(operations)
-		states := memory.NewRuntimeStates()
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
 		testID1 := "Test1"
 		testID2 := "Test2"
 		testID3 := "Test3"
@@ -213,19 +235,19 @@ func TestRuntimeHandler(t *testing.T) {
 		provOp2 := fixture.FixProvisioningOperation(fixRandomID(), testID2)
 		err = operations.InsertOperation(provOp2)
 		require.NoError(t, err)
-		upgOp2 := fixture.FixUpgradeKymaOperation(fixRandomID(), testID2)
-		upgOp2.State = domain.Failed
-		upgOp2.CreatedAt = upgOp2.CreatedAt.Add(time.Minute)
-		err = operations.InsertUpgradeKymaOperation(upgOp2)
+		updOp2 := fixture.FixUpdatingOperation(fixRandomID(), testID2)
+		updOp2.State = domain.Failed
+		updOp2.CreatedAt = updOp2.CreatedAt.Add(time.Minute)
+		err = operations.InsertUpdatingOperation(updOp2)
 		require.NoError(t, err)
 
 		provOp3 := fixture.FixProvisioningOperation(fixRandomID(), testID3)
 		err = operations.InsertOperation(provOp3)
 		require.NoError(t, err)
-		upgOp3 := fixture.FixUpgradeKymaOperation(fixRandomID(), testID3)
-		upgOp3.State = domain.Failed
-		upgOp3.CreatedAt = upgOp3.CreatedAt.Add(time.Minute)
-		err = operations.InsertUpgradeKymaOperation(upgOp3)
+		updOp3 := fixture.FixUpdatingOperation(fixRandomID(), testID3)
+		updOp3.State = domain.Failed
+		updOp3.CreatedAt = updOp3.CreatedAt.Add(time.Minute)
+		err = operations.InsertUpdatingOperation(updOp3)
 		require.NoError(t, err)
 		deprovOp3 := fixture.FixDeprovisioningOperation(fixRandomID(), testID3)
 		deprovOp3.State = domain.Succeeded
@@ -233,7 +255,7 @@ func TestRuntimeHandler(t *testing.T) {
 		err = operations.InsertDeprovisioningOperation(deprovOp3)
 		require.NoError(t, err)
 
-		runtimeHandler := runtime.NewHandler(instances, operations, states, 2, "", provisionerClient)
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
 
 		rr := httptest.NewRecorder()
 		router := mux.NewRouter()
@@ -291,9 +313,11 @@ func TestRuntimeHandler(t *testing.T) {
 	t.Run("should show suspension and unsuspension operations", func(t *testing.T) {
 		// given
 		provisionerClient := provisioner.NewFakeClient()
-		operations := memory.NewOperation()
-		instances := memory.NewInstance(operations)
-		states := memory.NewRuntimeStates()
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
 		testID1 := "Test1"
 		testTime1 := time.Now()
 		testInstance1 := fixInstance(testID1, testTime1)
@@ -340,7 +364,7 @@ func TestRuntimeHandler(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		runtimeHandler := runtime.NewHandler(instances, operations, states, 2, "", provisionerClient)
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
 
 		req, err := http.NewRequest("GET", "/runtimes", nil)
 		require.NoError(t, err)
@@ -376,9 +400,11 @@ func TestRuntimeHandler(t *testing.T) {
 	t.Run("should distinguish between provisioning & unsuspension operations", func(t *testing.T) {
 		// given
 		provisionerClient := provisioner.NewFakeClient()
-		operations := memory.NewOperation()
-		instances := memory.NewInstance(operations)
-		states := memory.NewRuntimeStates()
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
 		testInstance1 := fixture.FixInstance("instance-1")
 
 		provisioningOpId := "provisioning-op-id"
@@ -411,7 +437,7 @@ func TestRuntimeHandler(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		runtimeHandler := runtime.NewHandler(instances, operations, states, 2, "", provisionerClient)
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
 
 		req, err := http.NewRequest("GET", "/runtimes", nil)
 		require.NoError(t, err)
@@ -444,9 +470,11 @@ func TestRuntimeHandler(t *testing.T) {
 	t.Run("should distinguish between deprovisioning & suspension operations", func(t *testing.T) {
 		// given
 		provisionerClient := provisioner.NewFakeClient()
-		operations := memory.NewOperation()
-		instances := memory.NewInstance(operations)
-		states := memory.NewRuntimeStates()
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
 		testInstance1 := fixture.FixInstance("instance-1")
 
 		suspensionOpId := "suspension-op-id"
@@ -481,7 +509,7 @@ func TestRuntimeHandler(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		runtimeHandler := runtime.NewHandler(instances, operations, states, 2, "", provisionerClient)
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
 
 		req, err := http.NewRequest("GET", "/runtimes", nil)
 		require.NoError(t, err)
@@ -515,9 +543,11 @@ func TestRuntimeHandler(t *testing.T) {
 	t.Run("test operation detail parameter and runtime state", func(t *testing.T) {
 		// given
 		provisionerClient := provisioner.NewFakeClient()
-		operations := memory.NewOperation()
-		instances := memory.NewInstance(operations)
-		states := memory.NewRuntimeStates()
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
 		testID := "Test1"
 		testTime := time.Now()
 		testInstance := fixInstance(testID, testTime)
@@ -528,13 +558,13 @@ func TestRuntimeHandler(t *testing.T) {
 		provOp := fixture.FixProvisioningOperation(fixRandomID(), testID)
 		err = operations.InsertOperation(provOp)
 		require.NoError(t, err)
-		upgOp := fixture.FixUpgradeKymaOperation(fixRandomID(), testID)
-		upgOp.State = domain.Failed
-		upgOp.CreatedAt = upgOp.CreatedAt.Add(time.Minute)
-		err = operations.InsertUpgradeKymaOperation(upgOp)
+		updOp := fixture.FixUpdatingOperation(fixRandomID(), testID)
+		updOp.State = domain.Succeeded
+		updOp.CreatedAt = updOp.CreatedAt.Add(time.Minute)
+		err = operations.InsertUpdatingOperation(updOp)
 		require.NoError(t, err)
 
-		runtimeHandler := runtime.NewHandler(instances, operations, states, 2, "", provisionerClient)
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
 
 		rr := httptest.NewRecorder()
 		router := mux.NewRouter()
@@ -557,10 +587,8 @@ func TestRuntimeHandler(t *testing.T) {
 		require.Equal(t, 1, out.Count)
 		assert.Equal(t, testID, out.Data[0].InstanceID)
 		assert.NotNil(t, out.Data[0].Status.Provisioning)
-		assert.NotNil(t, out.Data[0].Status.UpgradingKyma)
-		assert.Equal(t, 1, out.Data[0].Status.UpgradingKyma.Count)
 		assert.Nil(t, out.Data[0].Status.Deprovisioning)
-		assert.Equal(t, pkg.StateError, out.Data[0].Status.State)
+		assert.Equal(t, pkg.StateSucceeded, out.Data[0].Status.State)
 
 		// when
 		rr = httptest.NewRecorder()
@@ -579,17 +607,18 @@ func TestRuntimeHandler(t *testing.T) {
 		require.Equal(t, 1, out.Count)
 		assert.Equal(t, testID, out.Data[0].InstanceID)
 		assert.Nil(t, out.Data[0].Status.Provisioning)
-		assert.NotNil(t, out.Data[0].Status.UpgradingKyma)
 		assert.Nil(t, out.Data[0].Status.Deprovisioning)
-		assert.Equal(t, pkg.StateError, out.Data[0].Status.State)
+		assert.Equal(t, pkg.StateSucceeded, out.Data[0].Status.State)
 	})
 
 	t.Run("test kyma_config and cluster_config optional attributes", func(t *testing.T) {
 		// given
 		provisionerClient := provisioner.NewFakeClient()
-		operations := memory.NewOperation()
-		instances := memory.NewInstance(operations)
-		states := memory.NewRuntimeStates()
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
 		testID := "Test1"
 		testTime := time.Now()
 		testInstance := fixInstance(testID, testTime)
@@ -600,13 +629,13 @@ func TestRuntimeHandler(t *testing.T) {
 		provOp := fixture.FixProvisioningOperation(fixRandomID(), testID)
 		err = operations.InsertOperation(provOp)
 		require.NoError(t, err)
-		upgOp := fixture.FixUpgradeKymaOperation(fixRandomID(), testID)
-		upgOp.State = domain.Failed
-		upgOp.CreatedAt = upgOp.CreatedAt.Add(time.Minute)
-		err = operations.InsertUpgradeKymaOperation(upgOp)
+		updOp := fixture.FixUpdatingOperation(fixRandomID(), testID)
+		updOp.State = domain.Failed
+		updOp.CreatedAt = updOp.CreatedAt.Add(time.Minute)
+		err = operations.InsertUpdatingOperation(updOp)
 		require.NoError(t, err)
 		upgClOp := fixture.FixUpgradeClusterOperation(fixRandomID(), testID)
-		upgClOp.CreatedAt = upgOp.CreatedAt.Add(2 * time.Minute)
+		upgClOp.CreatedAt = updOp.CreatedAt.Add(2 * time.Minute)
 		err = operations.InsertUpgradeClusterOperation(upgClOp)
 		require.NoError(t, err)
 
@@ -628,9 +657,9 @@ func TestRuntimeHandler(t *testing.T) {
 		require.NoError(t, err)
 		fixUpgKymaState := internal.RuntimeState{
 			ID:          fixRandomID(),
-			CreatedAt:   upgOp.CreatedAt,
+			CreatedAt:   updOp.CreatedAt,
 			RuntimeID:   testInstance.RuntimeID,
-			OperationID: upgOp.Operation.ID,
+			OperationID: updOp.Operation.ID,
 			KymaConfig: gqlschema.KymaConfigInput{
 				Version: "1.23.0",
 				Profile: (*gqlschema.KymaProfile)(ptr.String("production")),
@@ -666,7 +695,7 @@ func TestRuntimeHandler(t *testing.T) {
 		err = states.Insert(fixOpgClusterState)
 		require.NoError(t, err)
 
-		runtimeHandler := runtime.NewHandler(instances, operations, states, 2, "", provisionerClient)
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
 
 		rr := httptest.NewRecorder()
 		router := mux.NewRouter()
@@ -697,9 +726,11 @@ func TestRuntimeHandler(t *testing.T) {
 	t.Run("test gardener_config optional attribute", func(t *testing.T) {
 		// given
 		provisionerClient := provisioner.NewFakeClient()
-		operations := memory.NewOperation()
-		instances := memory.NewInstance(operations)
-		states := memory.NewRuntimeStates()
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
 		testID := "Test1"
 		testTime := time.Now()
 		testInstance := fixInstance(testID, testTime)
@@ -718,7 +749,7 @@ func TestRuntimeHandler(t *testing.T) {
 		_, err = provisionerClient.ProvisionRuntimeWithIDs(operation.GlobalAccountID, operation.SubAccountID, operation.RuntimeID, operation.ID, input)
 		require.NoError(t, err)
 
-		runtimeHandler := runtime.NewHandler(instances, operations, states, 2, "", provisionerClient)
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
 
 		rr := httptest.NewRecorder()
 		router := mux.NewRouter()
@@ -744,6 +775,431 @@ func TestRuntimeHandler(t *testing.T) {
 		assert.Equal(t, "fake-region", *out.Data[0].Status.GardenerConfig.Region)
 	})
 
+	t.Run("test runtime_config optional attribute", func(t *testing.T) {
+		// given
+		provisionerClient := provisioner.NewFakeClient()
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
+		testID := "Test1"
+		testTime := time.Now()
+		testInstance := fixInstance(testID, testTime)
+		testInstance.Provider = "aws"
+		testInstance.RuntimeID = fmt.Sprintf("runtime-%s", testID)
+		err := instances.Insert(testInstance)
+		require.NoError(t, err)
+
+		operation := fixture.FixProvisioningOperation(fixRandomID(), testID)
+		err = operations.InsertOperation(operation)
+		require.NoError(t, err)
+
+		input, err := operation.InputCreator.CreateProvisionRuntimeInput()
+		require.NoError(t, err)
+
+		_, err = provisionerClient.ProvisionRuntimeWithIDs(operation.GlobalAccountID, operation.SubAccountID, operation.RuntimeID, operation.ID, input)
+		require.NoError(t, err)
+
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
+
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		runtimeHandler.AttachRoutes(router)
+
+		// when
+		req, err := http.NewRequest("GET", "/runtimes?runtime_config=true", nil)
+		require.NoError(t, err)
+		router.ServeHTTP(rr, req)
+
+		// then
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var out pkg.RuntimesPage
+
+		err = json.Unmarshal(rr.Body.Bytes(), &out)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, out.TotalCount)
+		require.Equal(t, 1, out.Count)
+		assert.Equal(t, testID, out.Data[0].InstanceID)
+		require.Nil(t, out.Data[0].RuntimeConfig)
+	})
+
+}
+
+func TestRuntimeHandler_WithKimOnlyDrivenInstances(t *testing.T) {
+	runtimeObj := fixRuntimeResource(t, "runtime-test1", "kcp-system")
+	k8sClient := fake.NewClientBuilder().WithRuntimeObjects(runtimeObj.obj).Build()
+	kimConfig := broker.KimConfig{
+		Enabled:      true,
+		Plans:        []string{"preview"},
+		KimOnlyPlans: []string{"preview"},
+	}
+	runtimesNotKnownToProvisioner := map[string]interface{}{"runtime-test1": nil}
+	provisionerClient := provisioner.NewFakeClientWithKimOnlyDrivenRuntimes(runtimesNotKnownToProvisioner)
+
+	t.Run("test operation detail parameter and runtime state", func(t *testing.T) {
+		// given
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
+		testID := "Test1"
+		testTime := time.Now()
+		testInstance := fixInstanceForPreview(testID, testTime)
+
+		err := instances.Insert(testInstance)
+		require.NoError(t, err)
+
+		provOp := fixture.FixProvisioningOperation(fixRandomID(), testID)
+		err = operations.InsertOperation(provOp)
+		require.NoError(t, err)
+		updOp := fixture.FixUpdatingOperation(fixRandomID(), testID)
+		updOp.State = domain.Succeeded
+		updOp.CreatedAt = updOp.CreatedAt.Add(time.Minute)
+		err = operations.InsertUpdatingOperation(updOp)
+		require.NoError(t, err)
+
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
+
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		runtimeHandler.AttachRoutes(router)
+
+		// when
+		req, err := http.NewRequest("GET", fmt.Sprintf("/runtimes?op_detail=%s", pkg.AllOperation), nil)
+		require.NoError(t, err)
+		router.ServeHTTP(rr, req)
+
+		// then
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var out pkg.RuntimesPage
+
+		err = json.Unmarshal(rr.Body.Bytes(), &out)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, out.TotalCount)
+		require.Equal(t, 1, out.Count)
+		assert.Equal(t, testID, out.Data[0].InstanceID)
+		assert.NotNil(t, out.Data[0].Status.Provisioning)
+		assert.Nil(t, out.Data[0].Status.Deprovisioning)
+		assert.Equal(t, pkg.StateSucceeded, out.Data[0].Status.State)
+
+		// when
+		rr = httptest.NewRecorder()
+		req, err = http.NewRequest("GET", fmt.Sprintf("/runtimes?op_detail=%s", pkg.LastOperation), nil)
+		require.NoError(t, err)
+		router.ServeHTTP(rr, req)
+
+		// then
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		out = pkg.RuntimesPage{}
+		err = json.Unmarshal(rr.Body.Bytes(), &out)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, out.TotalCount)
+		require.Equal(t, 1, out.Count)
+		assert.Equal(t, testID, out.Data[0].InstanceID)
+		assert.Nil(t, out.Data[0].Status.Provisioning)
+		assert.Nil(t, out.Data[0].Status.Deprovisioning)
+		assert.Equal(t, pkg.StateSucceeded, out.Data[0].Status.State)
+	})
+
+	t.Run("test kyma_config and cluster_config optional attributes", func(t *testing.T) {
+		// given
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
+		testID := "Test1"
+		testTime := time.Now()
+		testInstance := fixInstanceForPreview(testID, testTime)
+
+		err := instances.Insert(testInstance)
+		require.NoError(t, err)
+
+		provOp := fixture.FixProvisioningOperation(fixRandomID(), testID)
+		err = operations.InsertOperation(provOp)
+		require.NoError(t, err)
+		updOp := fixture.FixUpdatingOperation(fixRandomID(), testID)
+		updOp.State = domain.Failed
+		updOp.CreatedAt = updOp.CreatedAt.Add(time.Minute)
+		err = operations.InsertUpdatingOperation(updOp)
+		require.NoError(t, err)
+		upgClOp := fixture.FixUpgradeClusterOperation(fixRandomID(), testID)
+		upgClOp.CreatedAt = updOp.CreatedAt.Add(2 * time.Minute)
+		err = operations.InsertUpgradeClusterOperation(upgClOp)
+		require.NoError(t, err)
+
+		fixProvState := internal.RuntimeState{
+			ID:          fixRandomID(),
+			CreatedAt:   provOp.CreatedAt,
+			RuntimeID:   testInstance.RuntimeID,
+			OperationID: provOp.ID,
+			KymaConfig: gqlschema.KymaConfigInput{
+				Version: "1.22.0",
+			},
+			ClusterConfig: gqlschema.GardenerConfigInput{
+				Name:              testID,
+				KubernetesVersion: "1.18.18",
+				Provider:          string(internal.AWS),
+			},
+		}
+		err = states.Insert(fixProvState)
+		require.NoError(t, err)
+		fixUpgKymaState := internal.RuntimeState{
+			ID:          fixRandomID(),
+			CreatedAt:   updOp.CreatedAt,
+			RuntimeID:   testInstance.RuntimeID,
+			OperationID: updOp.Operation.ID,
+			KymaConfig: gqlschema.KymaConfigInput{
+				Version: "1.23.0",
+				Profile: (*gqlschema.KymaProfile)(ptr.String("production")),
+				Components: []*gqlschema.ComponentConfigurationInput{
+					{
+						Component: "istio",
+						Namespace: "istio-system",
+						Configuration: []*gqlschema.ConfigEntryInput{
+							{
+								Key:   "test_key",
+								Value: "test_value",
+							},
+						},
+					},
+				},
+			},
+		}
+		err = states.Insert(fixUpgKymaState)
+		require.NoError(t, err)
+		fixOpgClusterState := internal.RuntimeState{
+			ID:          fixRandomID(),
+			CreatedAt:   upgClOp.CreatedAt,
+			RuntimeID:   testInstance.RuntimeID,
+			OperationID: upgClOp.Operation.ID,
+			ClusterConfig: gqlschema.GardenerConfigInput{
+				Name:                testID,
+				KubernetesVersion:   "1.19.19",
+				Provider:            string(internal.AWS),
+				MachineImage:        ptr.String("gardenlinux"),
+				MachineImageVersion: ptr.String("1.0.0"),
+			},
+		}
+		err = states.Insert(fixOpgClusterState)
+		require.NoError(t, err)
+
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
+
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		runtimeHandler.AttachRoutes(router)
+
+		// when
+		req, err := http.NewRequest("GET", "/runtimes?kyma_config=true&cluster_config=true", nil)
+		require.NoError(t, err)
+		router.ServeHTTP(rr, req)
+
+		// then
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var out pkg.RuntimesPage
+
+		err = json.Unmarshal(rr.Body.Bytes(), &out)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, out.TotalCount)
+		require.Equal(t, 1, out.Count)
+		assert.Equal(t, testID, out.Data[0].InstanceID)
+		require.NotNil(t, out.Data[0].KymaConfig)
+		assert.Equal(t, "1.23.0", out.Data[0].KymaConfig.Version)
+		require.NotNil(t, out.Data[0].ClusterConfig)
+		assert.Equal(t, "1.19.19", out.Data[0].ClusterConfig.KubernetesVersion)
+	})
+
+	t.Run("test gardener_config optional attribute", func(t *testing.T) {
+		// given
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
+		testID := "Test1"
+		testTime := time.Now()
+		testInstance := fixInstanceForPreview(testID, testTime)
+		testInstance.Provider = "aws"
+		testInstance.RuntimeID = fmt.Sprintf("runtime-%s", testID)
+		err := instances.Insert(testInstance)
+		require.NoError(t, err)
+
+		operation := fixture.FixProvisioningOperation(fixRandomID(), testID)
+		err = operations.InsertOperation(operation)
+		operation.KymaResourceNamespace = "kcp-system"
+		require.NoError(t, err)
+
+		input, err := operation.InputCreator.CreateProvisionRuntimeInput()
+		require.NoError(t, err)
+
+		_, err = provisionerClient.ProvisionRuntimeWithIDs(operation.GlobalAccountID, operation.SubAccountID, operation.RuntimeID, operation.ID, input)
+		require.NoError(t, err)
+
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
+
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		runtimeHandler.AttachRoutes(router)
+
+		// when
+		req, err := http.NewRequest("GET", "/runtimes?gardener_config=true", nil)
+		require.NoError(t, err)
+		router.ServeHTTP(rr, req)
+
+		// then
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var out pkg.RuntimesPage
+
+		err = json.Unmarshal(rr.Body.Bytes(), &out)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, out.TotalCount)
+		require.Equal(t, 1, out.Count)
+		assert.Equal(t, testID, out.Data[0].InstanceID)
+		require.Nil(t, out.Data[0].Status.GardenerConfig)
+		require.Nil(t, out.Data[0].RuntimeConfig)
+	})
+
+	t.Run("test gardener_config optional attribute with provisioner not knowing the runtime", func(t *testing.T) {
+		// given
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
+		testID := "test1"
+		testTime := time.Now()
+		testInstance := fixInstanceForPreview(testID, testTime)
+		testInstance.Provider = "aws"
+		testInstance.RuntimeID = fmt.Sprintf("runtime-%s", testID)
+		err := instances.Insert(testInstance)
+		require.NoError(t, err)
+
+		operation := fixture.FixProvisioningOperation(fixRandomID(), testID)
+		err = operations.InsertOperation(operation)
+		operation.KymaResourceNamespace = "kcp-system"
+		require.NoError(t, err)
+
+		input, err := operation.InputCreator.CreateProvisionRuntimeInput()
+		require.NoError(t, err)
+
+		_, err = provisionerClient.ProvisionRuntimeWithIDs(operation.GlobalAccountID, operation.SubAccountID, operation.RuntimeID, operation.ID, input)
+		require.NoError(t, err)
+
+		kimDisabledForPreview := broker.KimConfig{
+			Enabled:      true,
+			Plans:        []string{"no-plan"},
+			KimOnlyPlans: []string{"no-plan"},
+		}
+
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimDisabledForPreview, logrus.New())
+
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		runtimeHandler.AttachRoutes(router)
+
+		// when
+		req, err := http.NewRequest("GET", "/runtimes?gardener_config=true", nil)
+		require.NoError(t, err)
+		router.ServeHTTP(rr, req)
+
+		// then
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var out pkg.RuntimesPage
+
+		err = json.Unmarshal(rr.Body.Bytes(), &out)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, out.TotalCount)
+		require.Equal(t, 1, out.Count)
+		assert.Equal(t, testID, out.Data[0].InstanceID)
+		require.Nil(t, out.Data[0].Status.GardenerConfig)
+		require.Nil(t, out.Data[0].RuntimeConfig)
+
+	})
+
+	t.Run("test runtime_config optional attribute", func(t *testing.T) {
+		// given
+		db := storage.NewMemoryStorage()
+		operations := db.Operations()
+		instances := db.Instances()
+		states := db.RuntimeStates()
+		archived := db.InstancesArchived()
+		testID := "Test1"
+		testTime := time.Now()
+		testInstance := fixInstanceForPreview(testID, testTime)
+		testInstance.Provider = "aws"
+		testInstance.RuntimeID = fmt.Sprintf("runtime-%s", testID)
+		err := instances.Insert(testInstance)
+		require.NoError(t, err)
+
+		operation := fixture.FixProvisioningOperation(fixRandomID(), testID)
+		operation.KymaResourceNamespace = "kcp-system"
+
+		err = operations.InsertOperation(operation)
+		require.NoError(t, err)
+
+		input, err := operation.InputCreator.CreateProvisionRuntimeInput()
+		require.NoError(t, err)
+
+		_, err = provisionerClient.ProvisionRuntimeWithIDs(operation.GlobalAccountID, operation.SubAccountID, operation.RuntimeID, operation.ID, input)
+		require.NoError(t, err)
+
+		runtimeHandler := runtime.NewHandler(instances, operations, states, archived, 2, "", provisionerClient, k8sClient, kimConfig, logrus.New())
+
+		rr := httptest.NewRecorder()
+		router := mux.NewRouter()
+		runtimeHandler.AttachRoutes(router)
+
+		// when
+		req, err := http.NewRequest("GET", "/runtimes?runtime_config=true", nil)
+		require.NoError(t, err)
+		router.ServeHTTP(rr, req)
+
+		// then
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var out pkg.RuntimesPage
+
+		err = json.Unmarshal(rr.Body.Bytes(), &out)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, out.TotalCount)
+		require.Equal(t, 1, out.Count)
+		assert.Equal(t, testID, out.Data[0].InstanceID)
+		require.NotNil(t, out.Data[0].RuntimeConfig)
+		require.Nil(t, out.Data[0].Status.GardenerConfig)
+
+		shootName, ok, err := unstructured.NestedString(*out.Data[0].RuntimeConfig, "spec", "shoot", "name")
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, "kim-driven-shoot", shootName)
+
+		workers, ok, err := unstructured.NestedSlice(*out.Data[0].RuntimeConfig, "spec", "shoot", "provider", "workers")
+		assert.True(t, ok)
+		assert.NoError(t, err)
+		worker, ok, err := unstructured.NestedString(workers[0].(map[string]interface{}), "name")
+		assert.True(t, ok)
+		assert.NoError(t, err)
+		assert.Equal(t, "worker-0", worker)
+
+		_, ok, err = unstructured.NestedSlice(*out.Data[0].RuntimeConfig, "metadata", "managedFields")
+		assert.False(t, ok)
+	})
+
 }
 
 func fixInstance(id string, t time.Time) internal.Instance {
@@ -763,6 +1219,54 @@ func fixInstance(id string, t time.Time) internal.Instance {
 	}
 }
 
+func fixInstanceForPreview(id string, t time.Time) internal.Instance {
+	instance := fixInstance(id, t)
+	instance.ServicePlanName = broker.PreviewPlanName
+	instance.ServicePlanID = broker.PreviewPlanID
+	return instance
+}
+
 func fixRandomID() string {
 	return rand.String(16)
+}
+
+type RuntimeResourceType struct {
+	obj *unstructured.Unstructured
+}
+
+func fixRuntimeResource(t *testing.T, name, namespace string) *RuntimeResourceType {
+	runtimeResource := &unstructured.Unstructured{}
+	runtimeResource.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "infrastructuremanager.kyma-project.io",
+		Version: "v1",
+		Kind:    "Runtime",
+	})
+	runtimeResource.SetName(name)
+	runtimeResource.SetNamespace(namespace)
+
+	worker := map[string]interface{}{}
+	err := unstructured.SetNestedField(worker, "worker-0", "name")
+	assert.NoError(t, err)
+	err = unstructured.SetNestedField(worker, "m6i.large", "machine", "type")
+	assert.NoError(t, err)
+
+	managedField := map[string]interface{}{}
+	err = unstructured.SetNestedSlice(runtimeResource.Object, []interface{}{managedField}, "metadata", "managedFields")
+	assert.NoError(t, err)
+
+	err = unstructured.SetNestedSlice(runtimeResource.Object, []interface{}{worker}, "spec", "shoot", "provider", "workers")
+	assert.NoError(t, err)
+
+	err = unstructured.SetNestedField(runtimeResource.Object, "kim-driven-shoot", "spec", "shoot", "name")
+	assert.NoError(t, err)
+	err = unstructured.SetNestedField(runtimeResource.Object, "test-client-id", "spec", "shoot", "kubernetes", "kubeAPIServer", "oidcConfig", "clientID")
+	assert.NoError(t, err)
+	err = unstructured.SetNestedField(runtimeResource.Object, "aws", "spec", "shoot", "provider", "type")
+	assert.NoError(t, err)
+	err = unstructured.SetNestedField(runtimeResource.Object, false, "spec", "security", "networking", "filter", "egress", "enabled")
+	assert.NoError(t, err)
+	err = unstructured.SetNestedField(runtimeResource.Object, "Ready", "status", "state")
+	assert.NoError(t, err)
+
+	return &RuntimeResourceType{obj: runtimeResource}
 }

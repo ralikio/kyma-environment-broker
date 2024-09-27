@@ -12,7 +12,10 @@ import (
 	"github.com/kyma-project/kyma-environment-broker/common/pagination"
 )
 
-const defaultPageSize = 100
+const (
+	defaultPageSize = 100
+	RuntimesLimit   = 1000
+)
 
 // Client is the interface to interact with the KEB /runtimes API as an HTTP client using OIDC ID token in JWT format.
 type Client interface {
@@ -41,10 +44,18 @@ func (c *client) ListRuntimes(params ListParameters) (RuntimesPage, error) {
 	runtimes := RuntimesPage{}
 	getAll := false
 	fetchedAll := false
+	limitRuntimes := false
 	if params.Page == 0 || params.PageSize == 0 {
 		getAll = true
 		params.Page = 1
 		params.PageSize = defaultPageSize
+	}
+
+	for _, state := range params.States {
+		if state == StateDeprovisioned {
+			limitRuntimes = true
+			break
+		}
 	}
 
 	for !fetchedAll {
@@ -91,6 +102,12 @@ func (c *client) ListRuntimes(params ListParameters) (RuntimesPage, error) {
 		} else {
 			fetchedAll = true
 		}
+
+		if limitRuntimes && runtimes.Count >= RuntimesLimit {
+			runtimes.Data = runtimes.Data[:RuntimesLimit]
+			runtimes.Count = RuntimesLimit
+			fetchedAll = true
+		}
 	}
 
 	return runtimes, nil
@@ -111,6 +128,9 @@ func setQuery(url *url.URL, params ListParameters) {
 	}
 	if params.GardenerConfig {
 		query.Add(GardenerConfigParam, "true")
+	}
+	if params.RuntimeResourceConfig {
+		query.Add(RuntimeConfigParam, "true")
 	}
 	if params.Expired {
 		query.Add(ExpiredParam, "true")

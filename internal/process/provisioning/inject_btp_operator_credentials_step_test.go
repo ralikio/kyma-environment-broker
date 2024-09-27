@@ -29,7 +29,7 @@ func TestInjectBTPOperatorCredentialsStep(t *testing.T) {
 		log := logrus.New()
 		memoryStorage := storage.NewMemoryStorage()
 
-		scheme := internal.NewSchemeForTests()
+		scheme := internal.NewSchemeForTests(t)
 		err := apiextensionsv1.AddToScheme(scheme)
 
 		k8sClient := fake.NewClientBuilder().WithScheme(scheme).Build()
@@ -62,8 +62,9 @@ func TestInjectBTPOperatorCredentialsStep(t *testing.T) {
 		log := logrus.New()
 		memoryStorage := storage.NewMemoryStorage()
 
-		scheme := internal.NewSchemeForTests()
-		apiextensionsv1.AddToScheme(scheme)
+		scheme := internal.NewSchemeForTests(t)
+		err := apiextensionsv1.AddToScheme(scheme)
+		assert.NoError(t, err)
 
 		k8sClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
@@ -96,7 +97,7 @@ func TestInjectBTPOperatorCredentialsWhenSecretAlreadyExistsStep(t *testing.T) {
 			},
 		}}
 
-		scheme := internal.NewSchemeForTests()
+		scheme := internal.NewSchemeForTests(t)
 		err := apiextensionsv1.AddToScheme(scheme)
 
 		k8sClient := fake.NewClientBuilder().WithScheme(scheme).Build()

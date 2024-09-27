@@ -56,6 +56,8 @@ A successful call returns the instance details:
            },
            "networking": {
              "nodes": "10.250.0.0/22"
+             "pods": "10.96.0.0/13"
+             "services": "10.104.0.0/13"
            }
        },
        "platform_region": "cf-us10-staging",
@@ -63,4 +65,4 @@ A successful call returns the instance details:
    }
    ```
 
-   > **NOTE:** The **dashboard_url** field is available only if the Kyma runtime was provisioned successfully and the Runtime Agent registered the Kyma runtime in the Director. Fields under the **parameters** field can differ depending on the provisioning input.
+  > **NOTE:**  The fields under the **parameters** field can differ depending on the provisioning input.

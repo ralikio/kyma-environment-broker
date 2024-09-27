@@ -4,10 +4,8 @@ import (
 	"testing"
 
 	"github.com/kyma-project/kyma-environment-broker/common/orchestration"
-	"github.com/kyma-project/kyma-environment-broker/internal"
 	"github.com/kyma-project/kyma-environment-broker/internal/fixture"
 	"github.com/kyma-project/kyma-environment-broker/internal/process/input/automock"
-	automock2 "github.com/kyma-project/kyma-environment-broker/internal/process/update/automock"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"github.com/sirupsen/logrus"
@@ -26,7 +24,8 @@ func TestInitialisationStep_OtherOperationIsInProgress(t *testing.T) {
 			beforeFunc: func(os storage.Operations) {
 				provisioningOperation := fixture.FixProvisioningOperation("p-id", "iid")
 				provisioningOperation.State = domain.InProgress
-				os.InsertOperation(provisioningOperation)
+				err := os.InsertOperation(provisioningOperation)
+				require.NoError(t, err)
 			},
 			expectedRepeat: true,
 		},
@@ -34,7 +33,8 @@ func TestInitialisationStep_OtherOperationIsInProgress(t *testing.T) {
 			beforeFunc: func(os storage.Operations) {
 				provisioningOperation := fixture.FixProvisioningOperation("p-id", "iid")
 				provisioningOperation.State = domain.Succeeded
-				os.InsertOperation(provisioningOperation)
+				err := os.InsertOperation(provisioningOperation)
+				require.NoError(t, err)
 			},
 			expectedRepeat: false,
 		},
@@ -42,15 +42,8 @@ func TestInitialisationStep_OtherOperationIsInProgress(t *testing.T) {
 			beforeFunc: func(os storage.Operations) {
 				op := fixture.FixUpgradeClusterOperation("op-id", "iid")
 				op.State = domain.InProgress
-				os.InsertUpgradeClusterOperation(op)
-			},
-			expectedRepeat: true,
-		},
-		"in progress upgrade kyma": {
-			beforeFunc: func(os storage.Operations) {
-				op := fixture.FixUpgradeKymaOperation("op-id", "iid")
-				op.State = domain.InProgress
-				os.InsertUpgradeKymaOperation(op)
+				err := os.InsertUpgradeClusterOperation(op)
+				require.NoError(t, err)
 			},
 			expectedRepeat: true,
 		},
@@ -58,7 +51,8 @@ func TestInitialisationStep_OtherOperationIsInProgress(t *testing.T) {
 			beforeFunc: func(os storage.Operations) {
 				op := fixture.FixUpdatingOperation("op-id", "iid")
 				op.State = domain.InProgress
-				os.InsertUpdatingOperation(op)
+				err := os.InsertUpdatingOperation(op)
+				require.NoError(t, err)
 			},
 			expectedRepeat: true,
 		},
@@ -66,7 +60,8 @@ func TestInitialisationStep_OtherOperationIsInProgress(t *testing.T) {
 			beforeFunc: func(os storage.Operations) {
 				op := fixture.FixDeprovisioningOperation("op-id", "iid")
 				op.State = domain.InProgress
-				os.InsertDeprovisioningOperation(op)
+				err := os.InsertDeprovisioningOperation(op)
+				require.NoError(t, err)
 			},
 			expectedRepeat: true,
 		},
@@ -78,24 +73,18 @@ func TestInitialisationStep_OtherOperationIsInProgress(t *testing.T) {
 			rs := db.RuntimeStates()
 			inst := fixture.FixInstance("iid")
 			state := fixture.FixRuntimeState("op-id", "Runtime-iid", "op-id")
-			is.Insert(inst)
-			rs.Insert(state)
-			ver := &internal.RuntimeVersionData{
-				Version: "2.4.0",
-				Origin:  internal.Defaults,
-			}
-			rvc := &automock2.RuntimeVersionConfiguratorForUpdating{}
-			rvc.On("ForUpdating",
-				mock.AnythingOfType("internal.Operation")).
-				Return(ver, nil)
+			err := is.Insert(inst)
+			require.NoError(t, err)
+			err = rs.Insert(state)
+			require.NoError(t, err)
 			builder := &automock.CreatorForPlan{}
-			builder.On("CreateUpgradeShootInput",
-				mock.Anything, mock.AnythingOfType("internal.RuntimeVersionData")).
+			builder.On("CreateUpgradeShootInput", mock.Anything).
 				Return(&fixture.SimpleInputCreator{}, nil)
-			step := NewInitialisationStep(is, os, rvc, builder)
+			step := NewInitialisationStep(is, os, builder)
 			updatingOperation := fixture.FixUpdatingOperation("up-id", "iid")
 			updatingOperation.State = orchestration.Pending
-			os.InsertOperation(updatingOperation.Operation)
+			err = os.InsertOperation(updatingOperation.Operation)
+			require.NoError(t, err)
 			tc.beforeFunc(os)
 
 			// when

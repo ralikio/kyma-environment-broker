@@ -10,9 +10,7 @@ func main() {
 	builder.WithConfig()
 	builder.WithGardenerClient()
 	builder.WithBrokerClient()
-	builder.WithProvisionerClient()
 	builder.WithStorage()
-	builder.WithLogger()
 
 	defer builder.Cleanup()
 

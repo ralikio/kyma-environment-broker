@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kyma-project/kyma-environment-broker/internal/euaccess"
+
 	"github.com/kyma-project/kyma-environment-broker/internal/provider"
 
 	"github.com/kyma-project/kyma-environment-broker/common/hyperscaler"
@@ -35,18 +37,17 @@ func (s *ResolveCredentialsStep) Name() string {
 }
 
 func (s *ResolveCredentialsStep) Run(operation internal.Operation, log logrus.FieldLogger) (internal.Operation, time.Duration, error) {
-
 	cloudProvider := operation.InputCreator.Provider()
 	effectiveRegion := getEffectiveRegionForSapConvergedCloud(operation.ProvisioningParameters.Parameters.Region)
 
-	hypType, err := hyperscaler.HypTypeFromCloudProviderWithRegion(cloudProvider, &effectiveRegion)
+	hypType, err := hyperscaler.HypTypeFromCloudProviderWithRegion(cloudProvider, &effectiveRegion, &operation.ProvisioningParameters.PlatformRegion)
 	if err != nil {
 		msg := fmt.Sprintf("failing to determine the type of Hyperscaler to use for planID: %s", operation.ProvisioningParameters.PlanID)
 		log.Errorf("Aborting after %s", msg)
 		return s.operationManager.OperationFailed(operation, msg, err, log)
 	}
 
-	euAccess := internal.IsEuAccess(operation.ProvisioningParameters.PlatformRegion)
+	euAccess := euaccess.IsEURestrictedAccess(operation.ProvisioningParameters.PlatformRegion)
 
 	log.Infof("HAP lookup for credentials secret binding to provision cluster for global account ID %s on Hyperscaler %s, euAccess %v", operation.ProvisioningParameters.ErsContext.GlobalAccountID, hypType.GetKey(), euAccess)
 

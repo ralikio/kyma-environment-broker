@@ -21,22 +21,29 @@ const (
 )
 
 func TestGetKubeconfigStep(t *testing.T) {
+
+	kimConfig := broker.KimConfig{
+		Enabled: false,
+	}
+
 	t.Run("should create k8s client using kubeconfig from RuntimeStatus", func(t *testing.T) {
 		// given
 		st := storage.NewMemoryStorage()
 		provisionerClient := provisioner.NewFakeClient()
 
-		scheme := internal.NewSchemeForTests()
+		scheme := internal.NewSchemeForTests(t)
 		err := apiextensionsv1.AddToScheme(scheme)
 
-		step := NewGetKubeconfigStep(st.Operations(), provisionerClient)
+		step := NewGetKubeconfigStep(st.Operations(), provisionerClient, kimConfig)
 		operation := fixture.FixProvisioningOperation("operation-id", "inst-id")
 		operation.Kubeconfig = ""
-		st.Operations().InsertOperation(operation)
+		err = st.Operations().InsertOperation(operation)
+		require.NoError(t, err)
 
 		input, err := operation.InputCreator.CreateProvisionRuntimeInput()
 		require.NoError(t, err)
-		provisionerClient.ProvisionRuntimeWithIDs(operation.GlobalAccountID, operation.SubAccountID, operation.RuntimeID, operation.ID, input)
+		_, err = provisionerClient.ProvisionRuntimeWithIDs(operation.GlobalAccountID, operation.SubAccountID, operation.RuntimeID, operation.ID, input)
+		require.NoError(t, err)
 
 		// when
 		processedOperation, d, err := step.Run(operation, logrus.New())
@@ -51,15 +58,16 @@ func TestGetKubeconfigStep(t *testing.T) {
 		// given
 		st := storage.NewMemoryStorage()
 
-		scheme := internal.NewSchemeForTests()
+		scheme := internal.NewSchemeForTests(t)
 		err := apiextensionsv1.AddToScheme(scheme)
 
-		step := NewGetKubeconfigStep(st.Operations(), nil)
+		step := NewGetKubeconfigStep(st.Operations(), nil, kimConfig)
 		operation := fixture.FixProvisioningOperation("operation-id", "inst-id")
 		operation.Kubeconfig = ""
 		operation.ProvisioningParameters.Parameters.Kubeconfig = kubeconfigContentsFromParameters
 		operation.ProvisioningParameters.PlanID = broker.OwnClusterPlanID
-		st.Operations().InsertOperation(operation)
+		err = st.Operations().InsertOperation(operation)
+		require.NoError(t, err)
 
 		// when
 		processedOperation, d, err := step.Run(operation, logrus.New())
@@ -73,14 +81,15 @@ func TestGetKubeconfigStep(t *testing.T) {
 		// given
 		st := storage.NewMemoryStorage()
 
-		scheme := internal.NewSchemeForTests()
+		scheme := internal.NewSchemeForTests(t)
 		err := apiextensionsv1.AddToScheme(scheme)
 
-		step := NewGetKubeconfigStep(st.Operations(), nil)
+		step := NewGetKubeconfigStep(st.Operations(), nil, kimConfig)
 		operation := fixture.FixProvisioningOperation("operation-id", "inst-id")
 		operation.Kubeconfig = kubeconfigFromPreviousOperation
 		operation.ProvisioningParameters.Parameters.Kubeconfig = ""
-		st.Operations().InsertOperation(operation)
+		err = st.Operations().InsertOperation(operation)
+		require.NoError(t, err)
 
 		// when
 		processedOperation, d, err := step.Run(operation, logrus.New())
@@ -95,14 +104,15 @@ func TestGetKubeconfigStep(t *testing.T) {
 		st := storage.NewMemoryStorage()
 		provisionerClient := provisioner.NewFakeClient()
 
-		scheme := internal.NewSchemeForTests()
+		scheme := internal.NewSchemeForTests(t)
 		err := apiextensionsv1.AddToScheme(scheme)
 
-		step := NewGetKubeconfigStep(st.Operations(), provisionerClient)
+		step := NewGetKubeconfigStep(st.Operations(), provisionerClient, kimConfig)
 		operation := fixture.FixProvisioningOperation("operation-id", "inst-id")
 		operation.Kubeconfig = ""
 		operation.RuntimeID = ""
-		st.Operations().InsertOperation(operation)
+		err = st.Operations().InsertOperation(operation)
+		require.NoError(t, err)
 
 		// when
 		_, _, err = step.Run(operation, logrus.New())

@@ -2,13 +2,10 @@ package main
 
 import (
 	"context"
-	"log"
 	"time"
 
 	btpmanager "github.com/kyma-project/kyma-environment-broker/internal/btpmanager/credentials"
 	"github.com/kyma-project/kyma-environment-broker/internal/events"
-	"github.com/kyma-project/kyma-environment-broker/internal/process/input"
-	"github.com/kyma-project/kyma-environment-broker/internal/provisioner"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/sirupsen/logrus"
 	"github.com/vrischmann/envconfig"
@@ -20,16 +17,12 @@ import (
 // dummy change
 
 type Config struct {
-	Database                             storage.Config
-	Events                               events.Config
-	Provisioner                          input.Config
-	DryRun                               bool   `envconfig:"default=true"`
-	BtpManagerSecretWatcherAddr          string `envconfig:"default=0"`
-	BtpManagerSecretWatcherComponentName string `envconfig:"default=NA"`
-	WatcherEnabled                       bool   `envconfig:"default=false"`
-	JobEnabled                           bool   `envconfig:"default=false"`
-	JobInterval                          int    `envconfig:"default=24"`
-	JobReconciliationDelay               string `envconfig:"default=0s"`
+	Database               storage.Config
+	Events                 events.Config
+	DryRun                 bool   `envconfig:"default=true"`
+	JobEnabled             bool   `envconfig:"default=false"`
+	JobInterval            int    `envconfig:"default=24"`
+	JobReconciliationDelay string `envconfig:"default=0s"`
 }
 
 func main() {
@@ -44,49 +37,43 @@ func main() {
 
 	var cfg Config
 	err := envconfig.InitWithPrefix(&cfg, "RUNTIME_RECONCILER")
-	fatalOnError(err)
+	fatalOnError(err, logs)
 	logs.Info("runtime-reconciler config loaded")
-	if !cfg.JobEnabled && !cfg.WatcherEnabled {
-		logs.Info("both job and listener are disabled, module stopped.")
+	if !cfg.JobEnabled {
+		logs.Info("job disabled, module stopped.")
 		return
 	}
+	jobReconciliationDelay, err := time.ParseDuration(cfg.JobReconciliationDelay)
+	if cfg.JobEnabled && err != nil {
+		fatalOnError(err, logs)
+	}
+
 	logs.Infof("runtime-listener runing as dry run? %t", cfg.DryRun)
 
 	cipher := storage.NewEncrypter(cfg.Database.SecretKey)
 
 	db, _, err := storage.NewFromConfig(cfg.Database, cfg.Events, cipher, logs.WithField("service", "storage"))
-	fatalOnError(err)
+	fatalOnError(err, logs)
 	logs.Info("runtime-reconciler connected to database")
 
 	kcpK8sConfig, err := config.GetConfig()
-	fatalOnError(err)
+	fatalOnError(err, logs)
 	kcpK8sClient, err := client.New(kcpK8sConfig, client.Options{})
-	fatalOnError(err)
+	fatalOnError(err, logs)
 
-	provisionerClient := provisioner.NewProvisionerClient(cfg.Provisioner.URL, false)
-
-	btpOperatorManager := btpmanager.NewManager(ctx, kcpK8sClient, db.Instances(), logs, cfg.DryRun, provisionerClient)
+	btpOperatorManager := btpmanager.NewManager(ctx, kcpK8sClient, db.Instances(), logs, cfg.DryRun)
 
 	logs.Infof("job enabled? %t", cfg.JobEnabled)
 	if cfg.JobEnabled {
 		btpManagerCredentialsJob := btpmanager.NewJob(btpOperatorManager, logs)
 		logs.Infof("runtime-reconciler created job every %d m", cfg.JobInterval)
-
-		jobReconciliationDelay, _ := time.ParseDuration(cfg.JobReconciliationDelay)
 		btpManagerCredentialsJob.Start(cfg.JobInterval, jobReconciliationDelay)
-	}
-
-	logs.Infof("watcher enabled? %t", cfg.WatcherEnabled)
-	if cfg.WatcherEnabled {
-		btpManagerCredentialsWatcher := btpmanager.NewWatcher(ctx, cfg.BtpManagerSecretWatcherAddr, cfg.BtpManagerSecretWatcherComponentName, btpOperatorManager, logs)
-		logs.Infof("runtime-reconciler created watcher %s on %s", cfg.BtpManagerSecretWatcherComponentName, cfg.BtpManagerSecretWatcherAddr)
-		go btpManagerCredentialsWatcher.ReactOnSkrEvent()
 	}
 
 	<-ctx.Done()
 }
 
-func fatalOnError(err error) {
+func fatalOnError(err error, log *logrus.Logger) {
 	if err != nil {
 		log.Fatal(err)
 	}

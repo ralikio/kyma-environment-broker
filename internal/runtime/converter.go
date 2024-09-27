@@ -11,7 +11,6 @@ type Converter interface {
 	NewDTO(instance internal.Instance) (pkg.RuntimeDTO, error)
 	ApplyProvisioningOperation(dto *pkg.RuntimeDTO, pOpr *internal.ProvisioningOperation)
 	ApplyDeprovisioningOperation(dto *pkg.RuntimeDTO, dOpr *internal.DeprovisioningOperation)
-	ApplyUpgradingKymaOperations(dto *pkg.RuntimeDTO, oprs []internal.UpgradeKymaOperation, totalCount int)
 	ApplyUpgradingClusterOperations(dto *pkg.RuntimeDTO, oprs []internal.UpgradeClusterOperation, totalCount int)
 	ApplyUpdateOperations(dto *pkg.RuntimeDTO, oprs []internal.UpdatingOperation, totalCount int)
 	ApplySuspensionOperations(dto *pkg.RuntimeDTO, oprs []internal.DeprovisioningOperation)
@@ -63,7 +62,6 @@ func (c *converter) applyOperation(source *internal.Operation, target *pkg.Opera
 		target.State = string(source.State)
 		target.Description = source.Description
 		target.OrchestrationID = source.OrchestrationID
-		target.RuntimeVersion = source.RuntimeVersion.Version
 		target.FinishedStages = source.FinishedStages
 		target.ExecutedButNotCompletedSteps = source.ExcutedButNotCompleted
 	}
@@ -97,22 +95,6 @@ func (c *converter) NewDTO(instance internal.Instance) (pkg.RuntimeDTO, error) {
 	c.setRegionOrDefault(instance, &toReturn)
 
 	return toReturn, nil
-}
-
-func (c *converter) ApplyUpgradingKymaOperations(dto *pkg.RuntimeDTO, oprs []internal.UpgradeKymaOperation, totalCount int) {
-	if len(oprs) <= 0 {
-		return
-	}
-	dto.Status.UpgradingKyma = &pkg.OperationsData{}
-	dto.Status.UpgradingKyma.TotalCount = totalCount
-	dto.Status.UpgradingKyma.Count = len(oprs)
-	dto.Status.UpgradingKyma.Data = make([]pkg.Operation, 0)
-	for _, o := range oprs {
-		op := pkg.Operation{}
-		c.applyOperation(&o.Operation, &op)
-		dto.Status.UpgradingKyma.Data = append(dto.Status.UpgradingKyma.Data, op)
-	}
-	c.adjustRuntimeState(dto)
 }
 
 func (c *converter) ApplyUpgradingClusterOperations(dto *pkg.RuntimeDTO, oprs []internal.UpgradeClusterOperation, totalCount int) {
@@ -207,7 +189,7 @@ func (c *converter) adjustRuntimeState(dto *pkg.RuntimeDTO) {
 	case string(domain.Failed):
 		dto.Status.State = pkg.StateFailed
 		switch lastOp.Type {
-		case pkg.UpgradeKyma, pkg.UpgradeCluster, pkg.Update:
+		case pkg.UpgradeCluster, pkg.Update:
 			dto.Status.State = pkg.StateError
 		}
 	case string(domain.InProgress):
@@ -216,7 +198,7 @@ func (c *converter) adjustRuntimeState(dto *pkg.RuntimeDTO) {
 			dto.Status.State = pkg.StateProvisioning
 		case pkg.Deprovision, pkg.Suspension:
 			dto.Status.State = pkg.StateDeprovisioning
-		case pkg.UpgradeKyma, pkg.UpgradeCluster:
+		case pkg.UpgradeCluster:
 			dto.Status.State = pkg.StateUpgrading
 		case pkg.Update:
 			dto.Status.State = pkg.StateUpdating

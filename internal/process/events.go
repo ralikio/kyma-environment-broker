@@ -3,6 +3,8 @@ package process
 import (
 	"time"
 
+	"github.com/kyma-project/kyma-environment-broker/internal/broker"
+
 	"github.com/kyma-project/kyma-environment-broker/internal"
 )
 
@@ -30,12 +32,6 @@ type DeprovisioningStepProcessed struct {
 	Operation    internal.DeprovisioningOperation
 }
 
-type UpgradeKymaStepProcessed struct {
-	StepProcessed
-	OldOperation internal.UpgradeKymaOperation
-	Operation    internal.UpgradeKymaOperation
-}
-
 type UpgradeClusterStepProcessed struct {
 	StepProcessed
 	OldOperation internal.UpgradeClusterOperation
@@ -54,4 +50,17 @@ type OperationStepProcessed struct {
 
 type OperationSucceeded struct {
 	Operation internal.Operation
+}
+
+type OperationFailed struct {
+	Operation internal.Operation
+}
+
+type OperationFinished struct {
+	Operation internal.Operation
+	PlanID    broker.PlanID
+}
+
+type DeprovisioningSucceeded struct {
+	Operation internal.DeprovisioningOperation
 }

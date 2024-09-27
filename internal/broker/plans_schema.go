@@ -23,12 +23,13 @@ type RootSchema struct {
 type ProvisioningProperties struct {
 	UpdateProperties
 
-	Name        NameType        `json:"name"`
-	ShootName   *Type           `json:"shootName,omitempty"`
-	ShootDomain *Type           `json:"shootDomain,omitempty"`
-	Region      *Type           `json:"region,omitempty"`
-	Networking  *NetworkingType `json:"networking,omitempty"`
-	Modules     *Modules        `json:"modules,omitempty"`
+	Name                   NameType        `json:"name"`
+	ShootName              *Type           `json:"shootName,omitempty"`
+	ShootDomain            *Type           `json:"shootDomain,omitempty"`
+	Region                 *Type           `json:"region,omitempty"`
+	Networking             *NetworkingType `json:"networking,omitempty"`
+	Modules                *Modules        `json:"modules,omitempty"`
+	ShootAndSeedSameRegion *Type           `json:"shootAndSeedSameRegion,omitempty"`
 }
 
 type UpdateProperties struct {
@@ -46,7 +47,9 @@ func (up *UpdateProperties) IncludeAdditional() {
 }
 
 type NetworkingProperties struct {
-	Nodes Type `json:"nodes"`
+	Nodes    Type `json:"nodes"`
+	Services Type `json:"services"`
+	Pods     Type `json:"pods"`
 }
 
 type NetworkingType struct {
@@ -263,9 +266,18 @@ func ShootDomainProperty() *Type {
 	}
 }
 
+func ShootAndSeedSameRegionProperty() *Type {
+	return &Type{
+		Type:        "boolean",
+		Title:       "Enforce Same Location for Seed and Shoot",
+		Default:     false,
+		Description: "If set to true a Gardener seed will be placed in the same region as the selected region from the Region field. Provisioning process will fail if no seed is availabie in the region.",
+	}
+}
+
 // NewProvisioningProperties creates a new properties for different plans
 // Note that the order of properties will be the same in the form on the website
-func NewProvisioningProperties(machineTypesDisplay map[string]string, machineTypes, regions []string, update bool) ProvisioningProperties {
+func NewProvisioningProperties(machineTypesDisplay, regionsDisplay map[string]string, machineTypes, regions []string, update bool) ProvisioningProperties {
 
 	properties := ProvisioningProperties{
 		UpdateProperties: UpdateProperties{
@@ -278,7 +290,7 @@ func NewProvisioningProperties(machineTypesDisplay map[string]string, machineTyp
 			AutoScalerMax: &Type{
 				Type:        "integer",
 				Minimum:     3,
-				Maximum:     80,
+				Maximum:     300,
 				Default:     20,
 				Description: "Specifies the maximum number of virtual machines to create",
 			},
@@ -290,9 +302,10 @@ func NewProvisioningProperties(machineTypesDisplay map[string]string, machineTyp
 		},
 		Name: NameProperty(),
 		Region: &Type{
-			Type:      "string",
-			Enum:      ToInterfaceSlice(regions),
-			MinLength: 1,
+			Type:            "string",
+			Enum:            ToInterfaceSlice(regions),
+			EnumDisplayName: regionsDisplay,
+			MinLength:       1,
 		},
 		Networking: NewNetworkingSchema(),
 		Modules:    NewModulesSchema(),
@@ -309,9 +322,13 @@ func NewProvisioningProperties(machineTypesDisplay map[string]string, machineTyp
 func NewNetworkingSchema() *NetworkingType {
 	seedCIDRs := strings.Join(networking.GardenerSeedCIDRs, ", ")
 	return &NetworkingType{
-		Type: Type{Type: "object", Description: "Networking configuration. These values are immutable and cannot be updated later."},
+		Type: Type{Type: "object", Description: "Networking configuration. These values are immutable and cannot be updated later. All provided CIDR ranges must not overlap one another."},
 		Properties: NetworkingProperties{
-			Nodes: Type{Type: "string", Title: "CIDR range for nodes", Description: fmt.Sprintf("CIDR range for nodes, must not overlap with the following CIDRs: %s, %s, %s", networking.DefaultPodsCIDR, networking.DefaultServicesCIDR, seedCIDRs),
+			Services: Type{Type: "string", Title: "CIDR range for Services", Description: fmt.Sprintf("CIDR range for Services, must not overlap with the following CIDRs: %s", seedCIDRs),
+				Default: networking.DefaultServicesCIDR},
+			Pods: Type{Type: "string", Title: "CIDR range for Pods", Description: fmt.Sprintf("CIDR range for Pods, must not overlap with the following CIDRs: %s", seedCIDRs),
+				Default: networking.DefaultPodsCIDR},
+			Nodes: Type{Type: "string", Title: "CIDR range for Nodes", Description: fmt.Sprintf("CIDR range for Nodes, must not overlap with the following CIDRs: %s", seedCIDRs),
 				Default: networking.DefaultNodesCIDR},
 		},
 		Required: []string{"nodes"},
@@ -369,7 +386,7 @@ func unmarshalOrPanic(from, to interface{}) interface{} {
 }
 
 func DefaultControlsOrder() []string {
-	return []string{"name", "kubeconfig", "shootName", "shootDomain", "region", "machineType", "autoScalerMin", "autoScalerMax", "zonesCount", "modules", "networking", "oidc", "administrators"}
+	return []string{"name", "kubeconfig", "shootName", "shootDomain", "region", "shootAndSeedSameRegion", "machineType", "autoScalerMin", "autoScalerMax", "zonesCount", "modules", "networking", "oidc", "administrators"}
 }
 
 func ToInterfaceSlice(input []string) []interface{} {

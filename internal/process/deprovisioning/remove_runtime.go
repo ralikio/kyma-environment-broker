@@ -37,6 +37,12 @@ func (s *RemoveRuntimeStep) Name() string {
 }
 
 func (s *RemoveRuntimeStep) Run(operation internal.Operation, log logrus.FieldLogger) (internal.Operation, time.Duration, error) {
+
+	if operation.KimDeprovisionsOnly {
+		log.Infof("Skipping the step because the runtime %s/%s is not controlled by the provisioner", operation.GetRuntimeResourceName(), operation.GetRuntimeResourceName())
+		return operation, 0, nil
+	}
+
 	if time.Since(operation.UpdatedAt) > s.provisionerTimeout {
 		log.Infof("operation has reached the time limit: updated operation time: %s", operation.UpdatedAt)
 		return s.operationManager.OperationFailed(operation, fmt.Sprintf("operation has reached the time limit: %s", s.provisionerTimeout), nil, log)
@@ -62,8 +68,8 @@ func (s *RemoveRuntimeStep) Run(operation internal.Operation, log logrus.FieldLo
 	if operation.ProvisionerOperationID == "" {
 		provisionerResponse, err := s.provisionerClient.DeprovisionRuntime(instance.GlobalAccountID, instance.RuntimeID)
 		if err != nil {
-			log.Errorf("unable to deprovision runtime: %s", err)
-			return s.operationManager.RetryOperationWithoutFail(operation, s.Name(), "unable to deprovision Runtime in Provisioner", 15*time.Second, 20*time.Minute, log)
+			log.Warnf("unable to deprovision runtime: %s", err)
+			return s.operationManager.RetryOperationWithoutFail(operation, s.Name(), "unable to deprovision Runtime in Provisioner", 15*time.Second, 20*time.Minute, log, err)
 		}
 		log.Infof("fetched ProvisionerOperationID=%s", provisionerResponse)
 		repeat := time.Duration(0)

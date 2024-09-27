@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kyma-project/kyma-environment-broker/internal/assuredworkloads"
+
 	"github.com/kyma-project/kyma-environment-broker/internal/euaccess"
 
 	"github.com/kyma-project/kyma-environment-broker/internal/middleware"
@@ -22,10 +24,11 @@ type ServicesEndpoint struct {
 	cfg            Config
 	servicesConfig ServicesConfig
 
-	enabledPlanIDs map[string]struct{}
+	enabledPlanIDs                map[string]struct{}
+	convergedCloudRegionsProvider ConvergedCloudRegionProvider
 }
 
-func NewServices(cfg Config, servicesConfig ServicesConfig, log logrus.FieldLogger) *ServicesEndpoint {
+func NewServices(cfg Config, servicesConfig ServicesConfig, log logrus.FieldLogger, convergedCloudRegionsProvider ConvergedCloudRegionProvider) *ServicesEndpoint {
 	enabledPlanIDs := map[string]struct{}{}
 	for _, planName := range cfg.EnablePlans {
 		id := PlanIDsMapping[planName]
@@ -33,10 +36,11 @@ func NewServices(cfg Config, servicesConfig ServicesConfig, log logrus.FieldLogg
 	}
 
 	return &ServicesEndpoint{
-		log:            log.WithField("service", "ServicesEndpoint"),
-		cfg:            cfg,
-		servicesConfig: servicesConfig,
-		enabledPlanIDs: enabledPlanIDs,
+		log:                           log.WithField("service", "ServicesEndpoint"),
+		cfg:                           cfg,
+		servicesConfig:                servicesConfig,
+		enabledPlanIDs:                enabledPlanIDs,
+		convergedCloudRegionsProvider: convergedCloudRegionsProvider,
 	}
 }
 
@@ -54,7 +58,16 @@ func (b *ServicesEndpoint) Services(ctx context.Context) ([]domain.Service, erro
 
 	provider, ok := middleware.ProviderFromContext(ctx)
 	platformRegion, ok := middleware.RegionFromContext(ctx)
-	for _, plan := range Plans(class.Plans, provider, b.cfg.IncludeAdditionalParamsInSchema, euaccess.IsEURestrictedAccess(platformRegion)) {
+	for _, plan := range Plans(class.Plans,
+		provider,
+		b.cfg.IncludeAdditionalParamsInSchema,
+		euaccess.IsEURestrictedAccess(platformRegion),
+		b.cfg.UseSmallerMachineTypes,
+		b.cfg.EnableShootAndSeedSameRegion,
+		b.convergedCloudRegionsProvider.GetRegions(platformRegion),
+		assuredworkloads.IsKSA(platformRegion),
+	) {
+
 		// filter out not enabled plans
 		if _, exists := b.enabledPlanIDs[plan.ID]; !exists {
 			continue

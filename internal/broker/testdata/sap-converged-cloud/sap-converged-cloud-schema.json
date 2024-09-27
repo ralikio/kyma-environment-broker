@@ -14,7 +14,7 @@
     "autoScalerMax": {
       "default": 20,
       "description": "Specifies the maximum number of virtual machines to create",
-      "maximum": 80,
+      "maximum": 300,
       "minimum": 3,
       "type": "integer"
     },
@@ -25,7 +25,18 @@
       "type": "integer"
     },
     "machineType": {
+      "_enumDisplayName": {
+        "g_c2_m8":    "g_c2_m8 (2vCPU, 8GB RAM)",
+        "g_c4_m16":   "g_c4_m16 (4vCPU, 16GB RAM)",
+        "g_c6_m24":   "g_c6_m24 (6vCPU, 24GB RAM)",
+        "g_c8_m32":   "g_c8_m32 (8vCPU, 32GB RAM)",
+        "g_c12_m48":  "g_c12_m48 (12vCPU, 48GB RAM)",
+        "g_c16_m64":  "g_c16_m64 (16vCPU, 64GB RAM)",
+        "g_c32_m128": "g_c32_m128 (32vCPU, 128GB RAM)",
+        "g_c64_m256": "g_c64_m256 (64vCPU, 256GB RAM)"
+      },
       "enum": [
+        "g_c2_m8",
         "g_c4_m16",
         "g_c6_m24",
         "g_c8_m32",
@@ -132,12 +143,24 @@
       "type": "string"
     },
     "networking": {
-      "description": "Networking configuration. These values are immutable and cannot be updated later.",
+      "description": "Networking configuration. These values are immutable and cannot be updated later. All provided CIDR ranges must not overlap one another.",
       "properties": {
         "nodes": {
           "default": "10.250.0.0/22",
-          "description": "CIDR range for nodes, must not overlap with the following CIDRs: 10.96.0.0/13, 10.104.0.0/13, 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
-          "title": "CIDR range for nodes",
+          "description": "CIDR range for Nodes, must not overlap with the following CIDRs: 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
+          "title": "CIDR range for Nodes",
+          "type": "string"
+        },
+        "pods": {
+          "default": "10.96.0.0/13",
+          "description": "CIDR range for Pods, must not overlap with the following CIDRs: 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
+          "title": "CIDR range for Pods",
+          "type": "string"
+        },
+        "services": {
+          "default": "10.104.0.0/13",
+          "description": "CIDR range for Services, must not overlap with the following CIDRs: 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
+          "title": "CIDR range for Services",
           "type": "string"
         }
       },

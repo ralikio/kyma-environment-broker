@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	reconcilerApi "github.com/kyma-incubator/reconciler/pkg/keb"
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
 	"github.com/kyma-project/kyma-environment-broker/common/gardener"
 	"github.com/kyma-project/kyma-environment-broker/common/orchestration"
@@ -27,15 +26,12 @@ const (
 	ServiceManagerURL           = "https://service-manager.local"
 	InstanceDashboardURL        = "https://dashboard.local"
 	XSUAADataXSAppName          = "XSApp"
-	KymaVersion                 = "1.19.0"
 	MonitoringUsername          = "username"
 	MonitoringPassword          = "password"
 )
 
 type SimpleInputCreator struct {
-	Overrides         map[string][]*gqlschema.ConfigEntryInput
 	Labels            map[string]string
-	EnabledComponents []string
 	ShootName         *string
 	ShootDomain       string
 	shootDnsProviders gardener.DNSProvidersData
@@ -74,10 +70,20 @@ func FixERSContext(id string) internal.ERSContext {
 	}
 }
 
-func FixProvisioningParametersDTO() internal.ProvisioningParametersDTO {
+func FixProvisioningParametersWithDTO(id string, planID string, params internal.ProvisioningParametersDTO) internal.ProvisioningParameters {
+	return internal.ProvisioningParameters{
+		PlanID:         planID,
+		ServiceID:      ServiceId,
+		ErsContext:     FixERSContext(id),
+		Parameters:     params,
+		PlatformRegion: Region,
+	}
+}
+
+func FixProvisioningParameters(id string) internal.ProvisioningParameters {
 	trialCloudProvider := internal.Azure
 
-	return internal.ProvisioningParametersDTO{
+	provisioningParametersDTO := internal.ProvisioningParametersDTO{
 		Name:         "cluster-test",
 		VolumeSizeGb: ptr.Integer(50),
 		MachineType:  ptr.String("Standard_D8_v3"),
@@ -91,17 +97,14 @@ func FixProvisioningParametersDTO() internal.ProvisioningParametersDTO {
 			MaxSurge:       ptr.Integer(4),
 			MaxUnavailable: ptr.Integer(1),
 		},
-		KymaVersion: KymaVersion,
-		Provider:    &trialCloudProvider,
+		Provider: &trialCloudProvider,
 	}
-}
 
-func FixProvisioningParameters(id string) internal.ProvisioningParameters {
 	return internal.ProvisioningParameters{
 		PlanID:         PlanId,
 		ServiceID:      ServiceId,
 		ErsContext:     FixERSContext(id),
-		Parameters:     FixProvisioningParametersDTO(),
+		Parameters:     provisioningParametersDTO,
 		PlatformRegion: Region,
 	}
 }
@@ -133,7 +136,7 @@ func FixInstanceDetails(id string) internal.InstanceDetails {
 	}
 }
 
-func FixInstance(id string) internal.Instance {
+func FixInstanceWithProvisioningParameters(id string, params internal.ProvisioningParameters) internal.Instance {
 	var (
 		runtimeId    = fmt.Sprintf("runtime-%s", id)
 		subAccountId = fmt.Sprintf("SA-%s", id)
@@ -150,7 +153,7 @@ func FixInstance(id string) internal.Instance {
 		ServicePlanID:               PlanId,
 		ServicePlanName:             PlanName,
 		DashboardURL:                InstanceDashboardURL,
-		Parameters:                  FixProvisioningParameters(id),
+		Parameters:                  params,
 		ProviderRegion:              Region,
 		Provider:                    internal.Azure,
 		InstanceDetails:             FixInstanceDetails(id),
@@ -160,7 +163,11 @@ func FixInstance(id string) internal.Instance {
 	}
 }
 
-func FixOperation(id, instanceId string, opType internal.OperationType) internal.Operation {
+func FixInstance(id string) internal.Instance {
+	return FixInstanceWithProvisioningParameters(id, FixProvisioningParameters(id))
+}
+
+func FixOperationWithProvisioningParameters(id, instanceId string, opType internal.OperationType, params internal.ProvisioningParameters) internal.Operation {
 	var (
 		description     = fmt.Sprintf("Description for operation %s", id)
 		orchestrationId = fmt.Sprintf("Orchestration-%s", id)
@@ -177,28 +184,33 @@ func FixOperation(id, instanceId string, opType internal.OperationType) internal
 		ProvisionerOperationID: "",
 		State:                  domain.Succeeded,
 		Description:            description,
-		ProvisioningParameters: FixProvisioningParameters(id),
+		ProvisioningParameters: params,
 		OrchestrationID:        orchestrationId,
 		FinishedStages:         []string{"prepare", "check_provisioning"},
 	}
 }
 
+func FixOperation(id, instanceId string, opType internal.OperationType) internal.Operation {
+	return FixOperationWithProvisioningParameters(id, instanceId, opType, FixProvisioningParameters(id))
+}
+
 func FixInputCreator(provider internal.CloudProvider) *SimpleInputCreator {
 	return &SimpleInputCreator{
-		Overrides:         make(map[string][]*gqlschema.ConfigEntryInput, 0),
-		Labels:            make(map[string]string),
-		EnabledComponents: []string{"istio-configuration"},
-		ShootName:         ptr.String("ShootName"),
-		CloudProvider:     provider,
+		Labels:        make(map[string]string),
+		ShootName:     ptr.String("ShootName"),
+		CloudProvider: provider,
 	}
 }
 
 func FixProvisioningOperation(operationId, instanceId string) internal.Operation {
 	o := FixOperation(operationId, instanceId, internal.OperationTypeProvision)
-	o.RuntimeVersion = internal.RuntimeVersionData{
-		Version: KymaVersion,
-		Origin:  internal.Defaults,
-	}
+	o.InputCreator = FixInputCreator(internal.Azure)
+	o.DashboardURL = "https://console.kyma.org"
+	return o
+}
+
+func FixProvisioningOperationWithProvisioningParameters(operationId, instanceId string, provisioningParameters internal.ProvisioningParameters) internal.Operation {
+	o := FixOperationWithProvisioningParameters(operationId, instanceId, internal.OperationTypeProvision, provisioningParameters)
 	o.InputCreator = FixInputCreator(internal.Azure)
 	o.DashboardURL = "https://console.kyma.org"
 	return o
@@ -224,10 +236,6 @@ func FixUpdatingOperation(operationId, instanceId string) internal.UpdatingOpera
 
 func FixProvisioningOperationWithProvider(operationId, instanceId string, provider internal.CloudProvider) internal.Operation {
 	o := FixOperation(operationId, instanceId, internal.OperationTypeProvision)
-	o.RuntimeVersion = internal.RuntimeVersionData{
-		Version: KymaVersion,
-		Origin:  internal.Defaults,
-	}
 	o.InputCreator = FixInputCreator(provider)
 	o.DashboardURL = "https://console.kyma.org"
 	return o
@@ -274,21 +282,6 @@ func FixRuntimeOperation(operationId string) orchestration.RuntimeOperation {
 		Runtime: FixRuntime(operationId),
 		ID:      operationId,
 		DryRun:  false,
-	}
-}
-
-func FixUpgradeKymaOperation(operationId, instanceId string) internal.UpgradeKymaOperation {
-	o := FixOperation(operationId, instanceId, internal.OperationTypeUpgradeKyma)
-	o.RuntimeID = operationId
-	o.RuntimeOperation = FixRuntimeOperation(operationId)
-	o.InputCreator = FixInputCreator(internal.Azure)
-	o.RuntimeVersion = internal.RuntimeVersionData{
-		Version: KymaVersion,
-		Origin:  internal.Defaults,
-	}
-	o.Type = internal.OperationTypeUpgradeKyma
-	return internal.UpgradeKymaOperation{
-		Operation: o,
 	}
 }
 
@@ -347,22 +340,6 @@ func FixRuntimeState(id, runtimeID, operationID string) internal.RuntimeState {
 		ClusterConfig: gqlschema.GardenerConfigInput{
 			ShootNetworkingFilterDisabled: &disabled,
 		},
-		ClusterSetup: nil,
-	}
-}
-
-func FixClusterSetup(runtimeID string) reconcilerApi.Cluster {
-	return reconcilerApi.Cluster{
-		Kubeconfig: "sample-kubeconfig",
-		KymaConfig: reconcilerApi.KymaConfig{
-			Administrators: nil,
-			Components:     nil,
-			Profile:        "",
-			Version:        "2.0.0",
-		},
-		Metadata:     reconcilerApi.Metadata{},
-		RuntimeID:    runtimeID,
-		RuntimeInput: reconcilerApi.RuntimeInput{},
 	}
 }
 
@@ -408,28 +385,8 @@ func (c *SimpleInputCreator) SetRuntimeID(runtimeID string) internal.Provisioner
 	return c
 }
 
-func (c *SimpleInputCreator) SetOverrides(component string, overrides []*gqlschema.ConfigEntryInput) internal.ProvisionerInputCreator {
-	return c
-}
-
 func (c *SimpleInputCreator) SetOIDCLastValues(oidcConfig gqlschema.OIDCConfigInput) internal.ProvisionerInputCreator {
 	return c
-}
-
-func (c *SimpleInputCreator) AppendOverrides(component string, overrides []*gqlschema.ConfigEntryInput) internal.ProvisionerInputCreator {
-	c.Overrides[component] = append(c.Overrides[component], overrides...)
-	return c
-}
-
-func (c *SimpleInputCreator) AppendGlobalOverrides(overrides []*gqlschema.ConfigEntryInput) internal.ProvisionerInputCreator {
-	return c
-}
-
-func (c *SimpleInputCreator) CreateClusterConfiguration() (reconcilerApi.Cluster, error) {
-	return reconcilerApi.Cluster{
-		RuntimeID:  c.RuntimeID,
-		Kubeconfig: "sample-kubeconfig",
-	}, nil
 }
 
 func (c *SimpleInputCreator) CreateProvisionClusterInput() (gqlschema.ProvisionRuntimeInput, error) {
@@ -446,20 +403,6 @@ func (c *SimpleInputCreator) CreateUpgradeRuntimeInput() (gqlschema.UpgradeRunti
 
 func (c *SimpleInputCreator) CreateUpgradeShootInput() (gqlschema.UpgradeShootInput, error) {
 	return gqlschema.UpgradeShootInput{}, nil
-}
-
-func (c *SimpleInputCreator) EnableOptionalComponent(name string) internal.ProvisionerInputCreator {
-	c.EnabledComponents = append(c.EnabledComponents, name)
-	return c
-}
-
-func (c *SimpleInputCreator) DisableOptionalComponent(name string) internal.ProvisionerInputCreator {
-	for i, cmp := range c.EnabledComponents {
-		if cmp == name {
-			c.EnabledComponents = append(c.EnabledComponents[:i], c.EnabledComponents[i+1:]...)
-		}
-	}
-	return c
 }
 
 func (c *SimpleInputCreator) Provider() internal.CloudProvider {

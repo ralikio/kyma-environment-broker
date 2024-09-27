@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	reconcilerApi "github.com/kyma-incubator/reconciler/pkg/keb"
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
 	"github.com/kyma-project/kyma-environment-broker/internal"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
@@ -96,6 +95,69 @@ func TestUpdate(t *testing.T) {
 	})
 }
 
+func TestUpdateWithKIM(t *testing.T) {
+	// given
+	suite := NewBrokerSuiteTest(t)
+	defer suite.TearDown()
+	iid := uuid.New().String()
+
+	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true&plan_id=7d55d31d-35ae-4438-bf13-6ffdfa107d9f&service_id=47c9dcbf-ff30-448e-ab36-d3bad66ba281", iid),
+		`{
+				   "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+				   "plan_id": "5cb3d976-b85c-42ea-a636-79cadda109a9",
+				   "context": {
+					   "sm_operator_credentials": {
+						   "clientid": "cid",
+						   "clientsecret": "cs",
+						   "url": "url",
+						   "sm_url": "sm_url"
+					   },
+					   "globalaccount_id": "g-account-id",
+					   "subaccount_id": "sub-id",
+					   "user_id": "john.smith@email.com"
+				   },
+					"parameters": {
+						"name": "testing-cluster",
+						"oidc": {
+							"clientID": "id-initial",
+							"signingAlgs": ["PS512"],
+                            "issuerURL": "https://issuer.url.com"
+						},
+						"region": "eu-central-1"
+			}
+   }`)
+	opID := suite.DecodeOperationID(resp)
+	suite.waitForRuntimeAndMakeItReady(opID)
+
+	suite.WaitForOperationState(opID, domain.Succeeded)
+
+	// when
+	// OSB update:
+	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", iid),
+		`{
+       "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+       "plan_id": "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
+       "context": {
+           "globalaccount_id": "g-account-id",
+           "user_id": "john.smith@email.com"
+       },
+		"parameters": {
+			"oidc": {
+				"clientID": "id-ooo",
+				"signingAlgs": ["RS256"],
+                "issuerURL": "https://issuer.url.com"
+			}
+		}
+   }`)
+	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+	upgradeOperationID := suite.DecodeOperationID(resp)
+
+	suite.WaitForOperationState(upgradeOperationID, domain.Succeeded)
+	runtime := suite.GetRuntimeResourceByInstanceID(iid)
+
+	assert.Equal(t, "id-ooo", *runtime.Spec.Shoot.Kubernetes.KubeAPIServer.OidcConfig.ClientID)
+}
+
 func TestUpdateFailedInstance(t *testing.T) {
 	// given
 	suite := NewBrokerSuiteTest(t)
@@ -146,6 +208,88 @@ func TestUpdateFailedInstance(t *testing.T) {
 	errResponse := suite.DecodeErrorResponse(resp)
 
 	assert.Equal(t, "Unable to process an update of a failed instance", errResponse.Description)
+}
+
+func TestUpdate_SapConvergedCloud(t *testing.T) {
+	// given
+	suite := NewBrokerSuiteTest(t)
+	defer suite.TearDown()
+	iid := uuid.New().String()
+
+	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu20-staging/v2/service_instances/%s?accepts_incomplete=true&plan_id=03b812ac-c991-4528-b5bd-08b303523a63&service_id=47c9dcbf-ff30-448e-ab36-d3bad66ba281", iid),
+		`{
+				   "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+				   "plan_id": "03b812ac-c991-4528-b5bd-08b303523a63",
+				   "context": {
+					   "sm_operator_credentials": {
+						   "clientid": "cid",
+						   "clientsecret": "cs",
+						   "url": "url",
+						   "sm_url": "sm_url"
+					   },
+					   "globalaccount_id": "g-account-id",
+					   "subaccount_id": "sub-id",
+					   "user_id": "john.smith@email.com"
+				   },
+					"parameters": {
+						"name": "testing-cluster",
+						"oidc": {
+							"clientID": "id-initial",
+							"signingAlgs": ["PS512"],
+                            "issuerURL": "https://issuer.url.com"
+						},
+						"region": "eu-de-1"
+
+			}
+   }`)
+	opID := suite.DecodeOperationID(resp)
+	suite.processProvisioningByOperationID(opID)
+
+	// when
+	// OSB update:
+	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu20-staging/v2/service_instances/%s?accepts_incomplete=true", iid),
+		`{
+       "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+       "plan_id": "03b812ac-c991-4528-b5bd-08b303523a63",
+       "context": {
+           "globalaccount_id": "g-account-id",
+           "user_id": "john.smith@email.com"
+       },
+		"parameters": {
+			"oidc": {
+				"clientID": "id-ooo",
+				"signingAlgs": ["RS256"],
+                "issuerURL": "https://issuer.url.com"
+			}
+		}
+   }`)
+	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+	upgradeOperationID := suite.DecodeOperationID(resp)
+
+	suite.FinishUpdatingOperationByProvisioner(upgradeOperationID)
+
+	suite.WaitForOperationState(upgradeOperationID, domain.Succeeded)
+
+	disabled := false
+	suite.AssertShootUpgrade(upgradeOperationID, gqlschema.UpgradeShootInput{
+		GardenerConfig: &gqlschema.GardenerUpgradeInput{
+			OidcConfig: &gqlschema.OIDCConfigInput{
+				ClientID:       "id-ooo",
+				GroupsClaim:    "groups",
+				IssuerURL:      "https://issuer.url.com",
+				SigningAlgs:    []string{"RS256"},
+				UsernameClaim:  "sub",
+				UsernamePrefix: "-",
+			},
+			ShootNetworkingFilterDisabled: &disabled,
+		},
+		Administrators: []string{"john.smith@email.com"},
+	})
+	suite.AssertKymaResourceExists(opID)
+	suite.AssertKymaLabelsExist(opID, map[string]string{
+		"kyma-project.io/region":          "eu-de-1",
+		"kyma-project.io/platform-region": "cf-eu20-staging",
+	})
 }
 
 func TestUpdateDeprovisioningInstance(t *testing.T) {
@@ -205,13 +349,6 @@ func TestUpdateDeprovisioningInstance(t *testing.T) {
 	errResponse := suite.DecodeErrorResponse(resp)
 
 	assert.Equal(t, "Unable to process an update of a deprovisioned instance", errResponse.Description)
-
-	suite.AssertKymaResourceExists(opID)
-	suite.AssertKymaLabelsExist(opID, map[string]string{
-		"kyma-project.io/region":          "eu-west-1",
-		"kyma-project.io/platform-region": "cf-eu10",
-	})
-
 }
 
 func TestUpdateWithNoOIDCParams(t *testing.T) {
@@ -405,6 +542,78 @@ func TestUpdateContext(t *testing.T) {
 
 }
 
+func TestKymaResourceNameAndGardenerClusterNameAfterUnsuspension(t *testing.T) {
+	suite := NewBrokerSuiteTest(t)
+	defer suite.TearDown()
+	iid := uuid.New().String()
+
+	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true&plan_id=7d55d31d-35ae-4438-bf13-6ffdfa107d9f&service_id=47c9dcbf-ff30-448e-ab36-d3bad66ba281", iid),
+		`{
+			"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+			"plan_id": "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
+			"context": {
+				"sm_operator_credentials": {
+					"clientid": "cid",
+					"clientsecret": "cs",
+					"url": "url",
+					"sm_url": "sm_url"
+				},
+				"globalaccount_id": "g-account-id",
+				"subaccount_id": "sub-id",
+				"user_id": "john.smith@email.com"
+			},
+			"parameters": {
+				"name": "testing-cluster"
+			}
+		}`)
+	opID := suite.DecodeOperationID(resp)
+	suite.processProvisioningByOperationID(opID)
+
+	suite.WaitForOperationState(opID, domain.Succeeded)
+
+	suite.Log("*** Suspension ***")
+
+	// Process Suspension
+	// OSB context update (suspension)
+	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
+		`{
+       "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+       "plan_id": "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
+       "context": {
+           "globalaccount_id": "g-account-id",
+           "user_id": "john.smith@email.com",
+           "active": false
+       }
+   }`)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	suspensionOpID := suite.WaitForLastOperation(iid, domain.InProgress)
+
+	suite.FinishDeprovisioningOperationByProvisioner(suspensionOpID)
+	suite.WaitForOperationState(suspensionOpID, domain.Succeeded)
+
+	// OSB update
+	suite.Log("*** Unsuspension ***")
+	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
+		`{
+       "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+       "plan_id": "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
+       "context": {
+           "globalaccount_id": "g-account-id",
+           "user_id": "john.smith@email.com",
+			"active": true
+       }
+       
+   }`)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	suite.processProvisioningByInstanceID(iid)
+
+	suite.AssertKymaResourceNotExists(opID)
+	instance := suite.GetInstance(iid)
+	assert.Equal(t, instance.RuntimeID, instance.InstanceDetails.KymaResourceName)
+	assert.Equal(t, instance.RuntimeID, instance.InstanceDetails.GardenerClusterName)
+	suite.AssertKymaResourceExistsByInstanceID(iid)
+}
+
 func TestUnsuspensionTrialKyma20(t *testing.T) {
 	suite := NewBrokerSuiteTest(t)
 	defer suite.TearDown()
@@ -426,8 +635,7 @@ func TestUnsuspensionTrialKyma20(t *testing.T) {
 				"user_id": "john.smith@email.com"
 			},
 			"parameters": {
-				"name": "testing-cluster",
-				 "kymaVersion":"2.0"
+				"name": "testing-cluster"
 			}
 		}`)
 	opID := suite.DecodeOperationID(resp)
@@ -441,7 +649,6 @@ func TestUnsuspensionTrialKyma20(t *testing.T) {
 
 	// Process Suspension
 	// OSB context update (suspension)
-	suite.SetReconcilerResponseStatus(reconcilerApi.StatusDeleted)
 	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
 		`{
        "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
@@ -455,16 +662,13 @@ func TestUnsuspensionTrialKyma20(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	suspensionOpID := suite.WaitForLastOperation(iid, domain.InProgress)
 
-	suite.MarkClusterConfigurationDeleted(iid)
 	suite.FinishDeprovisioningOperationByProvisioner(suspensionOpID)
 	suite.WaitForOperationState(suspensionOpID, domain.Succeeded)
-	suite.RemoveFromReconcilerByInstanceID(iid)
 
 	suite.assertServiceBindingAndInstancesAreRemoved(t)
 
 	// OSB update
 	suite.Log("*** Unsuspension ***")
-	suite.SetReconcilerResponseStatus(reconcilerApi.StatusReady)
 	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
 		`{
        "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
@@ -479,12 +683,9 @@ func TestUnsuspensionTrialKyma20(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	suite.processProvisioningByInstanceID(iid)
 
-	suite.AssertKymaResourceExists(opID)
-	suite.AssertKymaLabelsExist(opID, map[string]string{
-		"kyma-project.io/region": "eu-west-1",
-	})
+	suite.AssertKymaResourceNotExists(opID)
 	suite.AssertKymaLabelNotExists(opID, "kyma-project.io/platform-region")
-
+	suite.AssertKymaResourceExistsByInstanceID(iid)
 }
 
 func TestUnsuspensionTrialWithDefaultProviderChangedForNonDefaultRegion(t *testing.T) {
@@ -519,7 +720,6 @@ func TestUnsuspensionTrialWithDefaultProviderChangedForNonDefaultRegion(t *testi
 
 	// Process Suspension
 	// OSB context update (suspension)
-	suite.SetReconcilerResponseStatus(reconcilerApi.StatusDeleted)
 	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-us10/v2/service_instances/%s?accepts_incomplete=true", iid),
 		`{
        "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
@@ -540,7 +740,6 @@ func TestUnsuspensionTrialWithDefaultProviderChangedForNonDefaultRegion(t *testi
 	suite.ChangeDefaultTrialProvider(internal.AWS)
 	// OSB update
 	suite.Log("*** Unsuspension ***")
-	suite.SetReconcilerResponseStatus(reconcilerApi.StatusReady)
 	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-us10/v2/service_instances/%s?accepts_incomplete=true", iid),
 		`{
        "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
@@ -559,12 +758,8 @@ func TestUnsuspensionTrialWithDefaultProviderChangedForNonDefaultRegion(t *testi
 	// check that the region and zone is set
 	suite.AssertAWSRegionAndZone("us-east-1")
 
-	suite.AssertKymaResourceExists(opID)
-	suite.AssertKymaLabelsExist(opID, map[string]string{
-		"kyma-project.io/region":          "us-east-1",
-		"kyma-project.io/platform-region": "cf-us10",
-	})
-
+	suite.AssertKymaResourceNotExists(opID)
+	suite.AssertKymaResourceExistsByInstanceID(iid)
 }
 
 func TestUpdateWithOwnClusterPlan(t *testing.T) {
@@ -592,12 +787,10 @@ func TestUpdateWithOwnClusterPlan(t *testing.T) {
 						"name": "testing-cluster",
 						"shootName": "shoot-name",
 						"shootDomain": "kyma-dev.shoot.canary.k8s-hana.ondemand.com",
-						"kubeconfig":"YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCmN1cnJlbnQtY29udGV4dDogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUKY29udGV4dHM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZQogICAgY29udGV4dDoKICAgICAgY2x1c3Rlcjogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUKICAgICAgdXNlcjogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUtdG9rZW4KY2x1c3RlcnM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZQogICAgY2x1c3RlcjoKICAgICAgc2VydmVyOiBodHRwczovL2FwaS5jbHVzdGVyLW5hbWUua3ltYS1kZXYuc2hvb3QuY2FuYXJ5Lms4cy1oYW5hLm9uZGVtYW5kLmNvbQogICAgICBjZXJ0aWZpY2F0ZS1hdXRob3JpdHktZGF0YTogPi0KICAgICAgICBMUzB0TFMxQ1JVZEpUaUJEUlZKVVNVWkpRMEZVUlMwdExTMHQKdXNlcnM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZS10b2tlbgogICAgdXNlcjoKICAgICAgdG9rZW46ID4tCiAgICAgICAgdE9rRW4K",
-						"kymaVersion": "2.4.0"
+						"kubeconfig":"YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCmN1cnJlbnQtY29udGV4dDogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUKY29udGV4dHM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZQogICAgY29udGV4dDoKICAgICAgY2x1c3Rlcjogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUKICAgICAgdXNlcjogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUtdG9rZW4KY2x1c3RlcnM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZQogICAgY2x1c3RlcjoKICAgICAgc2VydmVyOiBodHRwczovL2FwaS5jbHVzdGVyLW5hbWUua3ltYS1kZXYuc2hvb3QuY2FuYXJ5Lms4cy1oYW5hLm9uZGVtYW5kLmNvbQogICAgICBjZXJ0aWZpY2F0ZS1hdXRob3JpdHktZGF0YTogPi0KICAgICAgICBMUzB0TFMxQ1JVZEpUaUJEUlZKVVNVWkpRMEZVUlMwdExTMHQKdXNlcnM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZS10b2tlbgogICAgdXNlcjoKICAgICAgdG9rZW46ID4tCiAgICAgICAgdE9rRW4K"
 			}
    }`)
 	opID := suite.DecodeOperationID(resp)
-	suite.FinishReconciliation(opID)
 	suite.WaitForOperationState(opID, domain.Succeeded)
 
 	// when
@@ -610,22 +803,23 @@ func TestUpdateWithOwnClusterPlan(t *testing.T) {
            "user_id": "john.smith@email.com"
        },
 		"parameters": {
-			"kubeconfig":"YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCmN1cnJlbnQtY29udGV4dDogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUKY29udGV4dHM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZQogICAgY29udGV4dDoKICAgICAgY2x1c3Rlcjogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUKICAgICAgdXNlcjogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUtdG9rZW4KY2x1c3RlcnM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZQogICAgY2x1c3RlcjoKICAgICAgc2VydmVyOiBodHRwczovL2FwaS5jbHVzdGVyLW5hbWUua3ltYS1kZXYuc2hvb3QuY2FuYXJ5Lms4cy1oYW5hLm9uZGVtYW5kLmNvbQogICAgICBjZXJ0aWZpY2F0ZS1hdXRob3JpdHktZGF0YTogPi0KICAgICAgICBMUzB0TFMxQ1JVZEpUaUJEUlZKVVNVWkpRMEZVUlMwdExTMHQKdXNlcnM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZS10b2tlbgogICAgdXNlcjoKICAgICAgdG9rZW46ID4tCiAgICAgICAgdE9rRW4K",
-			"kymaVersion": "2.5.0"
+			"kubeconfig":"YXBpVmVyc2lvbjogdjEKa2luZDogQ29uZmlnCmN1cnJlbnQtY29udGV4dDogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUKY29udGV4dHM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZQogICAgY29udGV4dDoKICAgICAgY2x1c3Rlcjogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUKICAgICAgdXNlcjogc2hvb3QtLWt5bWEtZGV2LS1jbHVzdGVyLW5hbWUtdG9rZW4KY2x1c3RlcnM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZQogICAgY2x1c3RlcjoKICAgICAgc2VydmVyOiBodHRwczovL2FwaS5jbHVzdGVyLW5hbWUua3ltYS1kZXYuc2hvb3QuY2FuYXJ5Lms4cy1oYW5hLm9uZGVtYW5kLmNvbQogICAgICBjZXJ0aWZpY2F0ZS1hdXRob3JpdHktZGF0YTogPi0KICAgICAgICBMUzB0TFMxQ1JVZEpUaUJEUlZKVVNVWkpRMEZVUlMwdExTMHQKdXNlcnM6CiAgLSBuYW1lOiBzaG9vdC0ta3ltYS1kZXYtLWNsdXN0ZXItbmFtZS10b2tlbgogICAgdXNlcjoKICAgICAgdG9rZW46ID4tCiAgICAgICAgdE9rRW4K"
 		}
    }`)
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
 	upgradeOperationID := suite.DecodeOperationID(resp)
-
-	suite.WaitForOperationState(upgradeOperationID, domain.Succeeded)
+	suite.AssertKymaResourceExists(upgradeOperationID)
+	suite.AssertKymaLabelsExist(upgradeOperationID, map[string]string{
+		"kyma-project.io/platform-region": "cf-eu10",
+	})
 }
 
 func TestUpdateOidcForSuspendedInstance(t *testing.T) {
 	// given
 	suite := NewBrokerSuiteTest(t)
+	defer suite.TearDown()
 	// uncomment to see graphql queries
 	//suite.EnableDumpingProvisionerRequests()
-	defer suite.TearDown()
 	iid := uuid.New().String()
 
 	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true&plan_id=7d55d31d-35ae-4438-bf13-6ffdfa107d9f&service_id=47c9dcbf-ff30-448e-ab36-d3bad66ba281", iid),
@@ -660,7 +854,6 @@ func TestUpdateOidcForSuspendedInstance(t *testing.T) {
 
 	// Process Suspension
 	// OSB context update (suspension)
-	suite.SetReconcilerResponseStatus(reconcilerApi.StatusDeleted)
 	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", iid),
 		`{
        "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
@@ -707,7 +900,6 @@ func TestUpdateOidcForSuspendedInstance(t *testing.T) {
 	// Start unsuspension
 	// OSB update (unsuspension)
 	suite.Log("*** Update (unsuspension) ***")
-	suite.SetReconcilerResponseStatus(reconcilerApi.StatusReady)
 	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s", iid),
 		`{
        "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
@@ -730,76 +922,8 @@ func TestUpdateOidcForSuspendedInstance(t *testing.T) {
 	input := suite.LastProvisionInput(iid)
 	assert.Equal(t, "id-oooxx", input.ClusterConfig.GardenerConfig.OidcConfig.ClientID)
 
-	suite.AssertKymaResourceExists(opID)
-	suite.AssertKymaLabelsExist(opID, map[string]string{
-		"kyma-project.io/region":          "eu-west-1",
-		"kyma-project.io/platform-region": "cf-eu10",
-	})
-
-}
-
-func TestUpdateOidcForPreview(t *testing.T) {
-	// given
-	suite := NewBrokerSuiteTest(t)
-	// uncomment to see graphql queries
-	//suite.EnableDumpingProvisionerRequests()
-	defer suite.TearDown()
-	iid := uuid.New().String()
-
-	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true&plan_id=7d55d31d-35ae-4438-bf13-6ffdfa107d9f&service_id=47c9dcbf-ff30-448e-ab36-d3bad66ba281", iid),
-		`{
-			"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
-			"plan_id": "5cb3d976-b85c-42ea-a636-79cadda109a9",
-			"context": {
-				"sm_operator_credentials": {
-					"clientid": "cid",
-					"clientsecret": "cs",
-					"url": "url",
-					"sm_url": "sm_url"
-				},
-				"globalaccount_id": "g-account-id",
-				"subaccount_id": "sub-id",
-				"user_id": "john.smith@email.com"
-			},
-			"parameters": {
-				"name": "testing-cluster",
-				"oidc": {
-					"clientID": "id-ooo",
-					"signingAlgs": ["RS256"],
-					"issuerURL": "https://issuer.url.com"
-				},
-				"region": "eu-central-1"
-			}
-		}`)
-	opID := suite.DecodeOperationID(resp)
-	suite.processProvisioningByOperationID(opID)
-	suite.WaitForOperationState(opID, domain.Succeeded)
-
-	// WHEN
-	// OSB update
-	suite.Log("*** Update ***")
-	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", iid),
-		`{
-       "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
-       "plan_id": "5cb3d976-b85c-42ea-a636-79cadda109a9",
-       "context": {
-           "globalaccount_id": "g-account-id",
-           "user_id": "john.smith@email.com"
-       },
-       "parameters": {
-       		"oidc": {
-				"clientID": "id-oooxx",
-				"signingAlgs": ["RS256"],
-                "issuerURL": "https://issuer.url.com"
-			}
-       }
-   }`)
-	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
-	updateOpID := suite.DecodeOperationID(resp)
-
-	suite.FinishUpdatingOperationByProvisioner(updateOpID)
-
-	suite.WaitForOperationState(updateOpID, domain.Succeeded)
+	suite.AssertKymaResourceNotExists(opID)
+	suite.AssertKymaResourceExistsByInstanceID(iid)
 }
 
 func TestUpdateNotExistingInstance(t *testing.T) {
@@ -1862,9 +1986,9 @@ func TestUpdateAutoscalerPartialSequence(t *testing.T) {
 func TestUpdateWhenBothErsContextAndUpdateParametersProvided(t *testing.T) {
 	// given
 	suite := NewBrokerSuiteTest(t)
+	defer suite.TearDown()
 	// uncomment to see graphql queries
 	//suite.EnableDumpingProvisionerRequests()
-	defer suite.TearDown()
 	iid := uuid.New().String()
 
 	resp := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true&plan_id=7d55d31d-35ae-4438-bf13-6ffdfa107d9f&service_id=47c9dcbf-ff30-448e-ab36-d3bad66ba281", iid),
@@ -1900,7 +2024,6 @@ func TestUpdateWhenBothErsContextAndUpdateParametersProvided(t *testing.T) {
 	// when
 	// Process Suspension
 	// OSB context update (suspension)
-	suite.SetReconcilerResponseStatus(reconcilerApi.StatusDeleted)
 	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", iid),
 		`{
        "service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
@@ -1933,7 +2056,6 @@ func TestUpdateWhenBothErsContextAndUpdateParametersProvided(t *testing.T) {
 func TestUpdateMachineType(t *testing.T) {
 	// given
 	suite := NewBrokerSuiteTest(t)
-	mockBTPOperatorClusterID()
 	defer suite.TearDown()
 	id := "InstanceID-machineType"
 
@@ -1958,8 +2080,8 @@ func TestUpdateMachineType(t *testing.T) {
 	assert.NoError(t, err, "instance after provisioning")
 	rs, err := suite.db.RuntimeStates().ListByRuntimeID(i.RuntimeID)
 	assert.NoError(t, err, "runtime states after provisioning")
-	assert.Equal(t, 2, len(rs), "runtime states after provisioning")
-	assert.Equal(t, "m5.xlarge", rs[1].ClusterConfig.MachineType, "after provisioning")
+	assert.Equal(t, 1, len(rs), "runtime states after provisioning")
+	assert.Equal(t, "m5.xlarge", rs[0].ClusterConfig.MachineType, "after provisioning")
 
 	// when patch to change machine type
 
@@ -1980,20 +2102,18 @@ func TestUpdateMachineType(t *testing.T) {
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
 	updateOperationID := suite.DecodeOperationID(resp)
 	suite.FinishUpdatingOperationByProvisioner(updateOperationID)
-	suite.FinishUpdatingOperationByReconciler(updateOperationID)
 	suite.WaitForOperationState(updateOperationID, domain.Succeeded)
 
 	// check call to provisioner that machine type has been updated
 	rs, err = suite.db.RuntimeStates().ListByRuntimeID(i.RuntimeID)
 	assert.NoError(t, err, "runtime states after update")
-	assert.Equal(t, 3, len(rs), "runtime states after update")
+	assert.Equal(t, 2, len(rs), "runtime states after update")
 	assert.Equal(t, "m5.2xlarge", rs[0].ClusterConfig.MachineType, "after update")
 }
 
 func TestUpdateBTPOperatorCredsSuccess(t *testing.T) {
 	// given
 	suite := NewBrokerSuiteTest(t)
-	mockBTPOperatorClusterID()
 	defer suite.TearDown()
 	id := "InstanceID-BTPOperator"
 
@@ -2013,8 +2133,7 @@ func TestUpdateBTPOperatorCredsSuccess(t *testing.T) {
 		"user_id": "john.smith@email.com"
 	},
 	"parameters": {
-		"name": "testing-cluster",
-		"kymaVersion": "2.0"
+		"name": "testing-cluster"
 	}
 }`)
 
@@ -2023,48 +2142,16 @@ func TestUpdateBTPOperatorCredsSuccess(t *testing.T) {
 	suite.WaitForOperationState(opID, domain.Succeeded)
 	i, err := suite.db.Instances().GetByID(id)
 	assert.NoError(t, err, "getting instance after provisioning, before update")
-	rs, err := suite.db.RuntimeStates().GetLatestWithReconcilerInputByRuntimeID(i.RuntimeID)
-	if rs.ClusterSetup == nil {
-		t.Fatal("expected cluster setup post provisioning kyma 2.0 cluster")
-	}
-	if rs.ClusterSetup.KymaConfig.Version != "2.0" {
-		t.Fatalf("expected cluster setup kyma config version to match 2.0, got %v", rs.ClusterSetup.KymaConfig.Version)
-	}
+	rs, err := suite.db.RuntimeStates().GetLatestByRuntimeID(i.RuntimeID)
 	assert.Equal(t, opID, rs.OperationID, "runtime state provisioning operation ID")
 	assert.NoError(t, err, "getting runtime state after provisioning, before update")
 	assert.ElementsMatch(t, rs.KymaConfig.Components, []*gqlschema.ComponentConfigurationInput{})
-	assert.ElementsMatch(t, componentNames(rs.ClusterSetup.KymaConfig.Components),
-		[]string{"cluster-essentials", "ory", "monitoring", "btp-operator"})
 
-	rsu1, err := suite.db.RuntimeStates().GetLatestWithReconcilerInputByRuntimeID(i.RuntimeID)
+	rsu1, err := suite.db.RuntimeStates().GetLatestByRuntimeID(i.RuntimeID)
 	assert.NoError(t, err, "getting runtime after update")
 	i, err = suite.db.Instances().GetByID(id)
 	assert.NoError(t, err, "getting instance after update")
 	assert.ElementsMatch(t, rsu1.KymaConfig.Components, []*gqlschema.ComponentConfigurationInput{})
-	assert.ElementsMatch(t, componentNames(rsu1.ClusterSetup.KymaConfig.Components),
-		[]string{"cluster-essentials", "ory", "monitoring", "btp-operator"})
-	for _, c := range rsu1.ClusterSetup.KymaConfig.Components {
-		if c.Component == "btp-operator" {
-			exp := reconcilerApi.Component{
-				Component: "btp-operator",
-				Namespace: "kyma-system",
-				URL:       "https://btp-operator",
-				Configuration: []reconcilerApi.Configuration{
-					{Key: "global.domainName", Value: i.InstanceDetails.ShootName + ".kyma.sap.com", Secret: false},
-					{Key: "foo", Value: "bar", Secret: false},
-					{Key: "global.booleanOverride.enabled", Value: false, Secret: false},
-					{Key: "manager.secret.clientid", Value: "cid", Secret: true},
-					{Key: "manager.secret.clientsecret", Value: "cs", Secret: true},
-					{Key: "manager.secret.url", Value: "sm_url"},
-					{Key: "manager.secret.sm_url", Value: "sm_url"},
-					{Key: "manager.secret.tokenurl", Value: "url"},
-					{Key: "cluster.id", Value: i.InstanceDetails.ServiceManagerClusterID},
-					{Key: "manager.priorityClassName", Value: "kyma-system"},
-				},
-			}
-			suite.AssertComponent(exp, c)
-		}
-	}
 
 	// when
 	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", id), `
@@ -2086,36 +2173,13 @@ func TestUpdateBTPOperatorCredsSuccess(t *testing.T) {
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
 	updateOperationID := suite.DecodeOperationID(resp)
 	suite.FinishUpdatingOperationByProvisioner(updateOperationID)
-	suite.FinishUpdatingOperationByReconciler(updateOperationID)
 	suite.WaitForOperationState(updateOperationID, domain.Succeeded)
 
-	// check call to reconciler and see that creds are updated
-	rsu2, err := suite.db.RuntimeStates().GetLatestWithReconcilerInputByRuntimeID(i.RuntimeID)
+	rsu2, err := suite.db.RuntimeStates().GetLatestByRuntimeID(i.RuntimeID)
 	assert.NoError(t, err, "getting runtime after update")
 	i, err = suite.db.Instances().GetByID(id)
 	assert.NoError(t, err, "getting instance after update")
 	assert.ElementsMatch(t, rsu2.KymaConfig.Components, []*gqlschema.ComponentConfigurationInput{})
-	assert.ElementsMatch(t, componentNames(rsu2.ClusterSetup.KymaConfig.Components),
-		[]string{"cluster-essentials", "ory", "monitoring", "btp-operator"})
-	for _, c := range rsu2.ClusterSetup.KymaConfig.Components {
-		if c.Component == "btp-operator" {
-			exp := reconcilerApi.Component{
-				Component: "btp-operator",
-				Namespace: "kyma-system",
-				URL:       "https://btp-operator",
-				Configuration: []reconcilerApi.Configuration{
-					{Key: "manager.secret.clientid", Value: "testClientID", Secret: true},
-					{Key: "manager.secret.clientsecret", Value: "testClientSecret", Secret: true},
-					{Key: "manager.secret.url", Value: "https://service-manager.kyma.com"},
-					{Key: "manager.secret.sm_url", Value: "https://service-manager.kyma.com"},
-					{Key: "manager.secret.tokenurl", Value: "https://test.auth.com"},
-					{Key: "cluster.id", Value: i.InstanceDetails.ServiceManagerClusterID},
-					{Key: "manager.priorityClassName", Value: "kyma-system"},
-				},
-			}
-			suite.AssertComponent(exp, c)
-		}
-	}
 }
 
 func TestUpdateNetworkFilterPersisted(t *testing.T) {
@@ -2181,7 +2245,6 @@ func TestUpdateNetworkFilterPersisted(t *testing.T) {
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
 	updateOperationID := suite.DecodeOperationID(resp)
 	suite.FinishUpdatingOperationByProvisioner(updateOperationID)
-	suite.FinishUpdatingOperationByReconciler(updateOperationID)
 	suite.WaitForOperationState(updateOperationID, domain.Succeeded)
 	updateOp, _ := suite.db.Operations().GetOperationByID(updateOperationID)
 	assert.NotNil(suite.t, updateOp.ProvisioningParameters.ErsContext.LicenseType)
@@ -2193,7 +2256,6 @@ func TestUpdateNetworkFilterPersisted(t *testing.T) {
 func TestUpdateStoreNetworkFilterAndUpdate(t *testing.T) {
 	// given
 	suite := NewBrokerSuiteTest(t, "2.0")
-	mockBTPOperatorClusterID()
 	defer suite.TearDown()
 	id := uuid.New().String()
 
@@ -2264,7 +2326,6 @@ func TestUpdateStoreNetworkFilterAndUpdate(t *testing.T) {
 func TestMultipleUpdateNetworkFilterPersisted(t *testing.T) {
 	// given
 	suite := NewBrokerSuiteTest(t, "2.0")
-	mockBTPOperatorClusterID()
 	defer suite.TearDown()
 	id := uuid.New().String()
 
@@ -2301,8 +2362,8 @@ func TestMultipleUpdateNetworkFilterPersisted(t *testing.T) {
 	assert.Nil(suite.t, instance.Parameters.ErsContext.LicenseType)
 
 	// when
-	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", id), `
-		{
+	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", id),
+		`{
 			"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
 			"context": {
 				"license_type": "CUSTOMER"
@@ -2313,14 +2374,13 @@ func TestMultipleUpdateNetworkFilterPersisted(t *testing.T) {
 	assert.Equal(t, http.StatusAccepted, resp.StatusCode)
 	updateOperationID := suite.DecodeOperationID(resp)
 	suite.FinishUpdatingOperationByProvisioner(updateOperationID)
-	suite.FinishUpdatingOperationByReconciler(updateOperationID)
 	suite.WaitForOperationState(updateOperationID, domain.Succeeded)
 	instance2 := suite.GetInstance(id)
 	assert.Equal(suite.t, "CUSTOMER", *instance2.Parameters.ErsContext.LicenseType)
 
 	// when
-	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", id), `
-		{
+	resp = suite.CallAPI("PATCH", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true", id),
+		`{
 			"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
 			"context":{},
 			"parameters":{
@@ -2334,7 +2394,6 @@ func TestMultipleUpdateNetworkFilterPersisted(t *testing.T) {
 	updateOperation2ID := suite.DecodeOperationID(resp)
 	suite.WaitForLastOperation(id, domain.InProgress)
 	suite.FinishUpdatingOperationByProvisioner(updateOperation2ID)
-	suite.FinishUpdatingOperationByReconciler(updateOperation2ID)
 	suite.WaitForOperationState(updateOperation2ID, domain.Succeeded)
 	instance3 := suite.GetInstance(id)
 	assert.Equal(suite.t, "CUSTOMER", *instance3.Parameters.ErsContext.LicenseType)
@@ -2342,10 +2401,127 @@ func TestMultipleUpdateNetworkFilterPersisted(t *testing.T) {
 	suite.AssertDisabledNetworkFilterRuntimeState(instance.RuntimeID, updateOperation2ID, &disabled)
 }
 
-func componentNames(components []reconcilerApi.Component) []string {
-	names := make([]string, 0, len(components))
-	for _, c := range components {
-		names = append(names, c.Component)
-	}
-	return names
+func TestUpdateOnlyErsContextForExpiredInstance(t *testing.T) {
+	suite := NewBrokerSuiteTest(t, "2.0")
+	defer suite.TearDown()
+	iid := uuid.New().String()
+
+	response := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true&plan_id=7d55d31d-35ae-4438-bf13-6ffdfa107d9f&service_id=47c9dcbf-ff30-448e-ab36-d3bad66ba281", iid),
+		`{
+			"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+			"plan_id": "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
+			"context": {
+				"sm_operator_credentials": {
+					"clientid": "cid",
+					"clientsecret": "cs",
+					"url": "url",
+					"sm_url": "sm_url"
+				},
+				"globalaccount_id": "g-account-id",
+				"subaccount_id": "sub-id",
+				"user_id": "john.smith@email.com"
+			},
+			"parameters": {
+				"name": "testing-cluster"
+			}
+		}`)
+	opID := suite.DecodeOperationID(response)
+	suite.processProvisioningByOperationID(opID)
+	suite.WaitForOperationState(opID, domain.Succeeded)
+
+	response = suite.CallAPI(http.MethodPut, fmt.Sprintf("expire/service_instance/%s", iid), "")
+	assert.Equal(t, http.StatusAccepted, response.StatusCode)
+
+	response = suite.CallAPI("PATCH", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
+		`{
+		"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+		"context": {
+			"globalaccount_id": "g-account-id-new"
+		}
+	}`)
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+}
+
+func TestUpdateParamsForExpiredInstance(t *testing.T) {
+	suite := NewBrokerSuiteTest(t, "2.0")
+	defer suite.TearDown()
+	iid := uuid.New().String()
+
+	response := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true&plan_id=7d55d31d-35ae-4438-bf13-6ffdfa107d9f&service_id=47c9dcbf-ff30-448e-ab36-d3bad66ba281", iid),
+		`{
+			"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+			"plan_id": "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
+			"context": {
+				"sm_operator_credentials": {
+					"clientid": "cid",
+					"clientsecret": "cs",
+					"url": "url",
+					"sm_url": "sm_url"
+				},
+				"globalaccount_id": "g-account-id",
+				"subaccount_id": "sub-id",
+				"user_id": "john.smith@email.com"
+			},
+			"parameters": {
+				"name": "testing-cluster"
+			}
+		}`)
+	opID := suite.DecodeOperationID(response)
+	suite.processProvisioningByOperationID(opID)
+	suite.WaitForOperationState(opID, domain.Succeeded)
+
+	response = suite.CallAPI(http.MethodPut, fmt.Sprintf("expire/service_instance/%s", iid), "")
+	assert.Equal(t, http.StatusAccepted, response.StatusCode)
+
+	response = suite.CallAPI("PATCH", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
+		`{
+				"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+				"parameters":{
+					"administrators":["xyz@sap.com", "xyz@gmail.com", "xyz@abc.com"]
+				}
+			}`)
+	assert.Equal(t, http.StatusInternalServerError, response.StatusCode)
+}
+
+func TestUpdateErsContextAndParamsForExpiredInstance(t *testing.T) {
+	suite := NewBrokerSuiteTest(t, "2.0")
+	defer suite.TearDown()
+	iid := uuid.New().String()
+	response := suite.CallAPI("PUT", fmt.Sprintf("oauth/cf-eu10/v2/service_instances/%s?accepts_incomplete=true&plan_id=7d55d31d-35ae-4438-bf13-6ffdfa107d9f&service_id=47c9dcbf-ff30-448e-ab36-d3bad66ba281", iid),
+		`{
+			"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",
+			"plan_id": "7d55d31d-35ae-4438-bf13-6ffdfa107d9f",
+			"context": {
+				"sm_operator_credentials": {
+					"clientid": "cid",
+					"clientsecret": "cs",
+					"url": "url",
+					"sm_url": "sm_url"
+				},
+				"globalaccount_id": "g-account-id",
+				"subaccount_id": "sub-id",
+				"user_id": "john.smith@email.com"
+			},
+			"parameters": {
+				"name": "testing-cluster"
+			}
+		}`)
+	opID := suite.DecodeOperationID(response)
+	suite.processProvisioningByOperationID(opID)
+	suite.WaitForOperationState(opID, domain.Succeeded)
+
+	response = suite.CallAPI(http.MethodPut, fmt.Sprintf("expire/service_instance/%s", iid), "")
+	assert.Equal(t, http.StatusAccepted, response.StatusCode)
+
+	response = suite.CallAPI("PATCH", fmt.Sprintf("oauth/v2/service_instances/%s?accepts_incomplete=true", iid),
+		`{
+				"service_id": "47c9dcbf-ff30-448e-ab36-d3bad66ba281",	
+				"parameters": {
+					"administrators":["xyz2@sap.com", "xyz2@gmail.com", "xyz2@abc.com"]
+				},
+				"context": {
+					"license_type": "CUSTOMER"
+				}
+		}`)
+	assert.Equal(t, http.StatusBadRequest, response.StatusCode)
 }

@@ -29,6 +29,20 @@ func NewInstance(operations *operations) *instances {
 	}
 }
 
+func (s *instances) GetDistinctSubAccounts() ([]string, error) {
+	//iterate over instances and return distinct subaccounts
+	collectedSubAccounts := make(map[string]struct{})
+	for _, v := range s.instances {
+		collectedSubAccounts[v.SubAccountID] = struct{}{}
+	}
+	//convert map keys to slice
+	var subAccounts []string
+	for k := range collectedSubAccounts {
+		subAccounts = append(subAccounts, k)
+	}
+	return subAccounts, nil
+}
+
 func (s *instances) InsertWithoutEncryption(instance internal.Instance) error {
 	return errors.New("not implemented")
 }
@@ -51,10 +65,6 @@ func (s *instances) FindAllJoinedWithOperations(prct ...predicate.Predicate) ([]
 		pOps, pErr := s.operationsStorage.ListProvisioningOperationsByInstanceID(id)
 		if pErr != nil && !dberr.IsNotFound(pErr) {
 			return nil, pErr
-		}
-		uOps, uErr := s.operationsStorage.ListUpgradeKymaOperationsByInstanceID(id)
-		if uErr != nil && !dberr.IsNotFound(uErr) {
-			return nil, uErr
 		}
 
 		if !dberr.IsNotFound(dErr) {
@@ -79,17 +89,6 @@ func (s *instances) FindAllJoinedWithOperations(prct ...predicate.Predicate) ([]
 					Description:    sql.NullString{String: op.Description, Valid: true},
 					OpCreatedAt:    op.CreatedAt,
 					IsSuspensionOp: false,
-				})
-			}
-		}
-
-		if !dberr.IsNotFound(uErr) {
-			for _, op := range uOps {
-				instances = append(instances, internal.InstanceWithOperation{
-					Instance:    v,
-					Type:        sql.NullString{String: string(internal.OperationTypeUpgradeKyma), Valid: true},
-					State:       sql.NullString{String: string(op.State), Valid: true},
-					Description: sql.NullString{String: op.Description, Valid: true},
 				})
 			}
 		}
@@ -273,6 +272,9 @@ func (s *instances) filterInstances(filter dbmodel.InstanceFilter) []internal.In
 		if ok = matchFilter(v.ServicePlanName, filter.Plans, equal); !ok {
 			continue
 		}
+		if ok = matchFilter(v.ServicePlanID, filter.PlanIDs, equal); !ok {
+			continue
+		}
 		if ok = matchFilter(v.ProviderRegion, filter.Regions, equal); !ok {
 			continue
 		}
@@ -338,7 +340,7 @@ func (s *instances) matchInstanceState(instanceID string, states []dbmodel.Insta
 				return true
 			}
 		case dbmodel.InstanceUpgrading:
-			if (op.Type == internal.OperationTypeUpgradeKyma || op.Type == internal.OperationTypeUpgradeCluster) && op.State == domain.InProgress {
+			if op.Type == internal.OperationTypeUpgradeCluster && op.State == domain.InProgress {
 				return true
 			}
 		case dbmodel.InstanceUpdating:
@@ -357,4 +359,24 @@ func (s *instances) matchInstanceState(instanceID string, states []dbmodel.Insta
 	}
 
 	return false
+}
+
+func (s *instances) ListDeletedInstanceIDs(int) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	resultMap := make(map[string]struct{})
+	for _, op := range s.operationsStorage.operations {
+		if _, exists := s.instances[op.InstanceID]; !exists {
+			resultMap[op.InstanceID] = struct{}{}
+		}
+	}
+	var result []string
+	for k := range resultMap {
+		result = append(result, k)
+	}
+	return result, nil
+}
+
+func (s *instances) DeletedInstancesStatistics() (internal.DeletedStats, error) {
+	panic("not implemented")
 }

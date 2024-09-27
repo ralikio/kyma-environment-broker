@@ -5,7 +5,8 @@ import (
 	"math/big"
 	"math/rand"
 	"net/netip"
-	"strings"
+
+	"github.com/kyma-project/kyma-environment-broker/internal/euaccess"
 
 	"github.com/kyma-project/kyma-environment-broker/internal/networking"
 
@@ -17,20 +18,22 @@ import (
 )
 
 const (
-	DefaultAWSRegion         = "eu-central-1"
-	DefaultAWSTrialRegion    = "eu-west-1"
-	DefaultEuAccessAWSRegion = "eu-central-1"
-	DefaultAWSMultiZoneCount = 3
+	DefaultAWSRegion              = "eu-central-1"
+	DefaultAWSTrialRegion         = "eu-west-1"
+	DefaultEuAccessAWSRegion      = "eu-central-1"
+	DefaultAWSMultiZoneCount      = 3
+	DefaultAWSMachineType         = "m6i.large"
+	DefaultOldAWSTrialMachineType = "m5.xlarge"
 )
 
 var europeAWS = "eu-west-1"
 var usAWS = "us-east-1"
 var asiaAWS = "ap-southeast-1"
 
-var toAWSSpecific = map[string]string{
-	string(broker.Europe): europeAWS,
-	string(broker.Us):     usAWS,
-	string(broker.Asia):   asiaAWS,
+var toAWSSpecific = map[string]*string{
+	string(broker.Europe): &europeAWS,
+	string(broker.Us):     &usAWS,
+	string(broker.Asia):   &asiaAWS,
 }
 
 type (
@@ -39,9 +42,12 @@ type (
 		ControlPlaneFailureTolerance string
 	}
 	AWSTrialInput struct {
-		PlatformRegionMapping map[string]string
+		PlatformRegionMapping  map[string]string
+		UseSmallerMachineTypes bool
 	}
-	AWSFreemiumInput struct{}
+	AWSFreemiumInput struct {
+		UseSmallerMachineTypes bool
+	}
 )
 
 func (p *AWSInput) Defaults() *gqlschema.ClusterConfigInput {
@@ -55,9 +61,9 @@ func (p *AWSInput) Defaults() *gqlschema.ClusterConfigInput {
 	}
 	return &gqlschema.ClusterConfigInput{
 		GardenerConfig: &gqlschema.GardenerConfigInput{
-			DiskType:       ptr.String("gp2"),
-			VolumeSizeGb:   ptr.Integer(50),
-			MachineType:    "m5.xlarge",
+			DiskType:       ptr.String("gp3"),
+			VolumeSizeGb:   ptr.Integer(80),
+			MachineType:    DefaultAWSMachineType,
 			Region:         DefaultAWSRegion,
 			Provider:       "aws",
 			WorkerCidr:     networking.DefaultNodesCIDR,
@@ -100,29 +106,6 @@ func ZoneForAWSRegion(region string) string {
 
 	zone := string(zones[rand.Intn(len(zones))])
 	return fmt.Sprintf("%s%s", region, zone)
-}
-
-func MultipleZonesForAWSRegion(region string, zonesCount int) []string {
-	zones, found := awsZones[region]
-	if !found {
-		zones = "a"
-		zonesCount = 1
-	}
-
-	availableZones := strings.Split(zones, "")
-	rand.Shuffle(len(availableZones), func(i, j int) { availableZones[i], availableZones[j] = availableZones[j], availableZones[i] })
-	if zonesCount > len(availableZones) {
-		// get maximum number of zones for region
-		zonesCount = len(availableZones)
-	}
-
-	availableZones = availableZones[:zonesCount]
-
-	var generatedZones []string
-	for _, zone := range availableZones {
-		generatedZones = append(generatedZones, fmt.Sprintf("%s%s", region, zone))
-	}
-	return generatedZones
 }
 
 /*
@@ -203,7 +186,7 @@ func (p *AWSInput) ApplyParameters(input *gqlschema.ClusterConfigInput, pp inter
 	}
 
 	// if the platformRegion is "EU Access" - switch the region to the eu-access
-	if internal.IsEuAccess(pp.PlatformRegion) {
+	if euaccess.IsEURestrictedAccess(pp.PlatformRegion) {
 		input.GardenerConfig.Region = DefaultEuAccessAWSRegion
 	}
 
@@ -235,15 +218,19 @@ func (p *AWSInput) Provider() internal.CloudProvider {
 }
 
 func (p *AWSTrialInput) Defaults() *gqlschema.ClusterConfigInput {
-	return awsLiteDefaults(DefaultAWSTrialRegion)
+	return awsLiteDefaults(DefaultAWSTrialRegion, p.UseSmallerMachineTypes)
 }
 
-func awsLiteDefaults(region string) *gqlschema.ClusterConfigInput {
+func awsLiteDefaults(region string, useSmallerMachineTypes bool) *gqlschema.ClusterConfigInput {
+	machineType := DefaultOldAWSTrialMachineType
+	if useSmallerMachineTypes {
+		machineType = DefaultAWSMachineType
+	}
 	return &gqlschema.ClusterConfigInput{
 		GardenerConfig: &gqlschema.GardenerConfigInput{
-			DiskType:       ptr.String("gp2"),
+			DiskType:       ptr.String("gp3"),
 			VolumeSizeGb:   ptr.Integer(50),
-			MachineType:    "m5.xlarge",
+			MachineType:    machineType,
 			Region:         region,
 			Provider:       "aws",
 			WorkerCidr:     networking.DefaultNodesCIDR,
@@ -265,7 +252,7 @@ func awsLiteDefaults(region string) *gqlschema.ClusterConfigInput {
 func (p *AWSTrialInput) ApplyParameters(input *gqlschema.ClusterConfigInput, pp internal.ProvisioningParameters) {
 	params := pp.Parameters
 
-	if internal.IsEuAccess(pp.PlatformRegion) {
+	if euaccess.IsEURestrictedAccess(pp.PlatformRegion) {
 		updateRegionWithZones(input, DefaultEuAccessAWSRegion)
 		return
 	}
@@ -274,13 +261,13 @@ func (p *AWSTrialInput) ApplyParameters(input *gqlschema.ClusterConfigInput, pp 
 	if pp.PlatformRegion != "" {
 		abstractRegion, found := p.PlatformRegionMapping[pp.PlatformRegion]
 		if found {
-			r := toAWSSpecific[abstractRegion]
+			r := *toAWSSpecific[abstractRegion]
 			updateRegionWithZones(input, r)
 		}
 	}
 
 	if params.Region != nil && *params.Region != "" {
-		r := toAWSSpecific[*params.Region]
+		r := *toAWSSpecific[*params.Region]
 		updateRegionWithZones(input, r)
 	}
 }
@@ -300,7 +287,7 @@ func (p *AWSTrialInput) Provider() internal.CloudProvider {
 
 func (p *AWSFreemiumInput) Defaults() *gqlschema.ClusterConfigInput {
 	// Lite (freemium) must have the same defaults as Trial plan, but there was a requirement to change a region only for Trial.
-	defaults := awsLiteDefaults(DefaultAWSRegion)
+	defaults := awsLiteDefaults(DefaultAWSRegion, p.UseSmallerMachineTypes)
 
 	return defaults
 }

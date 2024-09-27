@@ -11,6 +11,7 @@ const {
 const {keb, kcp, gardener} = require('../helpers');
 
 const updateTimeout = 1000 * 60 * 20; // 20m
+const k8sCallTimeout = 1000 * 60 * 1; // 1m
 
 function oidcE2ETest(getShootOptionsFunc, getShootInfoFunc) {
   describe('OIDC Test', function() {
@@ -59,7 +60,6 @@ function oidcE2ETest(getShootOptionsFunc, getShootInfoFunc) {
       try {
         const runtimeStatus = await kcp.getRuntimeStatusOperations(options.instanceID);
         console.log(`\nRuntime status: ${runtimeStatus}`);
-        await kcp.reconcileInformationLog(runtimeStatus);
       } catch (e) {
         console.log(`before hook failed: ${e.toString()}`);
       }
@@ -74,6 +74,7 @@ function oidcE2ETest(getShootOptionsFunc, getShootInfoFunc) {
     });
 
     it('Assure cluster admin is preserved', async function() {
+      this.timeout(k8sCallTimeout);
       await ensureKymaAdminBindingExistsForUser(options.kebUserId);
     });
 
@@ -98,7 +99,6 @@ function oidcE2ETest(getShootOptionsFunc, getShootInfoFunc) {
     it('Should get Runtime Status after updating admins', async function() {
       const runtimeStatus = await kcp.getRuntimeStatusOperations(options.instanceID);
       console.log(`\nRuntime status: ${runtimeStatus}`);
-      await kcp.reconcileInformationLog(runtimeStatus);
     });
 
     it('Assure only new cluster admins are configured', async function() {

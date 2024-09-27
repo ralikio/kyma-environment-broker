@@ -4,9 +4,6 @@ import (
 	"context"
 	"math"
 	"math/rand"
-	"os"
-	"os/exec"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,11 +12,8 @@ import (
 
 	uuid2 "github.com/google/uuid"
 	"github.com/kyma-project/kyma-environment-broker/internal"
-	"github.com/kyma-project/kyma-environment-broker/internal/provisioner"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage/dbmodel"
-	kymaevent "github.com/kyma-project/runtime-watcher/listener/pkg/event"
-	"github.com/kyma-project/runtime-watcher/listener/pkg/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +25,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 )
 
 const (
@@ -48,10 +41,6 @@ var (
 	random                = rand.New(rand.NewSource(1))
 )
 
-const (
-	envTestAssets = "KUBEBUILDER_ASSETS"
-)
-
 type Environment struct {
 	ctx          context.Context
 	skrs         []*envtest.Environment
@@ -60,7 +49,6 @@ type Environment struct {
 	kebDb        storage.BrokerStorage
 	logs         *logrus.Logger
 	manager      *Manager
-	watcher      *Watcher
 	job          *Job
 	t            *testing.T
 }
@@ -77,20 +65,17 @@ func InitEnvironment(ctx context.Context, t *testing.T) *Environment {
 	}
 
 	newEnvironment.createTestData()
-	newEnvironment.manager = NewManager(ctx, newEnvironment.kcp, newEnvironment.kebDb.Instances(), logs, false, provisioner.NewFakeClient())
-	newEnvironment.watcher = NewWatcher(ctx, "3333", "btp-manager-secret-watcher", newEnvironment.manager, logs)
+	newEnvironment.manager = NewManager(ctx, newEnvironment.kcp, newEnvironment.kebDb.Instances(), logs, false)
 	newEnvironment.job = NewJob(newEnvironment.manager, logs)
 	newEnvironment.assertThatCorrectNumberOfInstancesExists()
 	return newEnvironment
 }
 
 func TestBtpManagerReconciler(t *testing.T) {
-	if os.Getenv(envTestAssets) == "" {
-		out, err := exec.Command("/bin/sh", "../../../setup-envtest.sh").Output()
-		require.NoError(t, err)
-		path := strings.Replace(string(out), "\n", "", -1)
-		os.Setenv(envTestAssets, path)
-	}
+	pid := internal.SetupEnvtest(t)
+	defer func() {
+		internal.CleanupEnvtestBinaries(pid)
+	}()
 
 	t.Run("btp manager credentials tests", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -146,59 +131,6 @@ func TestBtpManagerReconciler(t *testing.T) {
 			assert.Equal(t, updateDone, len(testDataIndexes))
 			assert.Equal(t, updateNotDoneDueError+updateNotDoneDueOkState, expectedTakenInstancesCount-len(testDataIndexes))
 			environment.assertAllSecretDataAreSet()
-			environment.assureConsistency()
-		})
-
-		t.Run("change one instance", func(t *testing.T) {
-			skrs := environment.getSkrsForSimulateChange([]int{0})
-			environment.simulateSecretChangeOnSkr(skrs)
-			kymaName := environment.findRuntimeIdForSkr(skrs[0].Config.Host)
-			inconsistentClusters := environment.assureThatClusterIsInIncorrectState()
-			assert.Equal(t, 1, inconsistentClusters)
-			go environment.watcher.ReactOnSkrEvent()
-			time.Sleep(time.Millisecond * 100)
-			environment.watcher.listener.ReceivedEvents <- event.GenericEvent{Object: kymaevent.GenericEvent(&types.WatchEvent{
-				Owner: client.ObjectKey{
-					Name: kymaName,
-				},
-			})}
-			time.Sleep(time.Millisecond * 100)
-			environment.assureConsistency()
-		})
-
-		t.Run("change many instances", func(t *testing.T) {
-			assert.GreaterOrEqual(t, expectedTakenInstancesCount, 1)
-			skrs := environment.getSkrsForSimulateChange([]int{1, expectedTakenInstancesCount - 1})
-			environment.simulateSecretChangeOnSkr(skrs)
-			assert.GreaterOrEqual(t, len(skrs), 2)
-			kymaName := environment.findRuntimeIdForSkr(skrs[0].Config.Host)
-			kymaName2 := environment.findRuntimeIdForSkr(skrs[1].Config.Host)
-			inconsistentClusters := environment.assureThatClusterIsInIncorrectState()
-			assert.Equal(t, 2, inconsistentClusters)
-			go environment.watcher.ReactOnSkrEvent()
-			time.Sleep(time.Millisecond * 100)
-			wg := &sync.WaitGroup{}
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				environment.watcher.listener.ReceivedEvents <- event.GenericEvent{Object: kymaevent.GenericEvent(&types.WatchEvent{
-					Owner: client.ObjectKey{
-						Name: kymaName,
-					},
-				})}
-			}()
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				environment.watcher.listener.ReceivedEvents <- event.GenericEvent{Object: kymaevent.GenericEvent(&types.WatchEvent{
-					Owner: client.ObjectKey{
-						Name: kymaName2,
-					},
-				})}
-			}()
-			defer wg.Wait()
-			time.Sleep(time.Millisecond * 100)
 			environment.assureConsistency()
 		})
 
@@ -525,7 +457,7 @@ func (e *Environment) getSkrsForSimulateChange(skrIndexes []int) []*envtest.Envi
 			}
 		}
 
-		for index, _ := range indexSet {
+		for index := range indexSet {
 			testEnv := e.skrs[index]
 			result = append(result, testEnv)
 		}

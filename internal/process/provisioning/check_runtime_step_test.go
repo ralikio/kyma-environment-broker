@@ -42,6 +42,11 @@ func TestCheckRuntimeStep_RunProvisioningSucceeded(t *testing.T) {
 				Message:   nil,
 				RuntimeID: ptr.String(statusRuntimeID),
 			})
+
+			kimConfig := broker.KimConfig{
+				Enabled: false,
+			}
+
 			st := storage.NewMemoryStorage()
 			operation := fixOperationRuntimeStatus(broker.GCPPlanID, internal.GCP)
 			operation.RuntimeID = statusRuntimeID
@@ -49,7 +54,56 @@ func TestCheckRuntimeStep_RunProvisioningSucceeded(t *testing.T) {
 			err := st.Operations().InsertOperation(operation)
 			assert.NoError(t, err)
 
-			step := NewCheckRuntimeStep(st.Operations(), provisionerClient, time.Second)
+			step := NewCheckRuntimeStep(st.Operations(), provisionerClient, time.Second, kimConfig)
+
+			// when
+			operation, repeat, err := step.Run(operation, logrus.New())
+
+			// then
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedRepeat, repeat > 0)
+			assert.Equal(t, domain.InProgress, operation.State)
+		})
+	}
+}
+
+func TestCheckRuntimeStep_RunProvisioningSucceeded_WithKimOnly(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		provisionerStatus gqlschema.OperationState
+		expectedRepeat    bool
+	}{
+		{
+			name:              "Succeeded",
+			provisionerStatus: gqlschema.OperationStateSucceeded,
+			expectedRepeat:    false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// given
+			provisionerClient := provisioner.NewFakeClient()
+			provisionerClient.SetOperation(statusProvisionerOperationID, gqlschema.OperationStatus{
+				ID:        ptr.String(statusProvisionerOperationID),
+				Operation: gqlschema.OperationTypeProvision,
+				State:     tc.provisionerStatus,
+				Message:   nil,
+				RuntimeID: ptr.String(statusRuntimeID),
+			})
+
+			kimConfig := broker.KimConfig{
+				Enabled:      true,
+				Plans:        []string{"gcp"},
+				KimOnlyPlans: []string{"gcp"},
+			}
+
+			st := storage.NewMemoryStorage()
+			operation := fixOperationRuntimeStatus(broker.GCPPlanID, internal.GCP)
+			operation.RuntimeID = statusRuntimeID
+			operation.DashboardURL = dashboardURL
+			err := st.Operations().InsertOperation(operation)
+			assert.NoError(t, err)
+
+			step := NewCheckRuntimeStep(st.Operations(), provisionerClient, time.Second, kimConfig)
 
 			// when
 			operation, repeat, err := step.Run(operation, logrus.New())

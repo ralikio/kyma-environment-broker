@@ -19,6 +19,7 @@ type Instances interface {
 	Delete(instanceID string) error
 	GetInstanceStats() (internal.InstanceStats, error)
 	GetERSContextStats() (internal.ERSContextStats, error)
+	GetDistinctSubAccounts() ([]string, error)
 	GetNumberOfInstancesForGlobalAccountID(globalAccountID string) (int, error)
 	List(dbmodel.InstanceFilter) ([]internal.Instance, int, int, error)
 
@@ -26,20 +27,32 @@ type Instances interface {
 	InsertWithoutEncryption(instance internal.Instance) error
 	UpdateWithoutEncryption(instance internal.Instance) (*internal.Instance, error)
 	ListWithoutDecryption(dbmodel.InstanceFilter) ([]internal.Instance, int, int, error)
+	ListDeletedInstanceIDs(int) ([]string, error)
+
+	DeletedInstancesStatistics() (internal.DeletedStats, error)
+}
+
+type InstancesArchived interface {
+	GetByInstanceID(instanceId string) (internal.InstanceArchived, error)
+	Insert(instance internal.InstanceArchived) error
+	TotalNumberOfInstancesArchived() (int, error)
+	TotalNumberOfInstancesArchivedForGlobalAccountID(globalAccountID string, planID string) (int, error)
+	List(filter dbmodel.InstanceFilter) ([]internal.InstanceArchived, int, int, error)
 }
 
 //go:generate mockery --name=Operations --output=automock --outpkg=mocks --case=underscore
 type Operations interface {
 	Provisioning
 	Deprovisioning
-	UpgradeKyma
 	UpgradeCluster
 	Updating
 
 	GetLastOperation(instanceID string) (*internal.Operation, error)
+	GetLastOperationByTypes(instanceID string, types []internal.OperationType) (*internal.Operation, error)
 	GetOperationByID(operationID string) (*internal.Operation, error)
 	GetNotFinishedOperationsByType(operationType internal.OperationType) ([]internal.Operation, error)
 	GetOperationStatsByPlan() (map[string]internal.OperationStats, error)
+	GetOperationStatsByPlanV2() ([]internal.OperationStatsV2, error)
 	GetOperationsForIDs(operationIDList []string) ([]internal.Operation, error)
 	GetOperationStatsForOrchestration(orchestrationID string) (map[string]int, error)
 	ListOperations(filter dbmodel.OperationFilter) ([]internal.Operation, int, int, error)
@@ -48,8 +61,12 @@ type Operations interface {
 	GetOperationByInstanceID(instanceID string) (*internal.Operation, error)
 	UpdateOperation(operation internal.Operation) (*internal.Operation, error)
 	ListOperationsByInstanceID(instanceID string) ([]internal.Operation, error)
+	ListOperationsByInstanceIDGroupByType(instanceID string) (*internal.GroupedOperations, error)
 	ListOperationsByOrchestrationID(orchestrationID string, filter dbmodel.OperationFilter) ([]internal.Operation, int, int, error)
 	ListOperationsInTimeRange(from, to time.Time) ([]internal.Operation, error)
+
+	DeleteByID(operationID string) error
+	GetAllOperations() ([]internal.Operation, error)
 }
 
 type Provisioning interface {
@@ -81,19 +98,8 @@ type RuntimeStates interface {
 	GetByOperationID(operationID string) (internal.RuntimeState, error)
 	ListByRuntimeID(runtimeID string) ([]internal.RuntimeState, error)
 	GetLatestByRuntimeID(runtimeID string) (internal.RuntimeState, error)
-	GetLatestWithReconcilerInputByRuntimeID(runtimeID string) (internal.RuntimeState, error)
-	GetLatestWithKymaVersionByRuntimeID(runtimeID string) (internal.RuntimeState, error)
 	GetLatestWithOIDCConfigByRuntimeID(runtimeID string) (internal.RuntimeState, error)
-}
-
-type UpgradeKyma interface {
-	InsertUpgradeKymaOperation(operation internal.UpgradeKymaOperation) error
-	UpdateUpgradeKymaOperation(operation internal.UpgradeKymaOperation) (*internal.UpgradeKymaOperation, error)
-	GetUpgradeKymaOperationByID(operationID string) (*internal.UpgradeKymaOperation, error)
-	GetUpgradeKymaOperationByInstanceID(instanceID string) (*internal.UpgradeKymaOperation, error)
-	ListUpgradeKymaOperations() ([]internal.UpgradeKymaOperation, error)
-	ListUpgradeKymaOperationsByInstanceID(instanceID string) ([]internal.UpgradeKymaOperation, error)
-	ListUpgradeKymaOperationsByOrchestrationID(orchestrationID string, filter dbmodel.OperationFilter) ([]internal.UpgradeKymaOperation, int, int, error)
+	DeleteByOperationID(operationID string) error
 }
 
 type UpgradeCluster interface {
@@ -114,4 +120,10 @@ type Updating interface {
 type Events interface {
 	InsertEvent(level events.EventLevel, message, instanceID, operationID string)
 	ListEvents(filter events.EventFilter) ([]events.EventDTO, error)
+}
+
+type SubaccountStates interface {
+	UpsertState(state internal.SubaccountState) error
+	DeleteState(subaccountID string) error
+	ListStates() ([]internal.SubaccountState, error)
 }

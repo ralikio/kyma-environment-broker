@@ -1,8 +1,12 @@
 package update
 
 import (
+	"context"
 	"fmt"
 	"time"
+
+	imv1 "github.com/kyma-project/infrastructure-manager/api/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
 	"github.com/kyma-project/kyma-environment-broker/internal"
@@ -10,6 +14,7 @@ import (
 	"github.com/kyma-project/kyma-environment-broker/internal/provisioner"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/sirupsen/logrus"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const DryRunPrefix = "dry_run-"
@@ -19,17 +24,21 @@ type UpgradeShootStep struct {
 	operationManager    *process.OperationManager
 	provisionerClient   provisioner.Client
 	runtimeStateStorage storage.RuntimeStates
+	k8sClient           client.Client
 }
+
+// TODO: this step is not necessary when the Provisioner is switched to KIM
 
 func NewUpgradeShootStep(
 	os storage.Operations,
 	runtimeStorage storage.RuntimeStates,
-	cli provisioner.Client) *UpgradeShootStep {
+	cli provisioner.Client, k8sClient client.Client) *UpgradeShootStep {
 
 	return &UpgradeShootStep{
 		operationManager:    process.NewOperationManager(os),
 		provisionerClient:   cli,
 		runtimeStateStorage: runtimeStorage,
+		k8sClient:           k8sClient,
 	}
 }
 
@@ -44,13 +53,25 @@ func (s *UpgradeShootStep) Run(operation internal.Operation, log logrus.FieldLog
 	}
 	log = log.WithField("runtimeID", operation.RuntimeID)
 
+	// decide if the step should be skipped because the runtime is not controlled by the provisioner
+	var runtime imv1.Runtime
+	err := s.k8sClient.Get(context.Background(), client.ObjectKey{Name: operation.GetRuntimeResourceName(),
+		Namespace: operation.GetRuntimeResourceNamespace()}, &runtime)
+	if err != nil && !errors.IsNotFound(err) {
+		log.Warnf("Unable to read runtime: %s", err)
+		return s.operationManager.RetryOperation(operation, err.Error(), err, 5*time.Second, 1*time.Minute, log)
+	}
+	if !runtime.IsControlledByProvisioner() {
+		log.Infof("Skipping because the runtime is not controlled by the provisioner")
+		return operation, 0, nil
+	}
+
 	latestRuntimeStateWithOIDC, err := s.runtimeStateStorage.GetLatestWithOIDCConfigByRuntimeID(operation.RuntimeID)
 	if err != nil {
 		return s.operationManager.RetryOperation(operation, err.Error(), err, 5*time.Second, 1*time.Minute, log)
 	}
-	operation.LastRuntimeState = latestRuntimeStateWithOIDC
 
-	input, err := s.createUpgradeShootInput(operation)
+	input, err := s.createUpgradeShootInput(operation, &latestRuntimeStateWithOIDC.ClusterConfig)
 	if err != nil {
 		return s.operationManager.OperationFailed(operation, "invalid operation data - cannot create upgradeShoot input", err, log)
 	}
@@ -61,7 +82,7 @@ func (s *UpgradeShootStep) Run(operation internal.Operation, log logrus.FieldLog
 		provisionerResponse, err = s.provisionerClient.UpgradeShoot(operation.ProvisioningParameters.ErsContext.GlobalAccountID, operation.RuntimeID, input)
 		if err != nil {
 			log.Errorf("call to provisioner failed: %s", err)
-			return operation, retryDuration, nil
+			return s.operationManager.RetryOperation(operation, "call to provisioner failed", err, retryDuration, time.Minute, log)
 		}
 
 		repeat := time.Duration(0)
@@ -78,7 +99,6 @@ func (s *UpgradeShootStep) Run(operation internal.Operation, log logrus.FieldLog
 	log.Infof("call to provisioner succeeded for update, got operation ID %q", *provisionerResponse.ID)
 
 	rs := internal.NewRuntimeState(*provisionerResponse.RuntimeID, operation.ID, nil, gardenerUpgradeInputToConfigInput(input))
-	rs.KymaVersion = operation.RuntimeVersion.Version
 	err = s.runtimeStateStorage.Insert(rs)
 	if err != nil {
 		log.Errorf("cannot insert runtimeState: %s", err)
@@ -91,10 +111,10 @@ func (s *UpgradeShootStep) Run(operation internal.Operation, log logrus.FieldLog
 
 }
 
-func (s *UpgradeShootStep) createUpgradeShootInput(operation internal.Operation) (gqlschema.UpgradeShootInput, error) {
+func (s *UpgradeShootStep) createUpgradeShootInput(operation internal.Operation, lastClusterConfig *gqlschema.GardenerConfigInput) (gqlschema.UpgradeShootInput, error) {
 	operation.InputCreator.SetProvisioningParameters(operation.ProvisioningParameters)
-	if operation.LastRuntimeState.ClusterConfig.OidcConfig != nil {
-		operation.InputCreator.SetOIDCLastValues(*operation.LastRuntimeState.ClusterConfig.OidcConfig)
+	if lastClusterConfig.OidcConfig != nil {
+		operation.InputCreator.SetOIDCLastValues(*lastClusterConfig.OidcConfig)
 	}
 	fullInput, err := operation.InputCreator.CreateUpgradeShootInput()
 	if err != nil {

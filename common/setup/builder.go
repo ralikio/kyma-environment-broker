@@ -12,7 +12,6 @@ import (
 	"github.com/kyma-project/kyma-environment-broker/internal/broker"
 	"github.com/kyma-project/kyma-environment-broker/internal/environmentscleanup"
 	"github.com/kyma-project/kyma-environment-broker/internal/events"
-	"github.com/kyma-project/kyma-environment-broker/internal/provisioner"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
@@ -28,12 +27,6 @@ type config struct {
 	Gardener      gardener.Config
 	Database      storage.Config
 	Broker        broker.ClientConfig
-	Provisioner   provisionerConfig
-}
-
-type provisionerConfig struct {
-	URL          string `envconfig:"default=kcp-provisioner:3000"`
-	QueryDumping bool   `envconfig:"default=false"`
 }
 
 type AppBuilder struct {
@@ -42,9 +35,7 @@ type AppBuilder struct {
 	db             storage.BrokerStorage
 	conn           *dbr.Connection
 	logger         *logrus.Logger
-
-	brokerClient      *broker.Client
-	provisionerClient provisioner.Client
+	brokerClient   *broker.Client
 }
 
 type App interface {
@@ -52,7 +43,9 @@ type App interface {
 }
 
 func NewAppBuilder() AppBuilder {
-	return AppBuilder{}
+	return AppBuilder{
+		logger: log.New(),
+	}
 }
 
 func (b *AppBuilder) WithConfig() {
@@ -90,10 +83,6 @@ func (b *AppBuilder) WithBrokerClient() {
 	httpClientOAuth.Timeout = 30 * time.Second
 }
 
-func (b *AppBuilder) WithProvisionerClient() {
-	b.provisionerClient = provisioner.NewProvisionerClient(b.cfg.Provisioner.URL, b.cfg.Provisioner.QueryDumping)
-}
-
 func (b *AppBuilder) WithStorage() {
 	// Init Storage
 	cipher := storage.NewEncrypter(b.cfg.Database.SecretKey)
@@ -107,17 +96,15 @@ func (b *AppBuilder) WithStorage() {
 
 }
 
-func (b *AppBuilder) WithLogger() {
-	b.logger = log.New()
-}
-
 func (b *AppBuilder) Cleanup() {
 	err := b.conn.Close()
 	if err != nil {
 		FatalOnError(err)
 	}
 
-	cleaner.HaltIstioSidecar()
+	err = cleaner.HaltIstioSidecar()
+	LogOnError(err)
+
 	// do not use defer, close must be done before halting
 	err = cleaner.Halt()
 	if err != nil {
@@ -129,7 +116,6 @@ func (b *AppBuilder) Create() App {
 	return environmentscleanup.NewService(
 		b.gardenerClient,
 		b.brokerClient,
-		b.provisionerClient,
 		b.db.Instances(),
 		b.logger,
 		b.cfg.MaxAgeHours,

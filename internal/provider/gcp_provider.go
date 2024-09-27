@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 
+	"github.com/kyma-project/kyma-environment-broker/internal/assuredworkloads"
+
 	"github.com/kyma-project/kyma-environment-broker/internal/networking"
 
 	"github.com/kyma-project/kyma-environment-broker/internal/ptr"
@@ -15,9 +17,11 @@ import (
 )
 
 const (
-	DefaultGCPRegion         = "europe-west3"
-	DefaultGCPMachineType    = "n2-standard-4"
-	DefaultGCPMultiZoneCount = 3
+	DefaultGCPRegion                 = "europe-west3"
+	DefaultGCPAssuredWorkloadsRegion = "me-central2"
+	DefaultGCPMachineType            = "n2-standard-2"
+	DefaultGCPTrialMachineType       = "n2-standard-4"
+	DefaultGCPMultiZoneCount         = 3
 )
 
 var europeGcp = "europe-west3"
@@ -51,8 +55,8 @@ func (p *GcpInput) Defaults() *gqlschema.ClusterConfigInput {
 	}
 	return &gqlschema.ClusterConfigInput{
 		GardenerConfig: &gqlschema.GardenerConfigInput{
-			DiskType:       ptr.String("pd-standard"),
-			VolumeSizeGb:   ptr.Integer(50),
+			DiskType:       ptr.String("pd-balanced"),
+			VolumeSizeGb:   ptr.Integer(80),
 			MachineType:    DefaultGCPMachineType,
 			Region:         DefaultGCPRegion,
 			Provider:       "gcp",
@@ -86,6 +90,13 @@ func (p *GcpInput) ApplyParameters(input *gqlschema.ClusterConfigInput, pp inter
 			zonesCount = DefaultGCPMultiZoneCount
 		}
 		updateSlice(&input.GardenerConfig.ProviderSpecificConfig.GcpConfig.Zones, ZonesForGCPRegion(*pp.Parameters.Region, zonesCount))
+	case assuredworkloads.IsKSA(pp.PlatformRegion):
+		input.GardenerConfig.Region = DefaultGCPAssuredWorkloadsRegion
+		zonesCount := 1
+		if p.MultiZone {
+			zonesCount = DefaultGCPMultiZoneCount
+		}
+		updateSlice(&input.GardenerConfig.ProviderSpecificConfig.GcpConfig.Zones, ZonesForGCPRegion(DefaultGCPAssuredWorkloadsRegion, zonesCount))
 	}
 }
 
@@ -102,7 +113,7 @@ func (p *GcpTrialInput) Defaults() *gqlschema.ClusterConfigInput {
 		GardenerConfig: &gqlschema.GardenerConfigInput{
 			DiskType:       ptr.String("pd-standard"),
 			VolumeSizeGb:   ptr.Integer(30),
-			MachineType:    "n2-standard-4",
+			MachineType:    DefaultGCPTrialMachineType,
 			Region:         DefaultGCPRegion,
 			Provider:       "gcp",
 			WorkerCidr:     "10.250.0.0/19",
@@ -136,6 +147,10 @@ func (p *GcpTrialInput) ApplyParameters(input *gqlschema.ClusterConfigInput, pp 
 		region = *toGCPSpecific[*params.Region]
 	}
 
+	if assuredworkloads.IsKSA(pp.PlatformRegion) {
+		region = DefaultGCPAssuredWorkloadsRegion
+	}
+
 	// region is not empty - it means override the default one
 	if region != "" {
 		updateString(&input.GardenerConfig.Region, &region)
@@ -152,12 +167,18 @@ func (p *GcpTrialInput) Provider() internal.CloudProvider {
 }
 
 func ZonesForGCPRegion(region string, zonesCount int) []string {
-	zoneCodes := []string{"a", "b", "c"}
+	availableZones := []string{"a", "b", "c"}
 	var zones []string
-	rand.Shuffle(len(zoneCodes), func(i, j int) { zoneCodes[i], zoneCodes[j] = zoneCodes[j], zoneCodes[i] })
+	if zonesCount > len(availableZones) {
+		zonesCount = len(availableZones)
+	}
 
-	for i := 0; i < zonesCount && i < len(zoneCodes); i++ {
-		zones = append(zones, fmt.Sprintf("%s-%s", region, zoneCodes[i]))
+	availableZones = availableZones[:zonesCount]
+
+	rand.Shuffle(zonesCount, func(i, j int) { availableZones[i], availableZones[j] = availableZones[j], availableZones[i] })
+
+	for i := 0; i < zonesCount; i++ {
+		zones = append(zones, fmt.Sprintf("%s-%s", region, availableZones[i]))
 	}
 
 	return zones

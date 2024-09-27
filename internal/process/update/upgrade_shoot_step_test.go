@@ -3,6 +3,11 @@ package update
 import (
 	"testing"
 
+	imv1 "github.com/kyma-project/infrastructure-manager/api/v1"
+	"k8s.io/client-go/kubernetes/scheme"
+
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
 	"github.com/kyma-project/kyma-environment-broker/internal"
 	"github.com/kyma-project/kyma-environment-broker/internal/broker"
@@ -10,7 +15,6 @@ import (
 	"github.com/kyma-project/kyma-environment-broker/internal/process/input"
 	inputAutomock "github.com/kyma-project/kyma-environment-broker/internal/process/input/automock"
 	"github.com/kyma-project/kyma-environment-broker/internal/provisioner"
-	"github.com/kyma-project/kyma-environment-broker/internal/runtime"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -20,11 +24,14 @@ import (
 
 func TestUpgradeShootStep_Run(t *testing.T) {
 	// given
+	err := imv1.AddToScheme(scheme.Scheme)
+	assert.NoError(t, err)
 	memoryStorage := storage.NewMemoryStorage()
 	os := memoryStorage.Operations()
 	rs := memoryStorage.RuntimeStates()
 	cli := provisioner.NewFakeClient()
-	step := NewUpgradeShootStep(os, rs, cli)
+	kcpClient := fake.NewClientBuilder().Build()
+	step := NewUpgradeShootStep(os, rs, cli, kcpClient)
 	operation := fixture.FixUpdatingOperation("op-id", "inst-id")
 	operation.RuntimeID = "runtime-id"
 	operation.ProvisionerOperationID = ""
@@ -38,7 +45,8 @@ func TestUpgradeShootStep_Run(t *testing.T) {
 		UsernamePrefix: "-",
 	}
 	operation.InputCreator = fixInputCreator(t)
-	os.InsertOperation(operation.Operation)
+	err = os.InsertOperation(operation.Operation)
+	require.NoError(t, err)
 	runtimeState := fixture.FixRuntimeState("runtime-id", "runtime-id", "provisioning-op-1")
 	runtimeState.ClusterConfig.OidcConfig = &gqlschema.OIDCConfigInput{
 		ClientID:       "clientID",
@@ -48,7 +56,8 @@ func TestUpgradeShootStep_Run(t *testing.T) {
 		UsernameClaim:  "usernameClaim",
 		UsernamePrefix: "usernamePrefix",
 	}
-	rs.Insert(runtimeState)
+	err = rs.Insert(runtimeState)
+	require.NoError(t, err)
 
 	// when
 	newOperation, d, err := step.Run(operation.Operation, logrus.New())
@@ -76,65 +85,72 @@ func TestUpgradeShootStep_Run(t *testing.T) {
 	assert.NotEmpty(t, newOperation.ProvisionerOperationID)
 }
 
+func TestUpgradeShootStep_RunRuntimeControlledByKIM(t *testing.T) {
+	// given
+	err := imv1.AddToScheme(scheme.Scheme)
+	assert.NoError(t, err)
+	memoryStorage := storage.NewMemoryStorage()
+	os := memoryStorage.Operations()
+	rs := memoryStorage.RuntimeStates()
+	cli := provisioner.NewFakeClient()
+	kcpClient := fake.NewClientBuilder().WithRuntimeObjects(fixRuntimeResource("runtime-id", false)).Build()
+	step := NewUpgradeShootStep(os, rs, cli, kcpClient)
+	operation := fixture.FixUpdatingOperation("op-id", "inst-id")
+	operation.RuntimeID = "runtime-id"
+	operation.KymaResourceNamespace = "kcp-system"
+	operation.ProvisionerOperationID = ""
+	operation.ProvisioningParameters.ErsContext.UserID = "test-user-id"
+	operation.ProvisioningParameters.Parameters.OIDC = &internal.OIDCConfigDTO{
+		ClientID:       "client-id",
+		GroupsClaim:    "groups",
+		IssuerURL:      "https://issuer.url",
+		SigningAlgs:    []string{"RSA256"},
+		UsernameClaim:  "sub",
+		UsernamePrefix: "-",
+	}
+	operation.InputCreator = fixInputCreator(t)
+	err = os.InsertOperation(operation.Operation)
+	require.NoError(t, err)
+	runtimeState := fixture.FixRuntimeState("runtime-id", "runtime-id", "provisioning-op-1")
+	runtimeState.ClusterConfig.OidcConfig = &gqlschema.OIDCConfigInput{
+		ClientID:       "clientID",
+		GroupsClaim:    "groupsClaim",
+		IssuerURL:      "https://issuer.url",
+		SigningAlgs:    []string{"PS512"},
+		UsernameClaim:  "usernameClaim",
+		UsernamePrefix: "usernamePrefix",
+	}
+	err = rs.Insert(runtimeState)
+	require.NoError(t, err)
+
+	// when
+	newOperation, d, err := step.Run(operation.Operation, logrus.New())
+
+	// then
+	require.NoError(t, err)
+	assert.Zero(t, d)
+	assert.Empty(t, newOperation.ProvisionerOperationID)
+}
+
 func fixInputCreator(t *testing.T) internal.ProvisionerInputCreator {
-	optComponentsSvc := &inputAutomock.OptionalComponentService{}
-
-	optComponentsSvc.On("ComputeComponentsToDisable", []string{}).Return([]string{})
-	optComponentsSvc.On("ExecuteDisablers", internal.ComponentConfigurationInputList{
-		{
-			Component:     "to-remove-component",
-			Namespace:     "kyma-system",
-			Configuration: nil,
-		},
-		{
-			Component:     "keb",
-			Namespace:     "kyma-system",
-			Configuration: nil,
-		},
-	}).Return(internal.ComponentConfigurationInputList{
-		{
-			Component:     "keb",
-			Namespace:     "kyma-system",
-			Configuration: nil,
-		},
-	}, nil)
-
-	componentsProvider := &inputAutomock.ComponentListProvider{}
-	const kymaVersion = "1.20"
-	defer componentsProvider.AssertExpectations(t)
-
 	configProvider := &inputAutomock.ConfigurationProvider{}
-	configProvider.On("ProvideForGivenVersionAndPlan",
+	configProvider.On("ProvideForGivenPlan",
 		mock.AnythingOfType("string"),
 		mock.AnythingOfType("string")).
-		Return(&internal.ConfigForPlan{
-			AdditionalComponents: []internal.KymaComponent{
-				{
-					Name:      "kyma-component1",
-					Namespace: "kyma-system",
-				},
-			},
-		}, nil)
+		Return(&internal.ConfigForPlan{}, nil)
 
 	const k8sVersion = "1.18"
-	ibf, err := input.NewInputBuilderFactory(optComponentsSvc, runtime.NewDisabledComponentsProvider(),
-		componentsProvider, configProvider, input.Config{
-			KubernetesVersion:           k8sVersion,
-			DefaultGardenerShootPurpose: "test",
-		}, kymaVersion, fixTrialRegionMapping(), fixFreemiumProviders(), fixture.FixOIDCConfigDTO())
+	ibf, err := input.NewInputBuilderFactory(configProvider, input.Config{
+		KubernetesVersion:           k8sVersion,
+		DefaultGardenerShootPurpose: "test",
+	}, fixTrialRegionMapping(), fixFreemiumProviders(), fixture.FixOIDCConfigDTO(), false)
 	assert.NoError(t, err)
 
 	pp := internal.ProvisioningParameters{
-		PlanID: broker.GCPPlanID,
-		Parameters: internal.ProvisioningParametersDTO{
-			KymaVersion: "",
-		},
+		PlanID:     broker.GCPPlanID,
+		Parameters: internal.ProvisioningParametersDTO{},
 	}
-	ver := internal.RuntimeVersionData{
-		Version: kymaVersion,
-		Origin:  internal.Defaults,
-	}
-	creator, err := ibf.CreateUpgradeShootInput(pp, ver)
+	creator, err := ibf.CreateUpgradeShootInput(pp)
 	if err != nil {
 		t.Errorf("cannot create input creator for %q plan", broker.GCPPlanID)
 	}

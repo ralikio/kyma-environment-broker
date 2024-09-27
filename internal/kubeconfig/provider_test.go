@@ -2,11 +2,10 @@ package kubeconfig
 
 import (
 	"context"
-	"os"
-	"os/exec"
-	"strings"
+	"testing"
 	"time"
 
+	"github.com/kyma-project/kyma-environment-broker/internal"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/stretchr/testify/assert"
@@ -16,25 +15,22 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"testing"
-
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-const envTestAssets = "KUBEBUILDER_ASSETS"
-
 func TestSecretProvider_NoValueInSecret(t *testing.T) {
 	// given
 	kcpClient := fake.NewClientBuilder().Build()
-	kcpClient.Create(context.Background(), &v1.Secret{
+	err := kcpClient.Create(context.Background(), &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "kubeconfig-runtime00",
 			Namespace: "kcp-system",
 		},
 	})
+	assert.NoError(t, err)
 	provider := SecretProvider{
 		kcpK8sClient: kcpClient,
 	}
@@ -69,7 +65,7 @@ func TestSecretProvider_NoSecret(t *testing.T) {
 func TestSecretProvider_BadKubeconfig(t *testing.T) {
 	// given
 	kcpClient := fake.NewClientBuilder().Build()
-	kcpClient.Create(context.Background(), &v1.Secret{
+	err := kcpClient.Create(context.Background(), &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "kubeconfig-runtime00",
 			Namespace: "kcp-system",
@@ -78,6 +74,7 @@ func TestSecretProvider_BadKubeconfig(t *testing.T) {
 			"config": []byte("bad-kubeconfig"),
 		},
 	})
+	assert.NoError(t, err)
 	provider := SecretProvider{
 		kcpK8sClient: kcpClient,
 	}
@@ -93,19 +90,17 @@ func TestSecretProvider_KubernetesAndK8sClientForRuntimeID(t *testing.T) {
 	// Given
 
 	// prepare envtest to provide valid kubeconfig
-	if os.Getenv(envTestAssets) == "" {
-		out, err := exec.Command("/bin/sh", "../../setup-envtest.sh").Output()
-		require.NoError(t, err)
-		path := strings.Replace(string(out), "\n", "", -1)
-		os.Setenv(envTestAssets, path)
-	}
+	pid := internal.SetupEnvtest(t)
+	defer func() {
+		internal.CleanupEnvtestBinaries(pid)
+	}()
 
 	env := envtest.Environment{
 		ControlPlaneStartTimeout: 40 * time.Second,
 	}
 	var errEnvTest error
 	var config *rest.Config
-	wait.Poll(500*time.Millisecond, 5*time.Second, func() (done bool, err error) {
+	err := wait.Poll(500*time.Millisecond, 5*time.Second, func() (done bool, err error) {
 		config, errEnvTest = env.Start()
 		if err != nil {
 			t.Logf("envtest could not start, retrying: %s", errEnvTest.Error())
@@ -113,13 +108,17 @@ func TestSecretProvider_KubernetesAndK8sClientForRuntimeID(t *testing.T) {
 		}
 		return true, nil
 	})
+	require.NoError(t, err)
 	require.NoError(t, errEnvTest)
-	defer env.Stop()
+	defer func(env *envtest.Environment) {
+		err := env.Stop()
+		assert.NoError(t, err)
+	}(&env)
 	kubeconfig := createKubeconfigFileForRestConfig(*config)
 
 	// prepare a k8s client to store a secret with kubeconfig
 	kcpClient := fake.NewClientBuilder().Build()
-	kcpClient.Create(context.Background(), &v1.Secret{
+	err = kcpClient.Create(context.Background(), &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "kubeconfig-runtime00",
 			Namespace: "kcp-system",
@@ -128,6 +127,7 @@ func TestSecretProvider_KubernetesAndK8sClientForRuntimeID(t *testing.T) {
 			"config": kubeconfig,
 		},
 	})
+	assert.NoError(t, err)
 	provider := SecretProvider{
 		kcpK8sClient: kcpClient,
 	}

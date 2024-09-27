@@ -3,7 +3,7 @@ package postsql
 import (
 	"time"
 
-	dbr "github.com/gocraft/dbr"
+	"github.com/gocraft/dbr"
 	"github.com/kyma-project/kyma-environment-broker/common/events"
 	"github.com/kyma-project/kyma-environment-broker/internal"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage/dberr"
@@ -24,7 +24,7 @@ type ReadSession interface {
 	FindAllInstancesForRuntimes(runtimeIdList []string) ([]dbmodel.InstanceDTO, dberr.Error)
 	FindAllInstancesForSubAccounts(subAccountslist []string) ([]dbmodel.InstanceDTO, dberr.Error)
 	GetInstanceByID(instanceID string) (dbmodel.InstanceDTO, dberr.Error)
-	GetLastOperation(instanceID string) (dbmodel.OperationDTO, dberr.Error)
+	GetLastOperation(instanceID string, types []internal.OperationType) (dbmodel.OperationDTO, dberr.Error)
 	GetOperationByID(opID string) (dbmodel.OperationDTO, dberr.Error)
 	GetNotFinishedOperationsByType(operationType internal.OperationType) ([]dbmodel.OperationDTO, dberr.Error)
 	CountNotFinishedOperationsByInstanceID(instanceID string) (int, dberr.Error)
@@ -43,15 +43,24 @@ type ReadSession interface {
 	ListRuntimeStateByRuntimeID(runtimeID string) ([]dbmodel.RuntimeStateDTO, dberr.Error)
 	GetOrchestrationByID(oID string) (dbmodel.OrchestrationDTO, dberr.Error)
 	ListOrchestrations(filter dbmodel.OrchestrationFilter) ([]dbmodel.OrchestrationDTO, int, int, error)
-	ListInstances(filter dbmodel.InstanceFilter) ([]dbmodel.InstanceDTO, int, int, error)
+	ListInstances(filter dbmodel.InstanceFilter) ([]dbmodel.InstanceWithExtendedOperationDTO, int, int, error)
 	ListOperationsByOrchestrationID(orchestrationID string, filter dbmodel.OperationFilter) ([]dbmodel.OperationDTO, int, int, error)
 	ListOperationsInTimeRange(from, to time.Time) ([]dbmodel.OperationDTO, error)
 	GetOperationStatsForOrchestration(orchestrationID string) ([]dbmodel.OperationStatEntry, error)
 	GetLatestRuntimeStateByRuntimeID(runtimeID string) (dbmodel.RuntimeStateDTO, dberr.Error)
-	GetLatestRuntimeStateWithReconcilerInputByRuntimeID(runtimeID string) (dbmodel.RuntimeStateDTO, dberr.Error)
-	GetLatestRuntimeStateWithKymaVersionByRuntimeID(runtimeID string) (dbmodel.RuntimeStateDTO, dberr.Error)
 	GetLatestRuntimeStateWithOIDCConfigByRuntimeID(runtimeID string) (dbmodel.RuntimeStateDTO, dberr.Error)
 	ListEvents(filter events.EventFilter) ([]events.EventDTO, error)
+	GetDistinctSubAccounts() ([]string, dberr.Error)
+	ListSubaccountStates() ([]dbmodel.SubaccountStateDTO, dberr.Error)
+	GetInstanceArchivedByID(id string) (dbmodel.InstanceArchivedDTO, error)
+	GetOperationsStatsV2() ([]dbmodel.OperationStatEntryV2, error)
+	ListDeletedInstanceIDs(amount int) ([]string, error)
+	NumberOfOperationsForDeletedInstances() (int, error)
+	TotalNumberOfInstancesArchived() (int, error)
+	NumberOfDeletedInstances() (int, error)
+	TotalNumberOfInstancesArchivedForGlobalAccountID(globalAccountID string, planID string) (int, error)
+	GetAllOperations() ([]dbmodel.OperationDTO, error)
+	ListInstancesArchived(filter dbmodel.InstanceFilter) ([]dbmodel.InstanceArchivedDTO, int, int, error)
 }
 
 //go:generate mockery --name=WriteSession
@@ -66,6 +75,11 @@ type WriteSession interface {
 	InsertRuntimeState(state dbmodel.RuntimeStateDTO) dberr.Error
 	InsertEvent(level events.EventLevel, message, instanceID, operationID string) dberr.Error
 	DeleteEvents(until time.Time) dberr.Error
+	UpsertSubaccountState(state dbmodel.SubaccountStateDTO) dberr.Error
+	DeleteState(id string) dberr.Error
+	DeleteRuntimeStatesByOperationID(operationID string) error
+	DeleteOperationByID(operationID string) dberr.Error
+	InsertInstanceArchived(instance dbmodel.InstanceArchivedDTO) dberr.Error
 }
 
 type Transaction interface {

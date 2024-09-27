@@ -3,6 +3,7 @@
   "_controlsOrder": [
     "name",
     "region",
+    "shootAndSeedSameRegion",
     "machineType",
     "autoScalerMin",
     "autoScalerMax",
@@ -24,7 +25,7 @@
     "autoScalerMax": {
       "default": 20,
       "description": "Specifies the maximum number of virtual machines to create",
-      "maximum": 80,
+      "maximum": 300,
       "minimum": 3,
       "type": "integer"
     },
@@ -35,7 +36,16 @@
       "type": "integer"
     },
     "machineType": {
+      "_enumDisplayName": {
+        "n2-standard-2":  "n2-standard-2 (2vCPU, 8GB RAM)",
+        "n2-standard-4":  "n2-standard-4 (4vCPU, 16GB RAM)",
+        "n2-standard-8":  "n2-standard-8 (8vCPU, 32GB RAM)",
+        "n2-standard-16": "n2-standard-16 (16vCPU, 64GB RAM)",
+        "n2-standard-32": "n2-standard-32 (32vCPU, 128GB RAM)",
+        "n2-standard-48": "n2-standard-48 (48vCPU, 192B RAM)"
+      },
       "enum": [
+        "n2-standard-2",
         "n2-standard-4",
         "n2-standard-8",
         "n2-standard-16",
@@ -140,12 +150,24 @@
       "type": "string"
     },
     "networking": {
-      "description": "Networking configuration. These values are immutable and cannot be updated later.",
+      "description": "Networking configuration. These values are immutable and cannot be updated later. All provided CIDR ranges must not overlap one another.",
       "properties": {
         "nodes": {
           "default": "10.250.0.0/22",
-          "description": "CIDR range for nodes, must not overlap with the following CIDRs: 10.96.0.0/13, 10.104.0.0/13, 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
-          "title": "CIDR range for nodes",
+          "description": "CIDR range for Nodes, must not overlap with the following CIDRs: 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
+          "title": "CIDR range for Nodes",
+          "type": "string"
+        },
+        "pods": {
+          "default": "10.96.0.0/13",
+          "description": "CIDR range for Pods, must not overlap with the following CIDRs: 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
+          "title": "CIDR range for Pods",
+          "type": "string"
+        },
+        "services": {
+          "default": "10.104.0.0/13",
+          "description": "CIDR range for Services, must not overlap with the following CIDRs: 10.243.128.0/17, 10.242.0.0/16, 10.243.0.0/17, 10.64.0.0/11, 10.254.0.0/16, 10.243.0.0/16",
+          "title": "CIDR range for Services",
           "type": "string"
         }
       },
@@ -192,13 +214,34 @@
       "type": "object"
     },
     "region": {
+      "_enumDisplayName": {
+        "europe-west3": "europe-west3 (Europe, Frankfurt)",
+        "asia-south1": "asia-south1 (India, Mumbai)",
+        "us-central1": "us-central1 (US Central, IA)",
+        "me-central2": "me-central2 (KSA, Dammam)",
+        "asia-northeast2": "asia-northeast2 (Japan, Osaka)",
+        "me-west1": "me-west1 (Israel, Tel Aviv)",
+        "southamerica-east1": "southamerica-east1 (Brazil, São Paulo)",
+        "australia-southeast1": "australia-southeast1 (Australia, Sydney)"
+      },
       "enum": [
         "europe-west3",
         "asia-south1",
-        "us-central1"
+        "us-central1",
+        "me-central2",
+        "asia-northeast2",
+        "me-west1",
+        "southamerica-east1",
+        "australia-southeast1"
       ],
       "minLength": 1,
       "type": "string"
+    },
+    "shootAndSeedSameRegion": {
+      "default": false,
+      "description": "If set to true a Gardener seed will be placed in the same region as the selected region from the Region field. Provisioning process will fail if no seed is availabie in the region.",
+      "type": "boolean",
+      "title": "Enforce Same Location for Seed and Shoot" 
     }
   },
   "required": [

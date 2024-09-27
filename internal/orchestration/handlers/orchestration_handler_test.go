@@ -9,16 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	reconcilerApi "github.com/kyma-incubator/reconciler/pkg/keb"
 	"github.com/kyma-project/control-plane/components/provisioner/pkg/gqlschema"
 	"github.com/kyma-project/kyma-environment-broker/common/orchestration"
 	"github.com/kyma-project/kyma-environment-broker/internal"
-	"github.com/kyma-project/kyma-environment-broker/internal/broker"
 	"github.com/kyma-project/kyma-environment-broker/internal/fixture"
 	"github.com/kyma-project/kyma-environment-broker/internal/process"
-	"github.com/kyma-project/kyma-environment-broker/internal/ptr"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"github.com/sirupsen/logrus"
@@ -38,7 +34,7 @@ func TestStatusHandler_AttachRoutes(t *testing.T) {
 		require.NoError(t, err)
 
 		logs := logrus.New()
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, nil, 100, logs)
+		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, 100, logs)
 
 		req, err := http.NewRequest("GET", "/orchestrations?page_size=1", nil)
 		require.NoError(t, err)
@@ -83,7 +79,7 @@ func TestStatusHandler_AttachRoutes(t *testing.T) {
 		req, err = http.NewRequest(http.MethodGet, urlPath, nil)
 		require.NoError(t, err)
 		rr = httptest.NewRecorder()
-		err = db.Operations().InsertUpgradeKymaOperation(internal.UpgradeKymaOperation{
+		err = db.Operations().InsertUpgradeClusterOperation(internal.UpgradeClusterOperation{
 			Operation: internal.Operation{
 				ID:              fixID,
 				InstanceID:      fixID,
@@ -95,7 +91,7 @@ func TestStatusHandler_AttachRoutes(t *testing.T) {
 				RuntimeOperation: orchestration.RuntimeOperation{
 					ID: fixID,
 				},
-				Type: internal.OperationTypeUpgradeKyma,
+				Type: internal.OperationTypeUpgradeCluster,
 			},
 		})
 		err = db.Operations().InsertProvisioningOperation(internal.ProvisioningOperation{
@@ -119,84 +115,6 @@ func TestStatusHandler_AttachRoutes(t *testing.T) {
 		assert.Equal(t, dto.OrchestrationID, fixID)
 		assert.Len(t, dto.OperationStats, 6)
 		assert.Equal(t, 1, dto.OperationStats[orchestration.Succeeded])
-	})
-
-	t.Run("kyma upgrade operations", func(t *testing.T) {
-		// given
-		db := storage.NewMemoryStorage()
-		secondID := "id-2"
-
-		err := db.Orchestrations().Insert(internal.Orchestration{OrchestrationID: fixID, Type: orchestration.UpgradeKymaOrchestration})
-		require.NoError(t, err)
-		err = db.Operations().InsertUpgradeKymaOperation(internal.UpgradeKymaOperation{
-			Operation: internal.Operation{
-				ID:              fixID,
-				InstanceID:      fixID,
-				OrchestrationID: fixID,
-				ProvisioningParameters: internal.ProvisioningParameters{
-					PlanID: "4deee563-e5ec-4731-b9b1-53b42d855f0c",
-				},
-				RuntimeOperation: orchestration.RuntimeOperation{
-					ID: fixID,
-				},
-			},
-		})
-		err = db.Operations().InsertProvisioningOperation(internal.ProvisioningOperation{
-			Operation: internal.Operation{
-				ID:         secondID,
-				InstanceID: fixID,
-			},
-		})
-		require.NoError(t, err)
-
-		err = db.RuntimeStates().Insert(internal.RuntimeState{ID: secondID, OperationID: secondID})
-		require.NoError(t, err)
-		err = db.RuntimeStates().Insert(internal.RuntimeState{ID: fixID, OperationID: fixID})
-		require.NoError(t, err)
-
-		logs := logrus.New()
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, nil, 100, logs)
-
-		urlPath := fmt.Sprintf("/orchestrations/%s/operations", fixID)
-		req, err := http.NewRequest("GET", urlPath, nil)
-		require.NoError(t, err)
-
-		rr := httptest.NewRecorder()
-		router := mux.NewRouter()
-		kymaHandler.AttachRoutes(router)
-
-		// when
-		router.ServeHTTP(rr, req)
-
-		// then
-		require.Equal(t, http.StatusOK, rr.Code)
-
-		var out orchestration.OperationResponseList
-
-		err = json.Unmarshal(rr.Body.Bytes(), &out)
-		require.NoError(t, err)
-		assert.Len(t, out.Data, 1)
-		assert.Equal(t, 1, out.TotalCount)
-		assert.Equal(t, 1, out.Count)
-
-		// given
-		urlPath = fmt.Sprintf("/orchestrations/%s/operations/%s", fixID, fixID)
-		req, err = http.NewRequest(http.MethodGet, urlPath, nil)
-		require.NoError(t, err)
-		rr = httptest.NewRecorder()
-
-		dto := orchestration.OperationDetailResponse{}
-
-		// when
-		router.ServeHTTP(rr, req)
-
-		// then
-		require.Equal(t, http.StatusOK, rr.Code)
-
-		err = json.Unmarshal(rr.Body.Bytes(), &dto)
-		require.NoError(t, err)
-		assert.Equal(t, dto.OrchestrationID, fixID)
-		assert.Equal(t, dto.OperationID, fixID)
 	})
 
 	t.Run("cluster upgrade operations", func(t *testing.T) {
@@ -224,7 +142,7 @@ func TestStatusHandler_AttachRoutes(t *testing.T) {
 		require.NoError(t, err)
 
 		logs := logrus.New()
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, nil, 100, logs)
+		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, 100, logs)
 
 		urlPath := fmt.Sprintf("/orchestrations/%s/operations", fixID)
 		req, err := http.NewRequest("GET", urlPath, nil)
@@ -276,7 +194,7 @@ func TestStatusHandler_AttachRoutes(t *testing.T) {
 		require.NoError(t, err)
 
 		logs := logrus.New()
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, nil, 100, logs)
+		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, 100, logs)
 
 		req, err := http.NewRequest("PUT", fmt.Sprintf("/orchestrations/%s/cancel", fixID), nil)
 		require.NoError(t, err)
@@ -300,160 +218,6 @@ func TestStatusHandler_AttachRoutes(t *testing.T) {
 		o, err := db.Orchestrations().GetByID(fixID)
 		require.NoError(t, err)
 		assert.Equal(t, orchestration.Canceling, o.State)
-	})
-
-	t.Run("Kyma 2.0 upgrade operation", func(t *testing.T) {
-		// given
-		db := storage.NewMemoryStorage()
-
-		instanceID := "instanceID"
-		provisioningOp1ID := "provisioningOp1ID"
-
-		provisioningOp1 := internal.ProvisioningOperation{
-			Operation: internal.Operation{
-				ID:         provisioningOp1ID,
-				InstanceID: instanceID,
-			},
-		}
-
-		err := db.Operations().InsertProvisioningOperation(provisioningOp1)
-		require.NoError(t, err)
-
-		orchestration1ID := "ochestration1ID"
-		orchestration1 := internal.Orchestration{
-			OrchestrationID: orchestration1ID,
-			Type:            orchestration.UpgradeKymaOrchestration,
-		}
-
-		err = db.Orchestrations().Insert(orchestration1)
-		require.NoError(t, err)
-
-		upgradeKymaOp1ID := "upgradeKymaOperation1ID"
-		upgradeKymaOp1 := internal.UpgradeKymaOperation{
-			Operation: internal.Operation{
-				ID:              upgradeKymaOp1ID,
-				InstanceID:      instanceID,
-				OrchestrationID: orchestration1ID,
-				ProvisioningParameters: internal.ProvisioningParameters{
-					PlanID: broker.AzurePlanID,
-				},
-				RuntimeOperation: orchestration.RuntimeOperation{
-					ID: upgradeKymaOp1ID,
-				},
-			},
-		}
-
-		err = db.Operations().InsertUpgradeKymaOperation(upgradeKymaOp1)
-		require.NoError(t, err)
-
-		runtimeStateWithClusterSetupID := "runtimeStateWithClusterSetupID"
-		runtimeStateWithClusterSetup := internal.RuntimeState{
-			ID:          runtimeStateWithClusterSetupID,
-			RuntimeID:   uuid.NewString(),
-			OperationID: upgradeKymaOp1ID,
-			ClusterSetup: &reconcilerApi.Cluster{
-				RuntimeID: uuid.NewString(),
-				KymaConfig: reconcilerApi.KymaConfig{
-					Version: "2.0.0",
-					Profile: string(gqlschema.KymaProfileProduction),
-					Components: []reconcilerApi.Component{
-						{
-							URL:       "component1URL.local",
-							Component: "component1",
-							Namespace: "test",
-							Configuration: []reconcilerApi.Configuration{
-								{
-									Key:    "key1",
-									Value:  "value1",
-									Secret: false,
-								},
-								{
-									Key:    "key2",
-									Value:  "value2",
-									Secret: true,
-								},
-							},
-						},
-					},
-					Administrators: []string{"admin1@test.com", "admin2@test.com"},
-				},
-			},
-		}
-
-		err = db.RuntimeStates().Insert(runtimeStateWithClusterSetup)
-		require.NoError(t, err)
-
-		logs := logrus.New()
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, nil, 100, logs)
-
-		urlPath := fmt.Sprintf("/orchestrations/%s/operations", orchestration1ID)
-		req, err := http.NewRequest("GET", urlPath, nil)
-		require.NoError(t, err)
-
-		rr := httptest.NewRecorder()
-		router := mux.NewRouter()
-		kymaHandler.AttachRoutes(router)
-
-		// when
-		router.ServeHTTP(rr, req)
-
-		// then
-		require.Equal(t, http.StatusOK, rr.Code)
-
-		var opResponseList orchestration.OperationResponseList
-
-		err = json.Unmarshal(rr.Body.Bytes(), &opResponseList)
-		require.NoError(t, err)
-
-		assert.Len(t, opResponseList.Data, 1)
-		assert.Equal(t, 1, opResponseList.TotalCount)
-		assert.Equal(t, 1, opResponseList.Count)
-
-		// given
-		urlPath = fmt.Sprintf("/orchestrations/%s/operations/%s", orchestration1ID, upgradeKymaOp1ID)
-		req, err = http.NewRequest(http.MethodGet, urlPath, nil)
-		require.NoError(t, err)
-
-		rr = httptest.NewRecorder()
-
-		// when
-		router.ServeHTTP(rr, req)
-
-		// then
-		require.Equal(t, http.StatusOK, rr.Code)
-
-		var opDetailResponse orchestration.OperationDetailResponse
-		err = json.Unmarshal(rr.Body.Bytes(), &opDetailResponse)
-		require.NoError(t, err)
-
-		expectedKymaConfig := gqlschema.KymaConfigInput{
-			Version: "2.0.0",
-			Profile: (*gqlschema.KymaProfile)(ptr.String("Production")),
-			Components: []*gqlschema.ComponentConfigurationInput{
-				{
-					Component: "component1",
-					Namespace: "test",
-					SourceURL: ptr.String("component1URL.local"),
-					Configuration: []*gqlschema.ConfigEntryInput{
-						{
-							Key:    "key1",
-							Value:  "value1",
-							Secret: ptr.Bool(false),
-						},
-						{
-							Key:    "key2",
-							Value:  "value2",
-							Secret: ptr.Bool(true),
-						},
-					},
-				},
-			},
-		}
-
-		assert.Equal(t, opDetailResponse.OrchestrationID, orchestration1ID)
-		assert.Equal(t, opDetailResponse.OperationID, upgradeKymaOp1ID)
-		assert.NotNil(t, opDetailResponse.KymaConfig)
-		assertKymaConfigValues(t, expectedKymaConfig, *opDetailResponse.KymaConfig)
 	})
 }
 
@@ -484,7 +248,7 @@ func TestStatusRetryHandler_AttachRoutes(t *testing.T) {
 
 		logs := logrus.New()
 		clusterQueue := process.NewQueue(&testExecutor{}, logs)
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, clusterQueue, 100, logs)
+		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), clusterQueue, 100, logs)
 
 		for i, id := range operationIDs {
 			operationIDs[i] = "operation-id=" + id
@@ -543,82 +307,6 @@ func TestStatusRetryHandler_AttachRoutes(t *testing.T) {
 		assert.Equal(t, orchestration.Succeeded, string(op.State))
 	})
 
-	t.Run("retry failed kyma orchestration with specified operations", func(t *testing.T) {
-		// given
-		db := storage.NewMemoryStorage()
-
-		orchestrationID := "orchestration-" + fixID
-		operationIDs := []string{"id-0", "id-1", "id-2", "id-3", "id-10"}
-		err := db.Orchestrations().Insert(internal.Orchestration{OrchestrationID: orchestrationID, State: orchestration.Failed, Type: orchestration.UpgradeKymaOrchestration})
-		require.NoError(t, err)
-
-		err = fixFailedOrchestrationOperations(db, orchestrationID, orchestration.UpgradeKymaOrchestration)
-		require.NoError(t, err)
-
-		// same instance but different same type newer operation
-		err = db.Orchestrations().Insert(internal.Orchestration{OrchestrationID: "Orchestration-id-4", State: orchestration.Failed, Type: orchestration.UpgradeKymaOrchestration})
-		require.NoError(t, err)
-		sameInstOp := fixture.FixUpgradeKymaOperation("id-4", "instance-id-0")
-		sameInstOp.CreatedAt = time.Now().Add(time.Hour * 2)
-		sameInstOp.State = orchestration.Failed
-		err = db.Operations().InsertUpgradeKymaOperation(sameInstOp)
-		require.NoError(t, err)
-
-		logs := logrus.New()
-		kymaQueue := process.NewQueue(&testExecutor{}, logs)
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), kymaQueue, nil, 100, logs)
-
-		for i, id := range operationIDs {
-			operationIDs[i] = "operation-id=" + id
-		}
-		req, err := http.NewRequest("POST", fmt.Sprintf("/orchestrations/%s/retry", orchestrationID), strings.NewReader(strings.Join(operationIDs, "&")))
-		require.NoError(t, err)
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-		rr := httptest.NewRecorder()
-		router := mux.NewRouter()
-		kymaHandler.AttachRoutes(router)
-
-		// when
-		router.ServeHTTP(rr, req)
-
-		// then
-		require.Equal(t, http.StatusAccepted, rr.Code)
-
-		var out orchestration.RetryResponse
-		expectedOut := orchestration.RetryResponse{
-			OrchestrationID:   orchestrationID,
-			RetryShoots:       []string{"Shoot-instance-id-2"},
-			OldOperations:     []string{"id-0"},
-			InvalidOperations: []string{"id-1", "id-3", "id-10"},
-			Msg:               "retry operations are queued for processing",
-		}
-
-		err = json.Unmarshal(rr.Body.Bytes(), &out)
-		require.NoError(t, err)
-		assert.Equal(t, expectedOut, out)
-
-		o, err := db.Orchestrations().GetByID(orchestrationID)
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Retrying, o.State)
-
-		op, err := db.Operations().GetOperationByID("id-0")
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Failed, string(op.State))
-
-		op, err = db.Operations().GetOperationByID("id-1")
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Succeeded, string(op.State))
-
-		op, err = db.Operations().GetOperationByID("id-2")
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Failed, string(op.State))
-
-		op, err = db.Operations().GetOperationByID("id-3")
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Succeeded, string(op.State))
-	})
-
 	t.Run("retry failed cluster orchestration without specified operations", func(t *testing.T) {
 		// given
 		db := storage.NewMemoryStorage()
@@ -643,7 +331,7 @@ func TestStatusRetryHandler_AttachRoutes(t *testing.T) {
 
 		logs := logrus.New()
 		clusterQueue := process.NewQueue(&testExecutor{}, logs)
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, clusterQueue, 100, logs)
+		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), clusterQueue, 100, logs)
 
 		req, err := http.NewRequest("POST", fmt.Sprintf("/orchestrations/%s/retry", orchestrationID), nil)
 		require.NoError(t, err)
@@ -726,76 +414,7 @@ func TestStatusRetryHandler_AttachRoutes(t *testing.T) {
 
 		logs := logrus.New()
 		clusterQueue := process.NewQueue(&testExecutor{}, logs)
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, clusterQueue, 100, logs)
-
-		req, err := http.NewRequest("POST", fmt.Sprintf("/orchestrations/%s/retry", orchestrationID), nil)
-		require.NoError(t, err)
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-		rr := httptest.NewRecorder()
-		router := mux.NewRouter()
-		kymaHandler.AttachRoutes(router)
-
-		// when
-		router.ServeHTTP(rr, req)
-
-		// then
-		require.Equal(t, http.StatusAccepted, rr.Code)
-
-		var out orchestration.RetryResponse
-		expectedOut := orchestration.RetryResponse{
-			OrchestrationID:   orchestrationID,
-			RetryShoots:       []string{"Shoot-instance-id-0", "Shoot-instance-id-2"},
-			OldOperations:     nil,
-			InvalidOperations: nil,
-			Msg:               "retry operations are queued for processing",
-		}
-
-		err = json.Unmarshal(rr.Body.Bytes(), &out)
-		require.NoError(t, err)
-		assert.Equal(t, expectedOut, out)
-
-		o, err := db.Orchestrations().GetByID(orchestrationID)
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Retrying, o.State)
-
-		op, err := db.Operations().GetOperationByID("id-0")
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Failed, string(op.State))
-
-		op, err = db.Operations().GetOperationByID("id-1")
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Succeeded, string(op.State))
-
-		op, err = db.Operations().GetOperationByID("id-2")
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Failed, string(op.State))
-
-		op, err = db.Operations().GetOperationByID("id-3")
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Succeeded, string(op.State))
-	})
-
-	t.Run("retry failed kyma orchestration with deprovisioned instance", func(t *testing.T) {
-		// given
-		db := storage.NewMemoryStorage()
-
-		orchestrationID := "orchestration-" + fixID
-		err := db.Orchestrations().Insert(internal.Orchestration{OrchestrationID: orchestrationID, State: orchestration.Failed, Type: orchestration.UpgradeKymaOrchestration})
-		require.NoError(t, err)
-
-		err = fixFailedOrchestrationOperations(db, orchestrationID, orchestration.UpgradeKymaOrchestration)
-		require.NoError(t, err)
-
-		// insert a deprovisioned instance
-		deprovisioningOperation := fixture.FixDeprovisioningOperation("id-5", "instance-id-0")
-		deprovisioningOperation.State = orchestration.InProgress
-		err = db.Operations().InsertDeprovisioningOperation(deprovisioningOperation)
-		require.NoError(t, err)
-
-		logs := logrus.New()
-		kymaQueue := process.NewQueue(&testExecutor{}, logs)
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), kymaQueue, nil, 100, logs)
+		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), clusterQueue, 100, logs)
 
 		req, err := http.NewRequest("POST", fmt.Sprintf("/orchestrations/%s/retry", orchestrationID), nil)
 		require.NoError(t, err)
@@ -858,7 +477,7 @@ func TestStatusRetryHandler_AttachRoutes(t *testing.T) {
 
 		logs := logrus.New()
 		clusterQueue := process.NewQueue(&testExecutor{}, logs)
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), nil, clusterQueue, 100, logs)
+		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), clusterQueue, 100, logs)
 
 		req, err := http.NewRequest("POST", fmt.Sprintf("/orchestrations/%s/retry", orchestrationID), nil)
 		require.NoError(t, err)
@@ -907,63 +526,6 @@ func TestStatusRetryHandler_AttachRoutes(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, orchestration.Succeeded, string(op.State))
 	})
-
-	t.Run("retry failed kyma orchestration - testing scheduling", func(t *testing.T) {
-		// given
-		db := storage.NewMemoryStorage()
-
-		orchestrationID := "orchestration-" + fixID
-		operationIDs := []string{"id-2"}
-		err := db.Orchestrations().Insert(internal.Orchestration{OrchestrationID: orchestrationID, State: orchestration.Failed, Type: orchestration.UpgradeKymaOrchestration, Parameters: orchestration.Parameters{Strategy: orchestration.StrategySpec{Schedule: time.Now().Format(time.RFC3339), MaintenanceWindow: true}}})
-		require.NoError(t, err)
-
-		err = fixFailedOrchestrationOperations(db, orchestrationID, orchestration.UpgradeKymaOrchestration)
-		require.NoError(t, err)
-
-		logs := logrus.New()
-		kymaQueue := process.NewQueue(&testExecutor{}, logs)
-		kymaHandler := NewOrchestrationStatusHandler(db.Operations(), db.Orchestrations(), db.RuntimeStates(), kymaQueue, nil, 100, logs)
-
-		for i, id := range operationIDs {
-			operationIDs[i] = "operation-id=" + id
-		}
-		str := strings.Join(operationIDs, "&")
-		req, err := http.NewRequest("POST", fmt.Sprintf("/orchestrations/%s/retry", orchestrationID), strings.NewReader(str+"&immediate=true"))
-		require.NoError(t, err)
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-		rr := httptest.NewRecorder()
-		router := mux.NewRouter()
-		kymaHandler.AttachRoutes(router)
-
-		// when
-		router.ServeHTTP(rr, req)
-
-		// then
-		require.Equal(t, http.StatusAccepted, rr.Code)
-
-		var out orchestration.RetryResponse
-		expectedOut := orchestration.RetryResponse{
-			OrchestrationID:   orchestrationID,
-			RetryShoots:       []string{"Shoot-instance-id-2"},
-			OldOperations:     nil,
-			InvalidOperations: nil,
-			Msg:               "retry operations are queued for processing",
-		}
-
-		err = json.Unmarshal(rr.Body.Bytes(), &out)
-		require.NoError(t, err)
-		assert.Equal(t, expectedOut, out)
-
-		op, err := db.Operations().GetUpgradeKymaOperationByID("id-2")
-		require.NoError(t, err)
-		assert.NotEqual(t, op.MaintenanceWindowBegin, time.Time{})
-
-		o, err := db.Orchestrations().GetByID(orchestrationID)
-		require.NoError(t, err)
-		assert.Equal(t, orchestration.Retrying, o.State)
-
-	})
 }
 
 func assertKymaConfigValues(t *testing.T, expected, actual gqlschema.KymaConfigInput) {
@@ -1004,24 +566,6 @@ func fixFailedOrchestrationOperations(db storage.BrokerStorage, orchestrationID 
 
 		for _, op := range operations {
 			err := db.Operations().InsertUpgradeClusterOperation(op)
-			if err != nil {
-				return err
-			}
-		}
-	case orchestration.UpgradeKymaOrchestration:
-		operations := []internal.UpgradeKymaOperation{}
-
-		for i, id := range operationIDs {
-			operations = append(operations, fixture.FixUpgradeKymaOperation(id, "instance-"+id))
-			operations[i].OrchestrationID = orchestrationID
-			if i%2 == 0 {
-				operations[i].State = orchestration.Failed
-				continue
-			}
-		}
-
-		for _, op := range operations {
-			err := db.Operations().InsertUpgradeKymaOperation(op)
 			if err != nil {
 				return err
 			}

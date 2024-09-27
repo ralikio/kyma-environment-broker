@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kyma-project/kyma-environment-broker/internal"
+	"github.com/kyma-project/kyma-environment-broker/internal/broker"
 	"github.com/kyma-project/kyma-environment-broker/internal/process"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/sirupsen/logrus"
@@ -20,16 +21,18 @@ import (
 
 const GardenerClusterStateReady = "Ready"
 
-func NewSyncGardenerCluster(os storage.Operations, k8sClient client.Client) *syncGardenerCluster {
+func NewSyncGardenerCluster(os storage.Operations, k8sClient client.Client, kimConfig broker.KimConfig) *syncGardenerCluster {
 	return &syncGardenerCluster{
 		k8sClient:        k8sClient,
+		kimConfig:        kimConfig,
 		operationManager: process.NewOperationManager(os),
 	}
 }
 
-func NewCheckGardenerCluster(os storage.Operations, k8sClient client.Client, gardenerClusterStepTimeout time.Duration) *checkGardenerCluster {
+func NewCheckGardenerCluster(os storage.Operations, k8sClient client.Client, kimConfig broker.KimConfig, gardenerClusterStepTimeout time.Duration) *checkGardenerCluster {
 	return &checkGardenerCluster{
 		k8sClient:                  k8sClient,
+		kimConfig:                  kimConfig,
 		operationManager:           process.NewOperationManager(os),
 		gardenerClusterStepTimeout: gardenerClusterStepTimeout,
 	}
@@ -38,6 +41,7 @@ func NewCheckGardenerCluster(os storage.Operations, k8sClient client.Client, gar
 type checkGardenerCluster struct {
 	k8sClient                  client.Client
 	operationManager           *process.OperationManager
+	kimConfig                  broker.KimConfig
 	gardenerClusterStepTimeout time.Duration
 }
 
@@ -46,6 +50,11 @@ func (_ *checkGardenerCluster) Name() string {
 }
 
 func (s *checkGardenerCluster) Run(operation internal.Operation, log logrus.FieldLogger) (internal.Operation, time.Duration, error) {
+	if s.kimConfig.IsDrivenByKim(broker.PlanNamesMapping[operation.ProvisioningParameters.PlanID]) {
+		log.Infof("KIM is driving the process for plan %s, skipping", broker.PlanNamesMapping[operation.ProvisioningParameters.PlanID])
+		return operation, 0, nil
+	}
+
 	gc, err := s.GetGardenerCluster(operation.RuntimeID, operation.KymaResourceNamespace)
 	if err != nil {
 		log.Errorf("unable to get GardenerCluster %s/%s", operation.KymaResourceNamespace, operation.RuntimeID)
@@ -85,6 +94,7 @@ func (s *checkGardenerCluster) GetGardenerCluster(name string, namespace string)
 
 type syncGardenerCluster struct {
 	k8sClient        client.Client
+	kimConfig        broker.KimConfig
 	operationManager *process.OperationManager
 }
 
@@ -93,6 +103,11 @@ func (_ *syncGardenerCluster) Name() string {
 }
 
 func (s *syncGardenerCluster) Run(operation internal.Operation, log logrus.FieldLogger) (internal.Operation, time.Duration, error) {
+	if s.kimConfig.IsDrivenByKim(broker.PlanNamesMapping[operation.ProvisioningParameters.PlanID]) {
+		log.Infof("KIM is driving the process for plan %s, skipping", broker.PlanNamesMapping[operation.ProvisioningParameters.PlanID])
+		return operation, 0, nil
+	}
+
 	if operation.GardenerClusterName == "" {
 		modifiedOperation, backoff, _ := s.operationManager.UpdateOperation(operation, func(op *internal.Operation) {
 			op.GardenerClusterName = GardenerClusterName(op)
@@ -108,8 +123,16 @@ func (s *syncGardenerCluster) Run(operation internal.Operation, log logrus.Field
 		log.Errorf("unable to get GardenerCluster %s/%s", operation.KymaResourceNamespace, operation.RuntimeID)
 		return s.operationManager.RetryOperation(operation, "unable to get GardenerCluster", err, 3*time.Second, 20*time.Second, log)
 	}
-	gardenerCluster.SetShootName(operation.ShootName)
-	gardenerCluster.SetKubecofigSecret(fmt.Sprintf("kubeconfig-%s", operation.RuntimeID), operation.KymaResourceNamespace)
+	err = gardenerCluster.SetShootName(operation.ShootName)
+	if err != nil {
+		log.Errorf("unable to set GardenerCluster shoot name: %s", err)
+		return s.operationManager.RetryOperation(operation, "unable to set GardenerCluster shoot name", err, 3*time.Second, 20*time.Second, log)
+	}
+	err = gardenerCluster.SetKubecofigSecret(fmt.Sprintf("kubeconfig-%s", operation.RuntimeID), operation.KymaResourceNamespace)
+	if err != nil {
+		log.Errorf("unable to set GardenerCluster kubeconfig secret: %s", err)
+		return s.operationManager.RetryOperation(operation, "unable to set GardenerCluster kubeconfig secret", err, 3*time.Second, 20*time.Second, log)
+	}
 
 	obj := gardenerCluster.ToUnstructured()
 	ApplyLabelsAndAnnotationsForLM(obj, operation)
@@ -161,6 +184,10 @@ func GardenerClusterName(operation *internal.Operation) string {
 	return strings.ToLower(operation.RuntimeID)
 }
 
+func GardenerClusterNameFromInstance(instance *internal.Instance) string {
+	return strings.ToLower(instance.RuntimeID)
+}
+
 type GardenerCluster struct {
 	obj *unstructured.Unstructured
 }
@@ -182,14 +209,21 @@ func (c *GardenerCluster) ObjectKey() client.ObjectKey {
 	return client.ObjectKeyFromObject(c.obj)
 }
 
-func (c *GardenerCluster) SetShootName(shootName string) {
-	unstructured.SetNestedField(c.obj.Object, shootName, "spec", "shoot", "name")
+func (c *GardenerCluster) SetShootName(shootName string) error {
+	return unstructured.SetNestedField(c.obj.Object, shootName, "spec", "shoot", "name")
 }
 
-func (c *GardenerCluster) SetKubecofigSecret(name, namespace string) {
-	unstructured.SetNestedField(c.obj.Object, name, "spec", "kubeconfig", "secret", "name")
-	unstructured.SetNestedField(c.obj.Object, namespace, "spec", "kubeconfig", "secret", "namespace")
-	unstructured.SetNestedField(c.obj.Object, "config", "spec", "kubeconfig", "secret", "key")
+func (c *GardenerCluster) SetKubecofigSecret(name, namespace string) error {
+	if err := unstructured.SetNestedField(c.obj.Object, name, "spec", "kubeconfig", "secret", "name"); err != nil {
+		return err
+	}
+	if err := unstructured.SetNestedField(c.obj.Object, namespace, "spec", "kubeconfig", "secret", "namespace"); err != nil {
+		return err
+	}
+	if err := unstructured.SetNestedField(c.obj.Object, "config", "spec", "kubeconfig", "secret", "key"); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *GardenerCluster) ToUnstructured() *unstructured.Unstructured {
@@ -225,10 +259,10 @@ func (c *GardenerCluster) StatusAsString() string {
 	return string(bytes)
 }
 
-func (c *GardenerCluster) SetState(state string) {
-	unstructured.SetNestedField(c.obj.Object, state, "status", "state")
+func (c *GardenerCluster) SetState(state string) error {
+	return unstructured.SetNestedField(c.obj.Object, state, "status", "state")
 }
 
-func (c *GardenerCluster) SetStatusConditions(conditions interface{}) {
-	unstructured.SetNestedField(c.obj.Object, conditions, "status", "conditions")
+func (c *GardenerCluster) SetStatusConditions(conditions interface{}) error {
+	return unstructured.SetNestedField(c.obj.Object, conditions, "status", "conditions")
 }

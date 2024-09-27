@@ -7,11 +7,15 @@ import (
 	"log"
 	"os"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	imagetypes "github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+)
+
+const (
+	PostgresImage = "europe-docker.pkg.dev/kyma-project/prod/external/postgres:11.21-alpine3.18"
 )
 
 type DockerHelper struct {
@@ -49,11 +53,11 @@ func (d *DockerHelper) CreateDBContainer(config ContainerCreateRequest) (func() 
 
 	filterBy := filters.NewArgs()
 	filterBy.Add("name", config.Image)
-	image, err := d.client.ImageList(context.Background(), types.ImageListOptions{Filters: filterBy})
+	image, err := d.client.ImageList(context.Background(), imagetypes.ListOptions{Filters: filterBy})
 
 	if err != nil || image == nil {
 		log.Print(fmt.Sprintf("image %s not found... pulling...", config.Image))
-		reader, err := d.client.ImagePull(context.Background(), config.Image, types.ImagePullOptions{})
+		reader, err := d.client.ImagePull(context.Background(), config.Image, imagetypes.PullOptions{})
 		if err != nil || reader == nil {
 			if reader != nil {
 				err := reader.Close()
@@ -104,14 +108,14 @@ func (d *DockerHelper) CreateDBContainer(config ContainerCreateRequest) (func() 
 			return fmt.Errorf("during container stop: %w", err)
 		}
 
-		err = d.client.ContainerRemove(context.Background(), response.ID, types.ContainerRemoveOptions{RemoveVolumes: true, RemoveLinks: false, Force: true})
+		err = d.client.ContainerRemove(context.Background(), response.ID, container.RemoveOptions{RemoveVolumes: true, RemoveLinks: false, Force: true})
 		if err != nil {
 			return fmt.Errorf("during container removal: %w", err)
 		}
 		return nil
 	}
 
-	if err := d.client.ContainerStart(context.Background(), response.ID, types.ContainerStartOptions{}); err != nil {
+	if err := d.client.ContainerStart(context.Background(), response.ID, container.StartOptions{}); err != nil {
 		return cleanup, fmt.Errorf("during container startup: %w", err)
 	}
 

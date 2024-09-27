@@ -21,6 +21,22 @@ func NewRuntimeStates() *runtimeState {
 	}
 }
 
+func (s *runtimeState) DeleteByOperationID(opID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	toDelete := []string{}
+	for id, state := range s.runtimeStates {
+		if state.OperationID == opID {
+			toDelete = append(toDelete, id)
+		}
+	}
+	for _, id := range toDelete {
+		delete(s.runtimeStates, id)
+	}
+	return nil
+}
+
 func (s *runtimeState) Insert(runtimeState internal.RuntimeState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -67,42 +83,6 @@ func (s *runtimeState) GetLatestByRuntimeID(runtimeID string) (internal.RuntimeS
 	}
 
 	return states[0], nil
-}
-
-func (s *runtimeState) GetLatestWithKymaVersionByRuntimeID(runtimeID string) (internal.RuntimeState, error) {
-	states, err := s.getRuntimeStatesByRuntimeID(runtimeID)
-	if err != nil {
-		return internal.RuntimeState{}, err
-	}
-
-	for _, state := range states {
-		if state.KymaVersion != "" {
-			return state, nil
-		}
-		if state.ClusterSetup != nil && state.ClusterSetup.KymaConfig.Version != "" {
-			return state, nil
-		}
-		if state.KymaConfig.Version != "" {
-			return state, nil
-		}
-	}
-
-	return internal.RuntimeState{}, dberr.NotFound("runtime state with Reconciler input for runtime with ID: %s not found", runtimeID)
-}
-
-func (s *runtimeState) GetLatestWithReconcilerInputByRuntimeID(runtimeID string) (internal.RuntimeState, error) {
-	states, err := s.getRuntimeStatesByRuntimeID(runtimeID)
-	if err != nil {
-		return internal.RuntimeState{}, err
-	}
-
-	for _, state := range states {
-		if state.ClusterSetup != nil {
-			return state, nil
-		}
-	}
-
-	return internal.RuntimeState{}, dberr.NotFound("runtime state with Reconciler input for runtime with ID: %s not found", runtimeID)
 }
 
 func (s *runtimeState) GetLatestWithOIDCConfigByRuntimeID(runtimeID string) (internal.RuntimeState, error) {
