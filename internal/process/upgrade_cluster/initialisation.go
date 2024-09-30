@@ -101,7 +101,7 @@ func (s *InitialisationStep) Run(operation internal.UpgradeClusterOperation, log
 			op.State = domain.InProgress
 		}, log)
 		if err != nil {
-			log.Infof("error during update opreation initialisation: %s", err)
+			log.Infof("error during update operation initialisation: %s", err)
 		}
 		if delay != 0 {
 			return operation, delay, nil
