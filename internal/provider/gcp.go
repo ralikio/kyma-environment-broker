@@ -20,10 +20,7 @@ type (
 func (p *GCPInputProvider) Provide() Values {
 	zonesCount := p.zonesCount()
 	zones := p.zones()
-	region := DefaultGCPRegion
-	if p.ProvisioningParameters.Parameters.Region != nil {
-		region = *p.ProvisioningParameters.Parameters.Region
-	}
+	region := p.region()
 	return Values{
 		DefaultAutoScalerMax: 20,
 		DefaultAutoScalerMin: 3,
@@ -52,6 +49,18 @@ func (p *GCPInputProvider) zones() []string {
 		region = *p.ProvisioningParameters.Parameters.Region
 	}
 	return ZonesForGCPRegion(region, p.zonesCount())
+}
+
+func (p *GCPInputProvider) region() string {
+	if assuredworkloads.IsKSA(p.ProvisioningParameters.PlatformRegion) {
+		return DefaultGCPAssuredWorkloadsRegion
+	}
+
+	if p.ProvisioningParameters.Parameters.Region != nil && *p.ProvisioningParameters.Parameters.Region != "" {
+		return *p.ProvisioningParameters.Parameters.Region
+	}
+
+	return DefaultGCPRegion
 }
 
 func (p *GCPTrialInputProvider) Provide() Values {
@@ -86,12 +95,18 @@ func (p *GCPTrialInputProvider) region() string {
 	if p.ProvisioningParameters.PlatformRegion != "" {
 		abstractRegion, found := p.PlatformRegionMapping[p.ProvisioningParameters.PlatformRegion]
 		if found {
-			return *toGCPSpecific[abstractRegion]
+			gpcSpecific, ok := toGCPSpecific[abstractRegion]
+			if ok {
+				return *gpcSpecific
+			}
 		}
 	}
 
 	if p.ProvisioningParameters.Parameters.Region != nil && *p.ProvisioningParameters.Parameters.Region != "" {
-		return *toGCPSpecific[*p.ProvisioningParameters.Parameters.Region]
+		gpcSpecific, ok := toGCPSpecific[*p.ProvisioningParameters.Parameters.Region]
+		if ok {
+			return *gpcSpecific
+		}
 	}
 
 	return DefaultGCPRegion
