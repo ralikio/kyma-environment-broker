@@ -21,6 +21,18 @@ type writeSession struct {
 	transaction *dbr.Tx
 }
 
+func (ws writeSession) DeleteBinding(ID string) dberr.Error {
+	panic("unimplemented")
+}
+
+func (ws writeSession) InsertBinding(binding dbmodel.BindingDTO) dberr.Error {
+	panic("unimplemented")
+}
+
+func (ws writeSession) UpdateBinding(binding dbmodel.BindingDTO) dberr.Error {
+	panic("unimplemented")
+}
+
 func (ws writeSession) InsertInstanceArchived(instance dbmodel.InstanceArchivedDTO) dberr.Error {
 	_, err := ws.insertInto(InstancesArchivedTableName).
 		Pair("instance_id", instance.InstanceID).
