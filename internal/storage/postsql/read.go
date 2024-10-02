@@ -21,6 +21,36 @@ type readSession struct {
 	session *dbr.Session
 }
 
+func (r readSession) GetBindingByID(bindingID string) (dbmodel.BindingDTO, dberr.Error) {
+	var binding dbmodel.BindingDTO
+
+	err := r.session.
+		Select("*").
+		From(InstancesTableName).
+		Where(dbr.Eq("id", bindingID)).
+		LoadOne(&binding)
+
+	if err != nil {
+		if err == dbr.ErrNotFound {
+			return dbmodel.BindingDTO{}, dberr.NotFound("Cannot find Binding for bindingId:'%s'", bindingID)
+		}
+		return dbmodel.BindingDTO{}, dberr.Internal("Failed to get Instance: %s", err)
+	}
+
+	return binding, nil
+}
+
+func (r readSession) ListBindings(runtimeID string) ([]dbmodel.BindingDTO, error) {
+	var bindings []dbmodel.BindingDTO
+	stmt := r.session.Select("*").From("bindings")
+	if len(runtimeID) != 0 {
+		stmt.Where(dbr.Eq("runtime_id", runtimeID))
+	}
+	stmt.OrderBy("created_at")
+	_, err := stmt.Load(&bindings)
+	return bindings, err
+}
+
 func (r readSession) ListSubaccountStates() ([]dbmodel.SubaccountStateDTO, dberr.Error) {
 	var states []dbmodel.SubaccountStateDTO
 

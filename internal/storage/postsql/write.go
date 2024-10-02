@@ -22,15 +22,34 @@ type writeSession struct {
 }
 
 func (ws writeSession) DeleteBinding(ID string) dberr.Error {
-	panic("unimplemented")
+	_, err := ws.deleteFrom(BindingssTableName).
+		Where(dbr.Eq("id", ID)).
+		Exec()
+
+	if err != nil {
+		return dberr.Internal("Failed to delete record from bindings table: %s", err)
+	}
+	return nil
 }
 
 func (ws writeSession) InsertBinding(binding dbmodel.BindingDTO) dberr.Error {
-	panic("unimplemented")
-}
+	_, err := ws.insertInto(InstancesTableName).
+		Pair("id", binding.ID).
+		Pair("runtime_id", binding.RuntimeID).
+		Pair("expired_at", binding.ExpiredAt).
+		Pair("version", binding.Version).
+		Exec()
 
-func (ws writeSession) UpdateBinding(binding dbmodel.BindingDTO) dberr.Error {
-	panic("unimplemented")
+	if err != nil {
+		if err, ok := err.(*pq.Error); ok {
+			if err.Code == UniqueViolationErrorCode {
+				return dberr.AlreadyExists("binding with id %s already exist for runtime %s", binding.ID, binding.RuntimeID)
+			}
+		}
+		return dberr.Internal("Failed to insert record to Instance table: %s", err)
+	}
+
+	return nil
 }
 
 func (ws writeSession) InsertInstanceArchived(instance dbmodel.InstanceArchivedDTO) dberr.Error {

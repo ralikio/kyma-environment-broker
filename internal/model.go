@@ -580,17 +580,17 @@ type DeletedStats struct {
 	NumberOfOperationsForDeletedInstances int
 }
 
-// TODO: Json does not seem to be needed here
 type Binding struct {
-	ID        string     `json:"id"`
-	RuntimeID string     `json:"runtimeId"`
-	Version   int        `json:"-"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
-	DeletedAt time.Time  `json:"deletedAt"`
-	ExpiredAt *time.Time `json:"expiredAt"`
+	ID        string
+	RuntimeID string
 
-	Kubeconfig         string `json:"kubeconfig"`
-	ExpireationSeconds int64  `json:"expirationSeconds"`
-	TokenRequests      bool   `json:"tokenRequests"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	ExpiredAt *time.Time
+
+	Kubeconfig         string
+	ExpireationSeconds int64
+	GenerationMethod   string
+
+	Version   int
 }

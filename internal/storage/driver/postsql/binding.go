@@ -43,7 +43,6 @@ func (s *Binding) Get(bindingId string) (*internal.Binding, error) {
 }
 
 
-// keep
 func (s *Binding) Insert(binding *internal.Binding) error {
 	_, err := s.Get(binding.ID)
 	if err == nil {
@@ -64,59 +63,26 @@ func (s *Binding) Insert(binding *internal.Binding) error {
 	return nil
 }
 
-func (s *Binding) Update(binding *internal.Binding) (*internal.Binding, error) {
-	sess := s.NewWriteSession()
-	dto, err := s.toBindingDTO(binding)
-	if err != nil {
-		return nil, err
-	}
-	var lastErr dberr.Error
-		lastErr = sess.UpdateBinding(dto)
-
-		switch {
-		case dberr.IsNotFound(lastErr):
-			_, lastErr = s.NewReadSession().GetBindingByID(binding.ID)
-			if dberr.IsNotFound(lastErr) {
-				return nil, dberr.NotFound("Binding with id %s not exist", binding.ID)
-			}
-			if lastErr != nil {
-				return nil, fmt.Errorf("while getting Operation: %w", lastErr)
-			}
-
-			return nil, lastErr
-		case lastErr != nil:
-			return nil, fmt.Errorf("while updating instance ID %s: %w", binding.ID, lastErr)
-		}
-	if err != nil {
-		return nil, lastErr
-	}
-	binding.Version = binding.Version + 1
-	return binding, nil
-}
-
-
-
-// leave
 func (s *Binding) Delete(instanceID string) error {
 	sess := s.NewWriteSession()
 	return sess.DeleteBinding(instanceID)
 }
 
-func (s *Binding) List(filter dbmodel.BindingFilter) ([]internal.Binding, int, int, error) {
-	dtos, count, totalCount, err := s.NewReadSession().ListBindings(filter)
+func (s *Binding) List(runtimeID string) ([]internal.Binding, error) {
+	dtos, err := s.NewReadSession().ListBindings(runtimeID)
 	if err != nil {
-		return []internal.Binding{}, 0, 0, err
+		return []internal.Binding{}, err
 	}
 	var bindings []internal.Binding
 	for _, dto := range dtos {
 		instance, err := s.toBinding(dto)
 		if err != nil {
-			return []internal.Binding{}, 0, 0, err
+			return []internal.Binding{}, err
 		}
 
 		bindings = append(bindings, instance)
 	}
-	return bindings, count, totalCount, err
+	return bindings, err
 }
 
 
@@ -133,7 +99,6 @@ func (s *Binding) toBindingDTO(binding *internal.Binding) (dbmodel.BindingDTO, e
 		RuntimeID:                   binding.RuntimeID,
 		CreatedAt:                   binding.CreatedAt,
 		UpdatedAt:                   binding.UpdatedAt,
-		DeletedAt:                   binding.DeletedAt,
 		ExpiredAt:                   binding.ExpiredAt,
 		Version:                     binding.Version,
 	}, nil
@@ -151,7 +116,6 @@ func (s *Binding) toBinding(dto dbmodel.BindingDTO) (internal.Binding, error) {
 		RuntimeID:                   dto.RuntimeID,
 		CreatedAt:                   dto.CreatedAt,
 		UpdatedAt:                   dto.UpdatedAt,
-		DeletedAt:                   dto.DeletedAt,
 		ExpiredAt:                   dto.ExpiredAt,
 		Version:                     dto.Version,
 	}, nil
