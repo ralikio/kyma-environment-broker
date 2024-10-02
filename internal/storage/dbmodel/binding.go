@@ -4,13 +4,6 @@ import (
 	"time"
 )
 
-// InstanceFilter holds the filters when querying Instances
-type BindingFilter struct {
-	PageSize   int
-	Page       int
-	RuntimeIDs []string
-}
-
 type BindingDTO struct {
 	ID        string
 	RuntimeID string
