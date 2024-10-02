@@ -592,5 +592,5 @@ type Binding struct {
 	ExpireationSeconds int64
 	GenerationMethod   string
 
-	Version   int
+	Version int
 }
