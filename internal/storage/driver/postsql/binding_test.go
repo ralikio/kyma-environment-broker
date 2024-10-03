@@ -69,7 +69,7 @@ func TestBinding(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("should return error when the same object is deleted twice", func(t *testing.T) {
+	t.Run("should succeed when the same object is deleted twice", func(t *testing.T) {
 		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
 		require.NotNil(t, brokerStorage)
@@ -90,7 +90,7 @@ func TestBinding(t *testing.T) {
 
 		// then
 		err = brokerStorage.Bindings().Delete(fixedBinding.ID)
-		assert.Error(t, err)
+		assert.NoError(t, err)
 	})
 
 }
