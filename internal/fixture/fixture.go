@@ -347,7 +347,7 @@ func FixBinding(id string) internal.Binding {
 	var runtimeId = fmt.Sprintf("runtime-%s", id)
 
 	return internal.Binding{
-		ID:        id,
+		ID:         id,
 		InstanceID: runtimeId,
 
 		CreatedAt: time.Now(),

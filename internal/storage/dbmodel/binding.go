@@ -5,7 +5,7 @@ import (
 )
 
 type BindingDTO struct {
-	ID        string
+	ID         string
 	InstanceID string
 
 	CreatedAt time.Time

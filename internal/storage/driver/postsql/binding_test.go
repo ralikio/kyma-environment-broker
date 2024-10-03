@@ -28,7 +28,7 @@ func TestBinding(t *testing.T) {
 
 		// when
 		createdBinding, err := brokerStorage.Bindings().Get(testBindingId)
-		
+
 		// then
 		assert.NoError(t, err)
 		assert.Equal(t, fixedBinding.ID, createdBinding.ID)
@@ -39,7 +39,7 @@ func TestBinding(t *testing.T) {
 		assert.NotNil(t, createdBinding.Kubeconfig)
 		assert.Equal(t, fixedBinding.Kubeconfig, createdBinding.Kubeconfig)
 
-		// when 
+		// when
 		err = brokerStorage.Bindings().Delete(testBindingId)
 
 		// then
