@@ -48,7 +48,7 @@ func (ws writeSession) InsertBinding(binding dbmodel.BindingDTO) dberr.Error {
 				return dberr.AlreadyExists("binding with id %s already exist for runtime %s", binding.ID, binding.RuntimeID)
 			}
 		}
-		return dberr.Internal("Failed to insert record to Instance table: %s", err)
+		return dberr.Internal("Failed to insert record to Binding table: %s", err)
 	}
 
 	return nil
