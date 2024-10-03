@@ -9,6 +9,5 @@ CREATE TABLE IF NOT EXISTS bindings (
     -- expiration seconds
     expiration_seconds INTEGER,
     -- allow for the same binding id to be used for different runtimes
-    PRIMARY KEY(id, instance_id), 
-    version integer NOT NULL
+    PRIMARY KEY(id, instance_id)
 );

@@ -63,7 +63,7 @@ func TestBinding(t *testing.T) {
 		fixedBinding := fixture.FixBinding(testBindingId)
 		err = brokerStorage.Bindings().Insert(&fixedBinding)
 		assert.NoError(t, err)
-	
+
 		// then
 		err = brokerStorage.Bindings().Insert(&fixedBinding)
 		assert.Error(t, err)
@@ -84,10 +84,10 @@ func TestBinding(t *testing.T) {
 
 		err = brokerStorage.Bindings().Insert(&fixedBinding)
 		assert.NoError(t, err)
-	
+
 		err = brokerStorage.Bindings().Delete(fixedBinding.ID)
 		assert.NoError(t, err)
-	
+
 		// then
 		err = brokerStorage.Bindings().Delete(fixedBinding.ID)
 		assert.Error(t, err)

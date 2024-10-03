@@ -356,8 +356,6 @@ func FixBinding(id string) internal.Binding {
 		Kubeconfig:        "kubeconfig",
 		ExpirationSeconds: 600,
 		GenerationMethod:  "adminkubeconfig",
-
-		Version: 0,
 	}
 }
 

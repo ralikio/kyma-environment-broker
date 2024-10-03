@@ -36,7 +36,6 @@ func (ws writeSession) InsertBinding(binding dbmodel.BindingDTO) dberr.Error {
 	_, err := ws.insertInto(BindingsTableName).
 		Pair("id", binding.ID).
 		Pair("instance_id", binding.InstanceID).
-		Pair("version", binding.Version).
 		Pair("created_at", binding.CreatedAt).
 		Pair("kubeconfig", binding.Kubeconfig).
 		Pair("expiration_seconds", binding.ExpirationSeconds).

@@ -13,6 +13,4 @@ type BindingDTO struct {
 	Kubeconfig        string
 	ExpirationSeconds int64
 	GenerationMethod  string
-
-	Version int
 }
