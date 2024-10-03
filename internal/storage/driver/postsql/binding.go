@@ -22,7 +22,6 @@ func NewBinding(sess postsql.Factory, cipher Cipher) *Binding {
 	}
 }
 
-// TODO: Wrap retries in single method WithRetries
 func (s *Binding) Get(bindingId string) (*internal.Binding, error) {
 	sess := s.NewReadSession()
 	bindingDTO := dbmodel.BindingDTO{}
