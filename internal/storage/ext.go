@@ -128,7 +128,6 @@ type SubaccountStates interface {
 	ListStates() ([]internal.SubaccountState, error)
 }
 
-// go:generate mockery --name=Bindings --output=automock --outpkg=mocks --case=underscore
 type Bindings interface {
 	Insert(binding *internal.Binding) error
 	Get(bindingId string) (*internal.Binding, error)
