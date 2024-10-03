@@ -35,7 +35,7 @@ func (ws writeSession) DeleteBinding(ID string) dberr.Error {
 func (ws writeSession) InsertBinding(binding dbmodel.BindingDTO) dberr.Error {
 	_, err := ws.insertInto(BindingsTableName).
 		Pair("id", binding.ID).
-		Pair("runtime_id", binding.InstanceID).
+		Pair("instance_id", binding.InstanceID).
 		Pair("version", binding.Version).
 		Pair("created_at", binding.CreatedAt).
 		Pair("kubeconfig", binding.Kubeconfig).
