@@ -22,7 +22,7 @@ type writeSession struct {
 }
 
 func (ws writeSession) DeleteBinding(ID string) dberr.Error {
-	_, err := ws.deleteFrom(BindingssTableName).
+	_, err := ws.deleteFrom(BindingsTableName).
 		Where(dbr.Eq("id", ID)).
 		Exec()
 
@@ -33,11 +33,13 @@ func (ws writeSession) DeleteBinding(ID string) dberr.Error {
 }
 
 func (ws writeSession) InsertBinding(binding dbmodel.BindingDTO) dberr.Error {
-	_, err := ws.insertInto(InstancesTableName).
+	_, err := ws.insertInto(BindingsTableName).
 		Pair("id", binding.ID).
 		Pair("runtime_id", binding.RuntimeID).
-		Pair("expired_at", binding.ExpiredAt).
 		Pair("version", binding.Version).
+		Pair("created_at", binding.CreatedAt).
+		Pair("kubeconfig", binding.Kubeconfig).
+		Pair("expiration_seconds", binding.ExpirationSeconds).
 		Exec()
 
 	if err != nil {

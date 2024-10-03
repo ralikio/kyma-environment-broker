@@ -91,13 +91,12 @@ func (s *Binding) toBindingDTO(binding *internal.Binding) (dbmodel.BindingDTO, e
 	}
 
 	return dbmodel.BindingDTO{
-		Kubeconfig: string(encrypted),
-		ID:         binding.ID,
-		RuntimeID:  binding.RuntimeID,
-		CreatedAt:  binding.CreatedAt,
-		UpdatedAt:  binding.UpdatedAt,
-		ExpiredAt:  binding.ExpiredAt,
-		Version:    binding.Version,
+		Kubeconfig:        string(encrypted),
+		ID:                binding.ID,
+		RuntimeID:         binding.RuntimeID,
+		CreatedAt:         binding.CreatedAt,
+		Version:           binding.Version,
+		ExpirationSeconds: binding.ExpirationSeconds,
 	}, nil
 }
 
@@ -108,12 +107,11 @@ func (s *Binding) toBinding(dto dbmodel.BindingDTO) (internal.Binding, error) {
 	}
 
 	return internal.Binding{
-		Kubeconfig: string(decrypted),
-		ID:         dto.ID,
-		RuntimeID:  dto.RuntimeID,
-		CreatedAt:  dto.CreatedAt,
-		UpdatedAt:  dto.UpdatedAt,
-		ExpiredAt:  dto.ExpiredAt,
-		Version:    dto.Version,
+		Kubeconfig:        string(decrypted),
+		ID:                dto.ID,
+		RuntimeID:         dto.RuntimeID,
+		CreatedAt:         dto.CreatedAt,
+		Version:           dto.Version,
+		ExpirationSeconds: dto.ExpirationSeconds,
 	}, nil
 }

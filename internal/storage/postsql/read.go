@@ -26,7 +26,7 @@ func (r readSession) GetBindingByID(bindingID string) (dbmodel.BindingDTO, dberr
 
 	err := r.session.
 		Select("*").
-		From(InstancesTableName).
+		From(BindingsTableName).
 		Where(dbr.Eq("id", bindingID)).
 		LoadOne(&binding)
 
@@ -42,7 +42,10 @@ func (r readSession) GetBindingByID(bindingID string) (dbmodel.BindingDTO, dberr
 
 func (r readSession) ListBindings(runtimeID string) ([]dbmodel.BindingDTO, error) {
 	var bindings []dbmodel.BindingDTO
-	stmt := r.session.Select("*").From("bindings")
+	if len(runtimeID) == 0 {
+		return bindings, fmt.Errorf("runtimeID cannot be empty")
+	}
+	stmt := r.session.Select("*").From(BindingsTableName)
 	if len(runtimeID) != 0 {
 		stmt.Where(dbr.Eq("runtime_id", runtimeID))
 	}

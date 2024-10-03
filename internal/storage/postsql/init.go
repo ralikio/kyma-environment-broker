@@ -20,7 +20,7 @@ const (
 	SubaccountStatesTableName  = "subaccount_states"
 	CreatedAtField             = "created_at"
 	InstancesArchivedTableName = "instances_archived"
-	BindingssTableName         = "bindings"
+	BindingsTableName          = "bindings"
 )
 
 // InitializeDatabase opens database connection and initializes schema if it does not exist

@@ -586,11 +586,10 @@ type Binding struct {
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	ExpiredAt *time.Time
 
-	Kubeconfig         string
-	ExpireationSeconds int64
-	GenerationMethod   string
+	Kubeconfig        string
+	ExpirationSeconds int64
+	GenerationMethod  string
 
 	Version int
 }
