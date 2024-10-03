@@ -35,7 +35,7 @@ func (ws writeSession) DeleteBinding(ID string) dberr.Error {
 func (ws writeSession) InsertBinding(binding dbmodel.BindingDTO) dberr.Error {
 	_, err := ws.insertInto(BindingsTableName).
 		Pair("id", binding.ID).
-		Pair("runtime_id", binding.RuntimeID).
+		Pair("runtime_id", binding.InstanceID).
 		Pair("version", binding.Version).
 		Pair("created_at", binding.CreatedAt).
 		Pair("kubeconfig", binding.Kubeconfig).
@@ -45,7 +45,7 @@ func (ws writeSession) InsertBinding(binding dbmodel.BindingDTO) dberr.Error {
 	if err != nil {
 		if err, ok := err.(*pq.Error); ok {
 			if err.Code == UniqueViolationErrorCode {
-				return dberr.AlreadyExists("binding with id %s already exist for runtime %s", binding.ID, binding.RuntimeID)
+				return dberr.AlreadyExists("binding with id %s already exist for runtime %s", binding.ID, binding.InstanceID)
 			}
 		}
 		return dberr.Internal("Failed to insert record to Binding table: %s", err)

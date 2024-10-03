@@ -6,7 +6,7 @@ import (
 
 type BindingDTO struct {
 	ID        string
-	RuntimeID string
+	InstanceID string
 
 	CreatedAt time.Time
 

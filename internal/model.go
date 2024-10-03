@@ -582,7 +582,7 @@ type DeletedStats struct {
 
 type Binding struct {
 	ID        string
-	RuntimeID string
+	InstanceID string
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

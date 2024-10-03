@@ -31,8 +31,8 @@ func TestBinding(t *testing.T) {
 
 		assert.Equal(t, fixedBinding.ID, createdBinding.ID)
 
-		assert.NotNil(t, createdBinding.RuntimeID)
-		assert.Equal(t, fixedBinding.RuntimeID, createdBinding.RuntimeID)
+		assert.NotNil(t, createdBinding.InstanceID)
+		assert.Equal(t, fixedBinding.InstanceID, createdBinding.InstanceID)
 
 		assert.NotNil(t, createdBinding.ExpirationSeconds)
 		assert.Equal(t, fixedBinding.ExpirationSeconds, createdBinding.ExpirationSeconds)

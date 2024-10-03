@@ -348,7 +348,7 @@ func FixBinding(id string) internal.Binding {
 
 	return internal.Binding{
 		ID:        id,
-		RuntimeID: runtimeId,
+		InstanceID: runtimeId,
 
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now().Add(time.Minute * 5),

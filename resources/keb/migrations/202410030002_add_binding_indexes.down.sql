@@ -1,1 +1,1 @@
-DROP INDEX bindings_by_runtime_id;
+DROP INDEX bindings_by_instance_id;
