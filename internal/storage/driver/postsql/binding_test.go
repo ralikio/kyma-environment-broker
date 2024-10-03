@@ -26,25 +26,25 @@ func TestBinding(t *testing.T) {
 		err = brokerStorage.Bindings().Insert(&fixedBinding)
 		assert.NoError(t, err)
 
+		// when
 		createdBinding, err := brokerStorage.Bindings().Get(testBindingId)
+		
+		// then
 		assert.NoError(t, err)
-
 		assert.Equal(t, fixedBinding.ID, createdBinding.ID)
-
 		assert.NotNil(t, createdBinding.InstanceID)
 		assert.Equal(t, fixedBinding.InstanceID, createdBinding.InstanceID)
-
 		assert.NotNil(t, createdBinding.ExpirationSeconds)
 		assert.Equal(t, fixedBinding.ExpirationSeconds, createdBinding.ExpirationSeconds)
-
 		assert.NotNil(t, createdBinding.Kubeconfig)
 		assert.Equal(t, fixedBinding.Kubeconfig, createdBinding.Kubeconfig)
 
+		// when 
 		err = brokerStorage.Bindings().Delete(testBindingId)
 
+		// then
 		nonExisting, err := brokerStorage.Bindings().Get(testBindingId)
 		assert.Error(t, err)
 		assert.Nil(t, nonExisting)
-
 	})
 }
