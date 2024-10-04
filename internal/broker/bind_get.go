@@ -2,17 +2,22 @@ package broker
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
+	"github.com/kyma-project/kyma-environment-broker/internal/storage"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 	"github.com/sirupsen/logrus"
 )
 
 type GetBindingEndpoint struct {
-	log logrus.FieldLogger
+	log      logrus.FieldLogger
+	bindings storage.Bindings
 }
 
-func NewGetBinding(log logrus.FieldLogger) *GetBindingEndpoint {
-	return &GetBindingEndpoint{log: log.WithField("service", "GetBindingEndpoint")}
+func NewGetBinding(log logrus.FieldLogger, bindings storage.Bindings) *GetBindingEndpoint {
+	return &GetBindingEndpoint{log: log.WithField("service", "GetBindingEndpoint"), bindings: bindings}
 }
 
 // GetBinding fetches an existing service binding
@@ -22,7 +27,18 @@ func (b *GetBindingEndpoint) GetBinding(_ context.Context, instanceID, bindingID
 	b.log.Infof("GetBinding instanceID: %s", instanceID)
 	b.log.Infof("GetBinding bindingID: %s", bindingID)
 
+	// todo: add instance id
+	binding, err := b.bindings.GetByBindingID(bindingID)
+
+	if err != nil {
+		b.log.Errorf("GetBinding error: %s", err)
+		message := "Error while getting binding"
+		return domain.GetBindingSpec{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusInternalServerError, message)
+	} 
+
 	return domain.GetBindingSpec{
-		Credentials: dummyCredentials,
+		Credentials: Credentials{
+			Kubeconfig: binding.Kubeconfig,
+		},
 	}, nil
 }

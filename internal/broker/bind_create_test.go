@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v2"
 
 	"code.cloudfoundry.org/lager"
@@ -271,6 +272,27 @@ func TestCreateBindingEndpoint(t *testing.T) {
 			}	
 		}`, fixture.PlanId, customExpirationSeconds), t)
 		require.Equal(t, http.StatusBadRequest, response.StatusCode)
+	})
+
+	t.Run("should return created kubeconfig", func(t *testing.T) {
+		const customExpirationSeconds = 60
+
+		// when
+		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/" + uuid.New().String() + " ?accepts_incomplete=true", fmt.Sprintf(`
+		{
+			"service_id": "123",
+			"plan_id": "%s",
+			"parameters": {	
+				"service_account": true,
+				"expiration_seconds": %v
+			}	
+		}`, fixture.PlanId, customExpirationSeconds), t)
+		require.Equal(t, http.StatusCreated, response.StatusCode)
+
+		response = CallAPI(httpServer, "GET", "v2/service_instances/1/service_bindings/" + uuid.New().String() + " ?accepts_incomplete=false", "", t)
+
+
+		require.Equal(t, http.StatusOK, response.StatusCode)
 	})
 }
 
