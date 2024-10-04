@@ -39,6 +39,7 @@ func (ws writeSession) InsertBinding(binding dbmodel.BindingDTO) dberr.Error {
 		Pair("created_at", binding.CreatedAt).
 		Pair("kubeconfig", binding.Kubeconfig).
 		Pair("expiration_seconds", binding.ExpirationSeconds).
+		Pair("binding_type", binding.BindingType).
 		Exec()
 
 	if err != nil {

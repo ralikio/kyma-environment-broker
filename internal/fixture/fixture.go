@@ -356,6 +356,7 @@ func FixBinding(id string) internal.Binding {
 		Kubeconfig:        "kubeconfig",
 		ExpirationSeconds: 600,
 		GenerationMethod:  "adminkubeconfig",
+		BindingType:       internal.BINDING_TYPE_TOKEN_REQUEST,
 	}
 }
 
