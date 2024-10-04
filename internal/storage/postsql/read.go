@@ -40,14 +40,14 @@ func (r readSession) GetBindingByID(bindingID string) (dbmodel.BindingDTO, dberr
 	return binding, nil
 }
 
-func (r readSession) ListBindings(runtimeID string) ([]dbmodel.BindingDTO, error) {
+func (r readSession) ListBindings(instanceID string) ([]dbmodel.BindingDTO, error) {
 	var bindings []dbmodel.BindingDTO
-	if len(runtimeID) == 0 {
+	if len(instanceID) == 0 {
 		return bindings, fmt.Errorf("runtimeID cannot be empty")
 	}
 	stmt := r.session.Select("*").From(BindingsTableName)
-	if len(runtimeID) != 0 {
-		stmt.Where(dbr.Eq("runtime_id", runtimeID))
+	if len(instanceID) != 0 {
+		stmt.Where(dbr.Eq("runtime_id", instanceID))
 	}
 	stmt.OrderBy("created_at")
 	_, err := stmt.Load(&bindings)

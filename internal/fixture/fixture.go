@@ -344,11 +344,11 @@ func FixRuntimeState(id, runtimeID, operationID string) internal.RuntimeState {
 }
 
 func FixBinding(id string) internal.Binding {
-	var runtimeId = fmt.Sprintf("runtime-%s", id)
+	var instanceID = fmt.Sprintf("instance-%s", id)
 
 	return internal.Binding{
 		ID:         id,
-		InstanceID: runtimeId,
+		InstanceID: instanceID,
 
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now().Add(time.Minute * 5),

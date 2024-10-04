@@ -66,8 +66,8 @@ func (s *Binding) Delete(instanceID string) error {
 	return sess.DeleteBinding(instanceID)
 }
 
-func (s *Binding) List(runtimeID string) ([]internal.Binding, error) {
-	dtos, err := s.NewReadSession().ListBindings(runtimeID)
+func (s *Binding) List(instanceID string) ([]internal.Binding, error) {
+	dtos, err := s.NewReadSession().ListBindings(instanceID)
 	if err != nil {
 		return []internal.Binding{}, err
 	}
