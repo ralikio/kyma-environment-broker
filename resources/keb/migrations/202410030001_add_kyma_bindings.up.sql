@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS bindings (
     instance_id VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     -- represents algorithm used to generate a kubeconfig, initialy: adminkubeconfig or tokenrequest
-    type TEXT, 
+    type VARCHAR(64) NOT NULL, 
     -- content of the kubeconfig
 	kubeconfig TEXT, 
     -- expiration seconds
