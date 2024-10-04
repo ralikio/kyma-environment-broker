@@ -65,7 +65,8 @@ type Operations interface {
 	ListOperationsByOrchestrationID(orchestrationID string, filter dbmodel.OperationFilter) ([]internal.Operation, int, int, error)
 	ListOperationsInTimeRange(from, to time.Time) ([]internal.Operation, error)
 
-	ListByInstanceID(instanceID string) ([]internal.Binding, error)	GetAllOperations() ([]internal.Operation, error)
+	DeleteByID(operationID string) error
+	GetAllOperations() ([]internal.Operation, error)
 }
 
 type Provisioning interface {
