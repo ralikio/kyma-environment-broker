@@ -17,7 +17,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const BINDING_TYPE_TOKEN_REQUEST = "token_request"
+const BINDING_TYPE_SERVICE_ACCOUNT = "service_account"
 const BINDING_TYPE_ADMIN_KUBECONFIG = "gardener_admin_kubeconfig"
 
 type ProvisionerInputCreator interface {
