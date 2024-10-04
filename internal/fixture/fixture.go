@@ -360,7 +360,7 @@ func FixBindingWithInstanceID(bindingID string, instanceID string) internal.Bind
 		Kubeconfig:        "kubeconfig",
 		ExpirationSeconds: 600,
 		GenerationMethod:  "adminkubeconfig",
-		BindingType:       internal.BINDING_TYPE_TOKEN_REQUEST,
+		BindingType:       internal.BINDING_TYPE_SERVICE_ACCOUNT,
 	}
 }
 
