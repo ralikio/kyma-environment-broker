@@ -65,8 +65,7 @@ type Operations interface {
 	ListOperationsByOrchestrationID(orchestrationID string, filter dbmodel.OperationFilter) ([]internal.Operation, int, int, error)
 	ListOperationsInTimeRange(from, to time.Time) ([]internal.Operation, error)
 
-	DeleteByID(operationID string) error
-	GetAllOperations() ([]internal.Operation, error)
+	ListByInstanceID(instanceID string) ([]internal.Binding, error)	GetAllOperations() ([]internal.Operation, error)
 }
 
 type Provisioning interface {
@@ -130,6 +129,7 @@ type SubaccountStates interface {
 
 type Bindings interface {
 	Insert(binding *internal.Binding) error
-	Get(bindingId string) (*internal.Binding, error)
-	Delete(bindingId string) error
+	GetByBindingID(bindingID string) (*internal.Binding, error)
+	ListByInstanceID(instanceID string) ([]internal.Binding, error)
+	DeleteByBindingID(bindingID string) error
 }

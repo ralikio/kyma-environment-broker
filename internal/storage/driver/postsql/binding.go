@@ -22,7 +22,7 @@ func NewBinding(sess postsql.Factory, cipher Cipher) *Binding {
 	}
 }
 
-func (s *Binding) Get(bindingId string) (*internal.Binding, error) {
+func (s *Binding) GetByBindingID(bindingId string) (*internal.Binding, error) {
 	sess := s.NewReadSession()
 	bindingDTO := dbmodel.BindingDTO{}
 	bindingDTO, lastErr := sess.GetBindingByID(bindingId)
@@ -42,7 +42,7 @@ func (s *Binding) Get(bindingId string) (*internal.Binding, error) {
 }
 
 func (s *Binding) Insert(binding *internal.Binding) error {
-	_, err := s.Get(binding.ID)
+	_, err := s.GetByBindingID(binding.ID)
 	if err == nil {
 		return dberr.AlreadyExists("instance with id %s already exist", binding.ID)
 	}
@@ -61,12 +61,12 @@ func (s *Binding) Insert(binding *internal.Binding) error {
 	return nil
 }
 
-func (s *Binding) Delete(instanceID string) error {
+func (s *Binding) DeleteByBindingID(ID string) error {
 	sess := s.NewWriteSession()
-	return sess.DeleteBinding(instanceID)
+	return sess.DeleteBinding(ID)
 }
 
-func (s *Binding) List(instanceID string) ([]internal.Binding, error) {
+func (s *Binding) ListByInstanceID(instanceID string) ([]internal.Binding, error) {
 	dtos, err := s.NewReadSession().ListBindings(instanceID)
 	if err != nil {
 		return []internal.Binding{}, err
