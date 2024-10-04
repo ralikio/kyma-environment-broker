@@ -349,7 +349,6 @@ func FixBinding(id string) internal.Binding {
 	return FixBindingWithInstanceID(id, instanceID)
 }
 
-
 func FixBindingWithInstanceID(bindingID string, instanceID string) internal.Binding {
 	return internal.Binding{
 		ID:         bindingID,

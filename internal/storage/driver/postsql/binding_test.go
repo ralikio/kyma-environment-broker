@@ -94,7 +94,6 @@ func TestBinding(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-
 	t.Run("should list all created bindings", func(t *testing.T) {
 		storageCleanup, brokerStorage, err := GetStorageForDatabaseTests()
 		require.NoError(t, err)
@@ -136,8 +135,8 @@ func TestBinding(t *testing.T) {
 		}()
 
 		// given
-		sameInstanceID :=  uuid.New().String()
-		differentInstanceID :=  uuid.New().String()
+		sameInstanceID := uuid.New().String()
+		differentInstanceID := uuid.New().String()
 		fixedBinding := fixture.FixBindingWithInstanceID("1", sameInstanceID)
 		err = brokerStorage.Bindings().Insert(&fixedBinding)
 		assert.NoError(t, err)
@@ -156,7 +155,7 @@ func TestBinding(t *testing.T) {
 		// then
 		assert.NoError(t, err)
 		assert.Len(t, bindings, 2)
-	
+
 		for _, binding := range bindings {
 			assert.Equal(t, sameInstanceID, binding.InstanceID)
 		}
@@ -172,7 +171,7 @@ func TestBinding(t *testing.T) {
 		}()
 
 		// given
-		sameInstanceID :=  uuid.New().String()
+		sameInstanceID := uuid.New().String()
 		fixedBinding := fixture.FixBindingWithInstanceID("1", sameInstanceID)
 		err = brokerStorage.Bindings().Insert(&fixedBinding)
 		assert.NoError(t, err)
@@ -191,7 +190,7 @@ func TestBinding(t *testing.T) {
 		// then
 		assert.NoError(t, err)
 		assert.Len(t, bindings, 0)
-	
+
 		for _, binding := range bindings {
 			assert.Equal(t, sameInstanceID, binding.InstanceID)
 		}
@@ -215,7 +214,7 @@ func TestBinding(t *testing.T) {
 		// then
 		assert.NoError(t, err)
 		assert.Len(t, bindings, 0)
-	
+
 		for _, binding := range bindings {
 			assert.Equal(t, sameInstanceID, binding.InstanceID)
 		}
