@@ -27,8 +27,17 @@ func (b *GetBindingEndpoint) GetBinding(_ context.Context, instanceID, bindingID
 	b.log.Infof("GetBinding instanceID: %s", instanceID)
 	b.log.Infof("GetBinding bindingID: %s", bindingID)
 
-	// todo: add instance id
-	binding, err := b.bindings.GetByBindingID(bindingID)
+	binding, err := b.bindings.Get(instanceID, bindingID)
+
+	if(binding == nil) {
+		message := "Binding not found"
+		return domain.GetBindingSpec{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusNotFound, message)	
+	}
+
+	if(binding.InstanceID != instanceID) {
+		message := "Binding not found"
+		return domain.GetBindingSpec{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusNotFound, message)	
+	}
 
 	if err != nil {
 		b.log.Errorf("GetBinding error: %s", err)
