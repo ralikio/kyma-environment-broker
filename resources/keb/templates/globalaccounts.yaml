@@ -64,7 +64,7 @@ spec:
             - name: GLOBALACCOUNTS_CIS_ACCOUNTS_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.globalaccounts.svc.clientId | required "please specify .Values.globalaccounts.svc.clientId" | quote }}
+                  name: {{ .Values.globalaccounts.svc.secretName | required "please specify .Values.globalaccounts.svc.secretName" | quote }}
                   key: id
             - name: GLOBALACCOUNTS_CIS_ACCOUNTS_CLIENT_SECRET
               valueFrom:
