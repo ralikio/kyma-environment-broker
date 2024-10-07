@@ -21,13 +21,14 @@ type readSession struct {
 	session *dbr.Session
 }
 
-func (r readSession) GetBindingByID(bindingID string) (dbmodel.BindingDTO, dberr.Error) {
+func (r readSession) Get(instanceID string, bindingID string) (dbmodel.BindingDTO, dberr.Error) {
 	var binding dbmodel.BindingDTO
 
 	err := r.session.
 		Select("*").
 		From(BindingsTableName).
 		Where(dbr.Eq("id", bindingID)).
+		Where(dbr.Eq("instance_id", instanceID)).
 		LoadOne(&binding)
 
 	if err != nil {
