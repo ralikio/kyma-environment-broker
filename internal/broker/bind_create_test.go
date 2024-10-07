@@ -162,7 +162,8 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	}
 
 	//// api handler
-	bindEndpoint := NewBind(*bindingCfg, db.Instances(), logs, skrK8sClientProvider, skrK8sClientProvider, gardenerClient)
+	bindEndpoint := NewBind(*bindingCfg, db.Instances(), db.Bindings(), logs, skrK8sClientProvider, skrK8sClientProvider, gardenerClient)
+	getBindingEndpoint := NewGetBinding(logs, db.Bindings())
 	apiHandler := handlers.NewApiHandler(KymaEnvironmentBroker{
 		nil,
 		nil,
@@ -172,21 +173,21 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		nil,
 		bindEndpoint,
 		nil,
-		nil,
+		getBindingEndpoint,
 		nil,
 	}, brokerLogger)
 
 	//// attach bindings api
-	method := "PUT"
 	router := mux.NewRouter()
-	router.HandleFunc("/v2/service_instances/{instance_id}/service_bindings/{binding_id}", apiHandler.Bind).Methods(method)
+	router.HandleFunc("/v2/service_instances/{instance_id}/service_bindings/{binding_id}", apiHandler.Bind).Methods("PUT")
+	router.HandleFunc("/v2/service_instances/{instance_id}/service_bindings/{binding_id}", apiHandler.GetBinding).Methods("GET")
 	httpServer := httptest.NewServer(router)
 	defer httpServer.Close()
 
 	t.Run("should create a new service binding without error", func(t *testing.T) {
 
 		// When
-		response := CallAPI(httpServer, method, "v2/service_instances/1/service_bindings/binding-id?accepts_incomplete=true", fmt.Sprintf(`
+		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/binding-id?accepts_incomplete=true", fmt.Sprintf(`
 		{
 			"service_id": "123",
 			"plan_id": "%s",
@@ -222,7 +223,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		const customExpirationSeconds = 900
 
 		// When
-		response := CallAPI(httpServer, method, "v2/service_instances/1/service_bindings/binding-id2?accepts_incomplete=true", fmt.Sprintf(`
+		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/binding-id2?accepts_incomplete=true", fmt.Sprintf(`
 		{
 			"service_id": "123",
 			"plan_id": "%s",
@@ -241,11 +242,12 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, customExpirationSeconds*time.Second, duration)
 	})
+
 	t.Run("should return error when expiration_seconds is greater than maxExpirationSeconds", func(t *testing.T) {
 		const customExpirationSeconds = 7201
 
 		// When
-		response := CallAPI(httpServer, method, "v2/service_instances/1/service_bindings/binding-id3?accepts_incomplete=true", fmt.Sprintf(`
+		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/binding-id3?accepts_incomplete=true", fmt.Sprintf(`
 		{
 			"service_id": "123",
 			"plan_id": "%s",
@@ -259,10 +261,10 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	})
 
 	t.Run("should return error when expiration_seconds is less than minExpirationSeconds", func(t *testing.T) {
-		const customExpirationSeconds = 60
+		const customExpirationSeconds = 600
 
 		// When
-		response := CallAPI(httpServer, method, "v2/service_instances/1/service_bindings/binding-id4?accepts_incomplete=true", fmt.Sprintf(`
+		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/binding-id4?accepts_incomplete=true", fmt.Sprintf(`
 		{
 			"service_id": "123",
 			"plan_id": "%s",
@@ -274,23 +276,36 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, response.StatusCode)
 	})
 
-	t.Run("should return created kubeconfig", func(t *testing.T) {
-		const customExpirationSeconds = 60
-
+	t.Run("should return 404 for not existing binding", func(t *testing.T) {
+		// given
+		instanceID := "1"
+		bindingID := uuid.New().String()
+		endpoint := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
+		
 		// when
-		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/" + uuid.New().String() + " ?accepts_incomplete=true", fmt.Sprintf(`
+		response := CallAPI(httpServer, "GET", endpoint, "", t)
+
+		// then
+		require.Equal(t, http.StatusNotFound, response.StatusCode)
+	})
+
+	t.Run("should return created kubeconfig", func(t *testing.T) {
+		// when
+		instanceID := "1"
+		bindingID := uuid.New().String()
+		endpoint := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
+		body := fmt.Sprintf(`
 		{
 			"service_id": "123",
 			"plan_id": "%s",
 			"parameters": {	
-				"service_account": true,
-				"expiration_seconds": %v
-			}	
-		}`, fixture.PlanId, customExpirationSeconds), t)
+				"service_account": true	
+				}	
+		}`, fixture.PlanId)
+		response := CallAPI(httpServer, "PUT", endpoint, body, t)
 		require.Equal(t, http.StatusCreated, response.StatusCode)
 
-		response = CallAPI(httpServer, "GET", "v2/service_instances/1/service_bindings/" + uuid.New().String() + " ?accepts_incomplete=false", "", t)
-
+		response = CallAPI(httpServer, "GET", endpoint, "", t)
 
 		require.Equal(t, http.StatusOK, response.StatusCode)
 	})
@@ -333,6 +348,8 @@ func createKubeconfigFileForRestConfig(restConfig rest.Config) []byte {
 func CallAPI(httpServer *httptest.Server, method string, path string, body string, t *testing.T) *http.Response {
 	cli := httpServer.Client()
 	req, err := http.NewRequest(method, fmt.Sprintf("%s/%s", httpServer.URL, path), bytes.NewBuffer([]byte(body)))
+	req.Header.Set("X-Broker-API-Version", "2.14")
+
 	require.NoError(t, err)
 
 	resp, err := cli.Do(req)
@@ -417,3 +434,5 @@ func getTokenDuration(t *testing.T, config string) (time.Duration, error) {
 	}
 	return 0, fmt.Errorf("user with name 'context' not found")
 }
+
+    // TODO: test to check encoding of kubeconfig
