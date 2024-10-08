@@ -456,4 +456,3 @@ func getTokenDuration(t *testing.T, config string) (time.Duration, error) {
 	}
 	return 0, fmt.Errorf("user with name 'context' not found")
 }
-
