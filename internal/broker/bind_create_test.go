@@ -261,7 +261,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	})
 
 	t.Run("should return error when expiration_seconds is less than minExpirationSeconds", func(t *testing.T) {
-		const customExpirationSeconds = 600
+		const customExpirationSeconds = 60
 
 		// When
 		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/binding-id4?accepts_incomplete=true", fmt.Sprintf(`
