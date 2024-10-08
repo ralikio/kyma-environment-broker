@@ -29,21 +29,21 @@ func (b *GetBindingEndpoint) GetBinding(_ context.Context, instanceID, bindingID
 
 	binding, err := b.bindings.Get(instanceID, bindingID)
 
-	if(binding == nil) {
+	if binding == nil {
 		message := "Binding not found"
-		return domain.GetBindingSpec{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusNotFound, message)	
+		return domain.GetBindingSpec{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusNotFound, message)
 	}
 
-	if(binding.InstanceID != instanceID) {
+	if binding.InstanceID != instanceID {
 		message := "Binding not found"
-		return domain.GetBindingSpec{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusNotFound, message)	
+		return domain.GetBindingSpec{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusNotFound, message)
 	}
 
 	if err != nil {
 		b.log.Errorf("GetBinding error: %s", err)
 		message := "Error while getting binding"
 		return domain.GetBindingSpec{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusInternalServerError, message)
-	} 
+	}
 
 	return domain.GetBindingSpec{
 		Credentials: Credentials{

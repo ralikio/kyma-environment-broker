@@ -281,7 +281,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		instanceID := "1"
 		bindingID := uuid.New().String()
 		endpoint := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
-		
+
 		// when
 		response := CallAPI(httpServer, "GET", endpoint, "", t)
 

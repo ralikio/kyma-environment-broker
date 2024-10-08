@@ -118,13 +118,13 @@ func (b *BindEndpoint) Bind(ctx context.Context, instanceID, bindingID string, d
 	}
 
 	var kubeconfig string
-	binding:= &internal.Binding{
+	binding := &internal.Binding{
 		ID:         bindingID,
 		InstanceID: instanceID,
 
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-	
+
 		ExpirationSeconds: int64(expirationSeconds),
 	}
 	if parameters.ServiceAccount {
@@ -145,7 +145,13 @@ func (b *BindEndpoint) Bind(ctx context.Context, instanceID, bindingID string, d
 	}
 
 	binding.Kubeconfig = internal.BINDING_TYPE_ADMIN_KUBECONFIG
-	b.bindingsStorage.Insert(binding)
+
+	err = b.bindingsStorage.Insert(binding)
+	if err != nil {
+		message := fmt.Sprintf("failed to insert kyma binding")
+		return domain.Binding{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusInternalServerError, message)
+
+	}
 
 	return domain.Binding{
 		IsAsync: false,

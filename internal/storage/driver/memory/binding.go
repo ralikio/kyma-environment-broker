@@ -62,13 +62,13 @@ func (s *Binding) ListByInstanceID(instanceID string) ([]internal.Binding, error
 	return bindings, nil
 }
 
-func (s*Binding) Get(instanceID string, bindingID string) (*internal.Binding, error) {
+func (s *Binding) Get(instanceID string, bindingID string) (*internal.Binding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	binding := s.data[bindingID]
-	if (binding.InstanceID == instanceID) {
-		return &binding, nil	
+	if binding.InstanceID == instanceID {
+		return &binding, nil
 	} else {
 		return nil, dberr.NotFound("binding with id %s not exist", bindingID)
 	}
