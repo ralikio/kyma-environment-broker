@@ -290,7 +290,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	})
 
 	t.Run("should return created kubeconfig", func(t *testing.T) {
-		// when
+		// given
 		instanceID := "1"
 		bindingID := uuid.New().String()
 		endpoint := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
@@ -302,12 +302,30 @@ func TestCreateBindingEndpoint(t *testing.T) {
 				"service_account": true	
 				}	
 		}`, fixture.PlanId)
+
+		// when
 		response := CallAPI(httpServer, "PUT", endpoint, body, t)
 		require.Equal(t, http.StatusCreated, response.StatusCode)
 
 		response = CallAPI(httpServer, "GET", endpoint, "", t)
 
+		// then
 		require.Equal(t, http.StatusOK, response.StatusCode)
+
+		binding := unmarshal(t, response)
+
+		credentials, ok := binding.Credentials.(map[string]interface{})
+		require.True(t, ok)
+		kubeconfig := credentials["kubeconfig"].(string)
+
+		duration, err := getTokenDuration(t, kubeconfig)
+		require.NoError(t, err)
+		assert.Equal(t, expirationSeconds*time.Second, duration)
+
+		//// verify connectivity using kubeconfig from the generated binding
+		newClient := kubeconfigClient(t, kubeconfig)
+		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check", v1.GetOptions{})
+		assert.NoError(t, err)
 	})
 }
 
@@ -391,6 +409,10 @@ func kubeconfigClient(t *testing.T, kubeconfig string) *kubernetes.Clientset {
 func verifyResponse(t *testing.T, response *http.Response) domain.Binding {
 	require.Equal(t, http.StatusCreated, response.StatusCode)
 
+	return unmarshal(t, response)
+}
+
+func unmarshal(t *testing.T, response *http.Response) domain.Binding {
 	content, err := io.ReadAll(response.Body)
 	require.NoError(t, err)
 	defer response.Body.Close()

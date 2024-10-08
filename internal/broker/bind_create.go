@@ -144,7 +144,7 @@ func (b *BindEndpoint) Bind(ctx context.Context, instanceID, bindingID string, d
 		binding.BindingType = internal.BINDING_TYPE_ADMIN_KUBECONFIG
 	}
 
-	binding.Kubeconfig = internal.BINDING_TYPE_ADMIN_KUBECONFIG
+	binding.Kubeconfig = kubeconfig
 
 	err = b.bindingsStorage.Insert(binding)
 	if err != nil {
