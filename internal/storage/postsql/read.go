@@ -21,7 +21,7 @@ type readSession struct {
 	session *dbr.Session
 }
 
-func (r readSession) Get(instanceID string, bindingID string) (dbmodel.BindingDTO, dberr.Error) {
+func (r readSession) GetBinding(instanceID string, bindingID string) (dbmodel.BindingDTO, dberr.Error) {
 	var binding dbmodel.BindingDTO
 
 	err := r.session.

@@ -24,7 +24,7 @@ func NewBinding(sess postsql.Factory, cipher Cipher) *Binding {
 func (s *Binding) Get(instanceID string, bindingID string) (*internal.Binding, error) {
 	sess := s.NewReadSession()
 	bindingDTO := dbmodel.BindingDTO{}
-	bindingDTO, dbErr := sess.Get(instanceID, bindingID)
+	bindingDTO, dbErr := sess.GetBinding(instanceID, bindingID)
 	if dbErr != nil {
 		if dberr.IsNotFound(dbErr) {
 			return nil, dberr.NotFound("Binding with id %s does not exist", bindingID)
@@ -49,7 +49,7 @@ func (s *Binding) Insert(binding *internal.Binding) error {
 
 	sess := s.NewWriteSession()
 	err = sess.InsertBinding(dto)
-	
+
 	if err != nil {
 		return fmt.Errorf("while saving binding with ID %s: %w", binding.ID, err)
 	}
