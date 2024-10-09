@@ -75,51 +75,39 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	assert.NoError(t, err)
 
 	// prepare envtest to provide valid kubeconfig
-	pid := internal.SetupEnvtest(t)
-	defer func() {
-		internal.CleanupEnvtestBinaries(pid)
-	}()
+	envFirst, configFirst, clientFirst := createEnvTest(t)
 
-	env := envtest.Environment{
-		ControlPlaneStartTimeout: 40 * time.Second,
-	}
-	var errEnvTest error
-	var config *rest.Config
-	err = wait.Poll(500*time.Millisecond, 5*time.Second, func() (done bool, err error) {
-		config, errEnvTest = env.Start()
-		if err != nil {
-			t.Logf("envtest could not start, retrying: %s", errEnvTest.Error())
-			return false, nil
-		}
-		t.Logf("envtest started")
-		return true, nil
-	})
-	require.NoError(t, err)
-	require.NoError(t, errEnvTest)
 	defer func(env *envtest.Environment) {
 		err := env.Stop()
 		assert.NoError(t, err)
-	}(&env)
-	kbcfg := createKubeconfigFileForRestConfig(*config)
-	skrClient, err := initClient(config)
-	require.NoError(t, err)
-
-	err = skrClient.Create(context.Background(), &corev1.Namespace{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "kyma-system",
-		},
-	})
-	require.NoError(t, err)
+	}(&envFirst)
+	kbcfgFirst := createKubeconfigFileForRestConfig(*configFirst)
 
 	//// secret check in assertions
-	err = skrClient.Create(context.Background(), &corev1.Secret{
+	err = clientFirst.Create(context.Background(), &corev1.Secret{
 		ObjectMeta: v1.ObjectMeta{
-			Name:      "secret-to-check",
+			Name:      "secret-to-check-first",
 			Namespace: "default",
 		},
 	})
-
 	require.NoError(t, err)
+
+	// prepare envtest to provide valid kubeconfig for the second environment
+	envSecond, configSecond, clientSecond := createEnvTest(t)
+
+	defer func(env *envtest.Environment) {
+		err := env.Stop()
+		assert.NoError(t, err)
+	}(&envSecond)
+	kbcfgSecond := createKubeconfigFileForRestConfig(*configSecond)
+
+	//// secret check in assertions
+	err = clientSecond.Create(context.Background(), &corev1.Secret{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "secret-to-check-second",
+			Namespace: "default",
+		},
+	})
 
 	//// create fake kubernetes client - kcp
 	kcpClient := fake.NewClientBuilder().
@@ -131,7 +119,16 @@ func TestCreateBindingEndpoint(t *testing.T) {
 					Namespace: "kcp-system",
 				},
 				Data: map[string][]byte{
-					"config": kbcfg,
+					"config": kbcfgFirst,
+				},
+			},
+			&corev1.Secret{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "kubeconfig-runtime-2",
+					Namespace: "kcp-system",
+				},
+				Data: map[string][]byte{
+					"config": kbcfgSecond,
 				},
 			},
 		}...).
@@ -146,6 +143,9 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	//// database
 	db := storage.NewMemoryStorage()
 	err = db.Instances().Insert(fixture.FixInstance("1"))
+	require.NoError(t, err)
+
+	err = db.Instances().Insert(fixture.FixInstance("2"))
 	require.NoError(t, err)
 
 	skrK8sClientProvider := kubeconfig.NewK8sClientFromSecretProvider(kcpClient)
@@ -209,7 +209,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 
 		//// verify connectivity using kubeconfig from the generated binding
 		newClient := kubeconfigClient(t, kubeconfig)
-		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check", v1.GetOptions{})
+		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check-first", v1.GetOptions{})
 		assert.NoError(t, err)
 
 		_, err = newClient.CoreV1().ServiceAccounts("kyma-system").Get(context.Background(), "kyma-binding-binding-id", v1.GetOptions{})
@@ -326,9 +326,74 @@ func TestCreateBindingEndpoint(t *testing.T) {
 
 		//// verify connectivity using kubeconfig from the generated binding
 		newClient := kubeconfigClient(t, kubeconfig)
-		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check", v1.GetOptions{})
+		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check-first", v1.GetOptions{})
 		assert.NoError(t, err)
 	})
+
+	t.Run("should return selected binding when multiple bindings created", func(t *testing.T) {
+		// given
+		instanceIDFirst := "1"
+		createBindingForInstance(instanceIDFirst, httpServer, t)
+
+		instanceIDSecond := "2"
+		bindingIDSecond := createBindingForInstance(instanceIDSecond, httpServer, t)
+
+		bindingIDFirst := createBindingForInstance(instanceIDFirst, httpServer, t)
+
+		// when
+		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDFirst, bindingIDFirst)
+
+		response := CallAPI(httpServer, http.MethodGet, path, "", t)
+
+		// then
+		require.Equal(t, http.StatusOK, response.StatusCode)
+
+		binding := unmarshal(t, response)
+
+		credentials, ok := binding.Credentials.(map[string]interface{})
+		require.True(t, ok)
+		kubeconfig := credentials["kubeconfig"].(string)
+
+		newClient := kubeconfigClient(t, kubeconfig)
+		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check-first", v1.GetOptions{})
+		assert.NoError(t, err)
+
+		// when
+		path = fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDSecond, bindingIDSecond)
+
+		response = CallAPI(httpServer, http.MethodGet, path, "", t)
+
+		// then
+		require.Equal(t, http.StatusOK, response.StatusCode)
+
+		binding = unmarshal(t, response)
+
+		credentials, ok = binding.Credentials.(map[string]interface{})
+		require.True(t, ok)
+		kubeconfig = credentials["kubeconfig"].(string)
+
+		newClient = kubeconfigClient(t, kubeconfig)
+		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check-second", v1.GetOptions{})
+		assert.NoError(t, err)
+	})
+}
+
+func createBindingForInstance(instanceID string, httpServer *httptest.Server, t *testing.T) string {
+	bindingID := uuid.New().String()
+	path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
+	body := fmt.Sprintf(`
+	{
+		"service_id": "123",
+		"plan_id": "%s",
+		"parameters": {	
+			"service_account": true	
+			}	
+	}`, fixture.PlanId)
+
+	response := CallAPI(httpServer, http.MethodPut, path, body, t)
+	require.Equal(t, http.StatusCreated, response.StatusCode)
+
+	return bindingID
 }
 
 func createKubeconfigFileForRestConfig(restConfig rest.Config) []byte {
@@ -451,4 +516,39 @@ func getTokenDuration(t *testing.T, config string) (time.Duration, error) {
 		}
 	}
 	return 0, fmt.Errorf("user with name 'context' not found")
+}
+
+func createEnvTest(t *testing.T) (envtest.Environment, *rest.Config, client.Client) {
+	pid := internal.SetupEnvtest(t)
+	defer func() {
+		internal.CleanupEnvtestBinaries(pid)
+	}()
+
+	env := envtest.Environment{
+		ControlPlaneStartTimeout: 40 * time.Second,
+	}
+	var errEnvTest error
+	var config *rest.Config
+	err := wait.Poll(500*time.Millisecond, 5*time.Second, func() (done bool, err error) {
+		config, errEnvTest = env.Start()
+		if err != nil {
+			t.Logf("envtest could not start, retrying: %s", errEnvTest.Error())
+			return false, nil
+		}
+		t.Logf("envtest started")
+		return true, nil
+	})
+	require.NoError(t, err)
+	require.NoError(t, errEnvTest)
+	
+	skrClient, err := initClient(config)
+	require.NoError(t, err)
+
+	err = skrClient.Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "kyma-system",
+		},
+	})
+	require.NoError(t, err)
+	return env, config, skrClient
 }
