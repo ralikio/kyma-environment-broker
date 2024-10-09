@@ -33,9 +33,9 @@ func (r readSession) Get(instanceID string, bindingID string) (dbmodel.BindingDT
 
 	if err != nil {
 		if err == dbr.ErrNotFound {
-			return dbmodel.BindingDTO{}, dberr.NotFound("Cannot find Binding for bindingId:'%s'", bindingID)
+			return dbmodel.BindingDTO{}, dberr.NotFound("Cannot find the Binding for bindingId:'%s'", bindingID)
 		}
-		return dbmodel.BindingDTO{}, dberr.Internal("Failed to get Instance: %s", err)
+		return dbmodel.BindingDTO{}, dberr.Internal("Failed to get the Binding: %s", err)
 	}
 
 	return binding, nil
