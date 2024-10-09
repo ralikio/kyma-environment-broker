@@ -179,15 +179,15 @@ func TestCreateBindingEndpoint(t *testing.T) {
 
 	//// attach bindings api
 	router := mux.NewRouter()
-	router.HandleFunc("/v2/service_instances/{instance_id}/service_bindings/{binding_id}", apiHandler.Bind).Methods("PUT")
-	router.HandleFunc("/v2/service_instances/{instance_id}/service_bindings/{binding_id}", apiHandler.GetBinding).Methods("GET")
+	router.HandleFunc("/v2/service_instances/{instance_id}/service_bindings/{binding_id}", apiHandler.Bind).Methods(http.MethodPut)
+	router.HandleFunc("/v2/service_instances/{instance_id}/service_bindings/{binding_id}", apiHandler.GetBinding).Methods(http.MethodGet)
 	httpServer := httptest.NewServer(router)
 	defer httpServer.Close()
 
 	t.Run("should create a new service binding without error", func(t *testing.T) {
 
 		// When
-		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/binding-id?accepts_incomplete=true", fmt.Sprintf(`
+		response := CallAPI(httpServer, http.MethodPut, "v2/service_instances/1/service_bindings/binding-id?accepts_incomplete=true", fmt.Sprintf(`
 		{
 			"service_id": "123",
 			"plan_id": "%s",
@@ -224,7 +224,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		const customExpirationSeconds = 900
 
 		// When
-		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/binding-id2?accepts_incomplete=true", fmt.Sprintf(`
+		response := CallAPI(httpServer, http.MethodPut, "v2/service_instances/1/service_bindings/binding-id2?accepts_incomplete=true", fmt.Sprintf(`
 		{
 			"service_id": "123",
 			"plan_id": "%s",
@@ -249,7 +249,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		const customExpirationSeconds = 7201
 
 		// When
-		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/binding-id3?accepts_incomplete=true", fmt.Sprintf(`
+		response := CallAPI(httpServer, http.MethodPut, "v2/service_instances/1/service_bindings/binding-id3?accepts_incomplete=true", fmt.Sprintf(`
 		{
 			"service_id": "123",
 			"plan_id": "%s",
@@ -266,7 +266,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		const customExpirationSeconds = 60
 
 		// When
-		response := CallAPI(httpServer, "PUT", "v2/service_instances/1/service_bindings/binding-id4?accepts_incomplete=true", fmt.Sprintf(`
+		response := CallAPI(httpServer, http.MethodPut, "v2/service_instances/1/service_bindings/binding-id4?accepts_incomplete=true", fmt.Sprintf(`
 		{
 			"service_id": "123",
 			"plan_id": "%s",
@@ -285,7 +285,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		endpoint := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
 
 		// when
-		response := CallAPI(httpServer, "GET", endpoint, "", t)
+		response := CallAPI(httpServer, http.MethodGet, endpoint, "", t)
 
 		// then
 		require.Equal(t, http.StatusNotFound, response.StatusCode)
@@ -306,10 +306,10 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		}`, fixture.PlanId)
 
 		// when
-		response := CallAPI(httpServer, "PUT", endpoint, body, t)
+		response := CallAPI(httpServer, http.MethodPut, endpoint, body, t)
 		require.Equal(t, http.StatusCreated, response.StatusCode)
 
-		response = CallAPI(httpServer, "GET", endpoint, "", t)
+		response = CallAPI(httpServer, http.MethodGet, endpoint, "", t)
 
 		// then
 		require.Equal(t, http.StatusOK, response.StatusCode)
