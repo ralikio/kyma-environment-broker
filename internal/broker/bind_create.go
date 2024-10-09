@@ -148,7 +148,7 @@ func (b *BindEndpoint) Bind(ctx context.Context, instanceID, bindingID string, d
 
 	err = b.bindingsStorage.Insert(binding)
 	if err != nil {
-		message := fmt.Sprintf("failed to insert kyma binding")
+		message := fmt.Sprintf("failed to insert Kyma binding")
 		return domain.Binding{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusInternalServerError, message)
 
 	}
