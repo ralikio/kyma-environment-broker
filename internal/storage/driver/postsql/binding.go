@@ -30,7 +30,7 @@ func (s *Binding) Get(instanceID string, bindingID string) (*internal.Binding, e
 			return nil, dberr.NotFound("Binding with id %s does not exist", bindingID)
 		}
 
-		return nil, fmt.Errorf("while getting instanceDTO by ID %s: %w", bindingID, dbErr)
+		return nil, fmt.Errorf("while getting bindingDTO by ID %s: %w", bindingID, dbErr)
 	}
 
 	binding, err := s.toBinding(bindingDTO)
