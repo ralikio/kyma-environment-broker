@@ -41,7 +41,7 @@ func (b *GetBindingEndpoint) GetBinding(_ context.Context, instanceID, bindingID
 
 	if err != nil {
 		b.log.Errorf("GetBinding error: %s", err)
-		message := "Error while getting binding"
+		message := fmt.Sprintf("Unexpected error: %s", err)
 		return domain.GetBindingSpec{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusInternalServerError, message)
 	}
 

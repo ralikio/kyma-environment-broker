@@ -7,7 +7,6 @@ import (
 	"github.com/kyma-project/kyma-environment-broker/internal/storage/dberr"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage/dbmodel"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage/postsql"
-	log "github.com/sirupsen/logrus"
 )
 
 type Binding struct {
@@ -25,14 +24,15 @@ func NewBinding(sess postsql.Factory, cipher Cipher) *Binding {
 func (s *Binding) Get(instanceID string, bindingID string) (*internal.Binding, error) {
 	sess := s.NewReadSession()
 	bindingDTO := dbmodel.BindingDTO{}
-	bindingDTO, lastErr := sess.Get(instanceID, bindingID)
-	if lastErr != nil {
-		if dberr.IsNotFound(lastErr) {
-			return nil, dberr.NotFound("Binding with id %s not exist", bindingID)
+	bindingDTO, dbErr := sess.Get(instanceID, bindingID)
+	if dbErr != nil {
+		if dberr.IsNotFound(dbErr) {
+			return nil, dberr.NotFound("Binding with id %s does not exist", bindingID)
 		}
-		log.Errorf("while getting instanceDTO by ID %s: %v", bindingID, lastErr)
-		return nil, lastErr
+
+		return nil, fmt.Errorf("while getting instanceDTO by ID %s: %w", bindingID, dbErr)
 	}
+
 	binding, err := s.toBinding(bindingDTO)
 	if err != nil {
 		return nil, err
