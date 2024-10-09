@@ -4,7 +4,7 @@ go 1.23.1
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/99designs/gqlgen v0.17.54
+	github.com/99designs/gqlgen v0.17.55
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.29
 	github.com/Azure/go-autorest/autorest/adal v0.9.24
@@ -36,7 +36,7 @@ require (
 	github.com/vrischmann/envconfig v1.3.0
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
 	golang.org/x/oauth2 v0.23.0
-	golang.org/x/time v0.6.0
+	golang.org/x/time v0.7.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.31.1
