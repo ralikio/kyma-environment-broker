@@ -66,8 +66,8 @@ func (s *Binding) Get(instanceID string, bindingID string) (*internal.Binding, e
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	binding := s.data[bindingID]
-	if binding.InstanceID == instanceID {
+	binding, ok := s.data[bindingID]
+	if ok && binding.InstanceID == instanceID {
 		return &binding, nil
 	} else {
 		return nil, dberr.NotFound("binding with id %s not exist", bindingID)
