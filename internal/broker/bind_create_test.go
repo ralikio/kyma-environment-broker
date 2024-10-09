@@ -282,10 +282,10 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// given
 		instanceID := "1"
 		bindingID := uuid.New().String()
-		endpoint := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
+		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
 
 		// when
-		response := CallAPI(httpServer, http.MethodGet, endpoint, "", t)
+		response := CallAPI(httpServer, http.MethodGet, path, "", t)
 
 		// then
 		require.Equal(t, http.StatusNotFound, response.StatusCode)
@@ -295,7 +295,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// given
 		instanceID := "1"
 		bindingID := uuid.New().String()
-		endpoint := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
+		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
 		body := fmt.Sprintf(`
 		{
 			"service_id": "123",
@@ -306,10 +306,10 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		}`, fixture.PlanId)
 
 		// when
-		response := CallAPI(httpServer, http.MethodPut, endpoint, body, t)
+		response := CallAPI(httpServer, http.MethodPut, path, body, t)
 		require.Equal(t, http.StatusCreated, response.StatusCode)
 
-		response = CallAPI(httpServer, http.MethodGet, endpoint, "", t)
+		response = CallAPI(httpServer, http.MethodGet, path, "", t)
 
 		// then
 		require.Equal(t, http.StatusOK, response.StatusCode)
