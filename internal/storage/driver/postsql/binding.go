@@ -42,11 +42,6 @@ func (s *Binding) Get(instanceID string, bindingID string) (*internal.Binding, e
 }
 
 func (s *Binding) Insert(binding *internal.Binding) error {
-	_, err := s.Get(binding.InstanceID, binding.ID)
-	if err == nil {
-		return dberr.AlreadyExists("instance with id %s already exist", binding.ID)
-	}
-
 	dto, err := s.toBindingDTO(binding)
 	if err != nil {
 		return err
@@ -54,6 +49,7 @@ func (s *Binding) Insert(binding *internal.Binding) error {
 
 	sess := s.NewWriteSession()
 	err = sess.InsertBinding(dto)
+	
 	if err != nil {
 		return fmt.Errorf("while saving binding with ID %s: %w", binding.ID, err)
 	}
