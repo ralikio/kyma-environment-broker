@@ -196,7 +196,8 @@ func TestCreateBindingEndpoint(t *testing.T) {
 			}
 		}`, fixture.PlanId), t)
 
-		binding := verifyResponse(t, response)
+		binding := unmarshal(t, response)
+		require.Equal(t, http.StatusCreated, response.StatusCode)
 
 		credentials, ok := binding.Credentials.(map[string]interface{})
 		require.True(t, ok)
@@ -233,7 +234,8 @@ func TestCreateBindingEndpoint(t *testing.T) {
 			}
 		}`, fixture.PlanId, customExpirationSeconds), t)
 
-		binding := verifyResponse(t, response)
+		binding := unmarshal(t, response)
+		require.Equal(t, http.StatusCreated, response.StatusCode)
 
 		credentials, ok := binding.Credentials.(map[string]interface{})
 		require.True(t, ok)
@@ -404,12 +406,6 @@ func kubeconfigClient(t *testing.T, kubeconfig string) *kubernetes.Clientset {
 	assert.NoError(t, err)
 
 	return clientset
-}
-
-func verifyResponse(t *testing.T, response *http.Response) domain.Binding {
-	require.Equal(t, http.StatusCreated, response.StatusCode)
-
-	return unmarshal(t, response)
 }
 
 func unmarshal(t *testing.T, response *http.Response) domain.Binding {
