@@ -540,7 +540,7 @@ func createEnvTest(t *testing.T) (envtest.Environment, *rest.Config, client.Clie
 	})
 	require.NoError(t, err)
 	require.NoError(t, errEnvTest)
-	
+
 	skrClient, err := initClient(config)
 	require.NoError(t, err)
 
