@@ -131,7 +131,7 @@ func (b *BindEndpoint) Bind(ctx context.Context, instanceID, bindingID string, d
 		// get kubeconfig for the instance
 		kubeconfig, err = b.serviceAccountBindingManager.Create(ctx, instance, bindingID, expirationSeconds)
 		if err != nil {
-			message := fmt.Sprintf("failed to create kyma binding for service account using token request: %s", err)
+			message := fmt.Sprintf("failed to create a Kyma binding using token request: %s", err)
 			return domain.Binding{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusBadRequest, message)
 		}
 		binding.BindingType = internal.BINDING_TYPE_SERVICE_ACCOUNT
