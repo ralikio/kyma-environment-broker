@@ -121,7 +121,7 @@ func (c *ServiceAccountBindingsManager) Create(ctx context.Context, instance *in
 	tkn, err := clientset.CoreV1().ServiceAccounts("kyma-system").CreateToken(ctx, serviceBindingName, tokenRequest, mv1.CreateOptions{})
 
 	if err != nil {
-		return "", fmt.Errorf("while creating a token request: %v", err)
+		return "", fmt.Errorf("while creating a service account kubeconfig: %v", err)
 	}
 
 	kubeconfigContent, err := c.kubeconfigBuilder.BuildFromAdminKubeconfigForBinding(instance.RuntimeID, tkn.Status.Token)
