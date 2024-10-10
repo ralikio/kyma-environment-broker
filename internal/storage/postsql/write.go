@@ -24,7 +24,7 @@ type writeSession struct {
 func (ws writeSession) DeleteBinding(instanceID, bindingID string) dberr.Error {
 	_, err := ws.deleteFrom(BindingsTableName).
 		Where(dbr.Eq("id", bindingID)).
-		Where(dbr.Eq("instance_id", bindingID)).
+		Where(dbr.Eq("instance_id", instanceID)).
 		Exec()
 
 	if err != nil {
