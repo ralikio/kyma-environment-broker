@@ -28,7 +28,7 @@ func TestBinding(t *testing.T) {
 		assert.NoError(t, err)
 
 		// when
-		testInstanceID := "instance-"+testBindingId
+		testInstanceID := "instance-" + testBindingId
 		createdBinding, err := brokerStorage.Bindings().Get(testInstanceID, testBindingId)
 
 		// then

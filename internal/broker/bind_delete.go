@@ -9,7 +9,7 @@ import (
 )
 
 type UnbindEndpoint struct {
-	log logrus.FieldLogger
+	log             logrus.FieldLogger
 	bindingsStorage storage.Bindings
 }
 
@@ -25,7 +25,7 @@ func (b *UnbindEndpoint) Unbind(ctx context.Context, instanceID, bindingID strin
 	b.log.Infof("Unbind details: %+v", details)
 	b.log.Infof("Unbind asyncAllowed: %v", asyncAllowed)
 
-	err := b.bindingsStorage.Delete(instanceID, bindingID)	
+	err := b.bindingsStorage.Delete(instanceID, bindingID)
 
 	if err != nil {
 		b.log.Errorf("Unbind error: %s", err)
