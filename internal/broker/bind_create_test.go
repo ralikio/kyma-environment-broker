@@ -211,8 +211,6 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assertBindingExistence(t, response, "kyma-binding-binding-id")
 	})
 
-	
-
 	t.Run("should create a new service binding with custom token expiration time", func(t *testing.T) {
 		const customExpirationSeconds = 900
 
@@ -382,11 +380,13 @@ func assertBindingExistence(t *testing.T, response *http.Response, bindingID str
 
 	newClient := kubeconfigClient(t, kubeconfig)
 
-	_, err := newClient.CoreV1().ServiceAccounts("kyma-system").Get(context.Background(), bindingID , v1.GetOptions{})
+	_, err := newClient.CoreV1().ServiceAccounts("kyma-system").Get(context.Background(), bindingID, v1.GetOptions{})
 	assert.NoError(t, err)
-	_, err = newClient.RbacV1().ClusterRoles().Get(context.Background(), bindingID , v1.GetOptions{})
+	_, err = newClient.RbacV1().ClusterRoles().Get(context.Background(), bindingID, v1.GetOptions{})
 	assert.NoError(t, err)
-	_, err = newClient.RbacV1().ClusterRoleBindings().Get(context.Background(), bindingID , v1.GetOptions{})
+	_, err = newClient.RbacV1().ClusterRoleBindings().Get(context.Background(), bindingID, v1.GetOptions{})
+	assert.NoError(t, err)
+	_, err = newClient.RbacV1().ClusterRoleBindings().Get(context.Background(), bindingID, v1.GetOptions{})
 	assert.NoError(t, err)
 }
 

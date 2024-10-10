@@ -67,8 +67,9 @@ func (c *ServiceAccountBindingsManager) Create(ctx context.Context, instance *in
 		&rbacv1.ClusterRole{
 			TypeMeta: mv1.TypeMeta{APIVersion: rbacv1.SchemeGroupVersion.String(), Kind: "ClusterRole"},
 			ObjectMeta: mv1.ObjectMeta{
-				Name:   serviceBindingName,
-				Labels: map[string]string{"app.kubernetes.io/managed-by": "kcp-kyma-environment-broker"},
+				Name:      serviceBindingName,
+				Labels:    map[string]string{"app.kubernetes.io/managed-by": "kcp-kyma-environment-broker"},
+				Namespace: "kyma-system",
 			},
 			Rules: []rbacv1.PolicyRule{
 				{
