@@ -335,6 +335,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		response := CallAPI(httpServer, http.MethodGet, path, "", t)
 
 		// then
+		assert.Equal(t, http.StatusOK, response.StatusCode)
 		assertClusterAccess(t, response, "secret-to-check-first")
 
 		// when - binding to the second instance
@@ -342,6 +343,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		response = CallAPI(httpServer, http.MethodGet, path, "", t)
 
 		// then
+		assert.Equal(t, http.StatusOK, response.StatusCode)
 		assertClusterAccess(t, response, "secret-to-check-second")
 
 		// when - second binding to the first instance
@@ -349,6 +351,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		response = CallAPI(httpServer, http.MethodGet, path, "", t)
 
 		// then
+		assert.Equal(t, http.StatusOK, response.StatusCode)
 		assertClusterAccess(t, response, "secret-to-check-first")
 	})
 
