@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"github.com/kyma-project/kyma-environment-broker/internal"
 	"github.com/kyma-project/kyma-environment-broker/internal/kubeconfig"
 	"github.com/kyma-project/kyma-environment-broker/internal/ptr"
@@ -59,7 +61,7 @@ func (c *ServiceAccountBindingsManager) Create(ctx context.Context, instance *in
 			},
 		}, mv1.CreateOptions{})
 
-	if err != nil {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return "", fmt.Errorf("while creating a service account: %v", err)
 	}
 
@@ -80,7 +82,7 @@ func (c *ServiceAccountBindingsManager) Create(ctx context.Context, instance *in
 			},
 		}, mv1.CreateOptions{})
 
-	if err != nil {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return "", fmt.Errorf("while creating a cluster role: %v", err)
 	}
 
@@ -104,7 +106,7 @@ func (c *ServiceAccountBindingsManager) Create(ctx context.Context, instance *in
 		},
 	}, mv1.CreateOptions{})
 
-	if err != nil {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return "", fmt.Errorf("while creating a cluster role binding: %v", err)
 	}
 
