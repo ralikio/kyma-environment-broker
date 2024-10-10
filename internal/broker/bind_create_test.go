@@ -185,7 +185,6 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	defer httpServer.Close()
 
 	t.Run("should create a new service binding without error", func(t *testing.T) {
-
 		// When
 		response := CallAPI(httpServer, http.MethodPut, "v2/service_instances/1/service_bindings/binding-id?accepts_incomplete=true", fmt.Sprintf(`
 		{
@@ -208,17 +207,11 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Equal(t, expirationSeconds*time.Second, duration)
 
 		//// verify connectivity using kubeconfig from the generated binding
-		newClient := kubeconfigClient(t, kubeconfig)
-		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check-first", v1.GetOptions{})
-		assert.NoError(t, err)
-
-		_, err = newClient.CoreV1().ServiceAccounts("kyma-system").Get(context.Background(), "kyma-binding-binding-id", v1.GetOptions{})
-		assert.NoError(t, err)
-		_, err = newClient.RbacV1().ClusterRoles().Get(context.Background(), "kyma-binding-binding-id", v1.GetOptions{})
-		assert.NoError(t, err)
-		_, err = newClient.RbacV1().ClusterRoleBindings().Get(context.Background(), "kyma-binding-binding-id", v1.GetOptions{})
-		assert.NoError(t, err)
+		assertClusterAccess(t, response, "secret-to-check-first")
+		assertBindingExistence(t, response, "kyma-binding-binding-id")
 	})
+
+	
 
 	t.Run("should create a new service binding with custom token expiration time", func(t *testing.T) {
 		const customExpirationSeconds = 900
@@ -325,57 +318,76 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Equal(t, expirationSeconds*time.Second, duration)
 
 		//// verify connectivity using kubeconfig from the generated binding
-		newClient := kubeconfigClient(t, kubeconfig)
-		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check-first", v1.GetOptions{})
-		assert.NoError(t, err)
+		assertClusterAccess(t, response, "secret-to-check-first")
 	})
 
-	t.Run("should return selected binding when multiple bindings created", func(t *testing.T) {
+	t.Run("should return first created binding when multiple bindings created", func(t *testing.T) {
 		// given
 		instanceIDFirst := "1"
-		createBindingForInstance(instanceIDFirst, httpServer, t)
+		firstInstanceFirstBindingID := createBindingForInstance(instanceIDFirst, httpServer, t)
 
 		instanceIDSecond := "2"
-		bindingIDSecond := createBindingForInstance(instanceIDSecond, httpServer, t)
+		secondInstanceBindingID := createBindingForInstance(instanceIDSecond, httpServer, t)
 
-		bindingIDFirst := createBindingForInstance(instanceIDFirst, httpServer, t)
+		firstInstanceSecondBindingID := createBindingForInstance(instanceIDFirst, httpServer, t)
 
-		// when
-		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDFirst, bindingIDFirst)
+		// when - first binding to the first instance
+		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDFirst, firstInstanceFirstBindingID)
 
 		response := CallAPI(httpServer, http.MethodGet, path, "", t)
 
 		// then
-		require.Equal(t, http.StatusOK, response.StatusCode)
+		assertClusterAccess(t, response, "secret-to-check-first")
 
-		binding := unmarshal(t, response)
-
-		credentials, ok := binding.Credentials.(map[string]interface{})
-		require.True(t, ok)
-		kubeconfig := credentials["kubeconfig"].(string)
-
-		newClient := kubeconfigClient(t, kubeconfig)
-		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check-first", v1.GetOptions{})
-		assert.NoError(t, err)
-
-		// when
-		path = fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDSecond, bindingIDSecond)
-
+		// when - binding to the second instance
+		path = fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDSecond, secondInstanceBindingID)
 		response = CallAPI(httpServer, http.MethodGet, path, "", t)
 
 		// then
-		require.Equal(t, http.StatusOK, response.StatusCode)
+		assertClusterAccess(t, response, "secret-to-check-second")
 
-		binding = unmarshal(t, response)
+		// when - second binding to the first instance
+		path = fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDFirst, firstInstanceSecondBindingID)
+		response = CallAPI(httpServer, http.MethodGet, path, "", t)
 
-		credentials, ok = binding.Credentials.(map[string]interface{})
-		require.True(t, ok)
-		kubeconfig = credentials["kubeconfig"].(string)
-
-		newClient = kubeconfigClient(t, kubeconfig)
-		_, err = newClient.CoreV1().Secrets("default").Get(context.Background(), "secret-to-check-second", v1.GetOptions{})
-		assert.NoError(t, err)
+		// then
+		assertClusterAccess(t, response, "secret-to-check-first")
 	})
+
+}
+
+func assertClusterAccess(t *testing.T, response *http.Response, controlSecretName string) {
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	binding := unmarshal(t, response)
+
+	credentials, ok := binding.Credentials.(map[string]interface{})
+	require.True(t, ok)
+	kubeconfig := credentials["kubeconfig"].(string)
+
+	newClient := kubeconfigClient(t, kubeconfig)
+
+	_, err := newClient.CoreV1().Secrets("default").Get(context.Background(), controlSecretName, v1.GetOptions{})
+	assert.NoError(t, err)
+}
+
+func assertBindingExistence(t *testing.T, response *http.Response, bindingID string) {
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	binding := unmarshal(t, response)
+
+	credentials, ok := binding.Credentials.(map[string]interface{})
+	require.True(t, ok)
+	kubeconfig := credentials["kubeconfig"].(string)
+
+	newClient := kubeconfigClient(t, kubeconfig)
+
+	_, err := newClient.CoreV1().ServiceAccounts("kyma-system").Get(context.Background(), bindingID , v1.GetOptions{})
+	assert.NoError(t, err)
+	_, err = newClient.RbacV1().ClusterRoles().Get(context.Background(), bindingID , v1.GetOptions{})
+	assert.NoError(t, err)
+	_, err = newClient.RbacV1().ClusterRoleBindings().Get(context.Background(), bindingID , v1.GetOptions{})
+	assert.NoError(t, err)
 }
 
 func createBindingForInstance(instanceID string, httpServer *httptest.Server, t *testing.T) string {
