@@ -194,6 +194,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 				"service_account": true
 			}
 		}`, fixture.PlanId), t)
+		defer response.Body.Close()
 
 		binding := unmarshal(t, response)
 		require.Equal(t, http.StatusCreated, response.StatusCode)
@@ -207,8 +208,8 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Equal(t, expirationSeconds*time.Second, duration)
 
 		//// verify connectivity using kubeconfig from the generated binding
-		assertClusterAccess(t, response, "secret-to-check-first")
-		assertBindingExistence(t, response, "kyma-binding-binding-id")
+		assertClusterAccess(t, response, "secret-to-check-first", binding)
+		assertRolesExistence(t, response, "kyma-binding-binding-id", binding)
 	})
 
 	t.Run("should create a new service binding with custom token expiration time", func(t *testing.T) {
@@ -224,6 +225,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 				"expiration_seconds": %v
 			}
 		}`, fixture.PlanId, customExpirationSeconds), t)
+		defer response.Body.Close()
 
 		binding := unmarshal(t, response)
 		require.Equal(t, http.StatusCreated, response.StatusCode)
@@ -250,6 +252,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 
 			}
 		}`, fixture.PlanId, customExpirationSeconds), t)
+		defer response.Body.Close()
 		require.Equal(t, http.StatusBadRequest, response.StatusCode)
 	})
 
@@ -266,6 +269,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 				"expiration_seconds": %v
 			}	
 		}`, fixture.PlanId, customExpirationSeconds), t)
+		defer response.Body.Close()
 		require.Equal(t, http.StatusBadRequest, response.StatusCode)
 	})
 
@@ -277,6 +281,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 
 		// when
 		response := CallAPI(httpServer, http.MethodGet, path, "", t)
+		defer response.Body.Close()
 
 		// then
 		require.Equal(t, http.StatusNotFound, response.StatusCode)
@@ -298,6 +303,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 
 		// when
 		response := CallAPI(httpServer, http.MethodPut, path, body, t)
+		defer response.Body.Close()
 		require.Equal(t, http.StatusCreated, response.StatusCode)
 
 		response = CallAPI(httpServer, http.MethodGet, path, "", t)
@@ -316,7 +322,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Equal(t, expirationSeconds*time.Second, duration)
 
 		//// verify connectivity using kubeconfig from the generated binding
-		assertClusterAccess(t, response, "secret-to-check-first")
+		assertClusterAccess(t, response, "secret-to-check-first", binding)
 	})
 
 	t.Run("should return first created binding when multiple bindings created", func(t *testing.T) {
@@ -333,32 +339,36 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDFirst, firstInstanceFirstBindingID)
 
 		response := CallAPI(httpServer, http.MethodGet, path, "", t)
+		defer response.Body.Close()
 
 		// then
 		assert.Equal(t, http.StatusOK, response.StatusCode)
-		assertClusterAccess(t, response, "secret-to-check-first")
+		binding := unmarshal(t, response)
+		assertClusterAccess(t, response, "secret-to-check-first", binding)
 
 		// when - binding to the second instance
 		path = fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDSecond, secondInstanceBindingID)
 		response = CallAPI(httpServer, http.MethodGet, path, "", t)
+		defer response.Body.Close()
 
 		// then
 		assert.Equal(t, http.StatusOK, response.StatusCode)
-		assertClusterAccess(t, response, "secret-to-check-second")
+		binding = unmarshal(t, response)
+		assertClusterAccess(t, response, "secret-to-check-second", binding)
 
 		// when - second binding to the first instance
 		path = fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDFirst, firstInstanceSecondBindingID)
 		response = CallAPI(httpServer, http.MethodGet, path, "", t)
+		defer response.Body.Close()
 
 		// then
 		assert.Equal(t, http.StatusOK, response.StatusCode)
-		assertClusterAccess(t, response, "secret-to-check-first")
+		binding = unmarshal(t, response)
+		assertClusterAccess(t, response, "secret-to-check-first", binding)
 	})
-
 }
 
-func assertClusterAccess(t *testing.T, response *http.Response, controlSecretName string) {
-	binding := unmarshal(t, response)
+func assertClusterAccess(t *testing.T, response *http.Response, controlSecretName string, binding domain.Binding) {
 
 	credentials, ok := binding.Credentials.(map[string]interface{})
 	require.True(t, ok)
@@ -370,10 +380,7 @@ func assertClusterAccess(t *testing.T, response *http.Response, controlSecretNam
 	assert.NoError(t, err)
 }
 
-func assertBindingExistence(t *testing.T, response *http.Response, bindingID string) {
-	require.Equal(t, http.StatusOK, response.StatusCode)
-
-	binding := unmarshal(t, response)
+func assertRolesExistence(t *testing.T, response *http.Response, bindingID string, binding domain.Binding) {
 
 	credentials, ok := binding.Credentials.(map[string]interface{})
 	require.True(t, ok)
@@ -404,6 +411,7 @@ func createBindingForInstance(instanceID string, httpServer *httptest.Server, t 
 	}`, fixture.PlanId)
 
 	response := CallAPI(httpServer, http.MethodPut, path, body, t)
+	defer response.Body.Close()
 	require.Equal(t, http.StatusCreated, response.StatusCode)
 
 	return bindingID
@@ -489,7 +497,6 @@ func kubeconfigClient(t *testing.T, kubeconfig string) *kubernetes.Clientset {
 func unmarshal(t *testing.T, response *http.Response) domain.Binding {
 	content, err := io.ReadAll(response.Body)
 	require.NoError(t, err)
-	defer response.Body.Close()
 
 	t.Logf("response content is: %v", string(content))
 
