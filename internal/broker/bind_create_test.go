@@ -325,15 +325,15 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assertClusterAccess(t, response, "secret-to-check-first", binding)
 	})
 
-	t.Run("should return first created binding when multiple bindings created", func(t *testing.T) {
+	t.Run("should return created bindings when multiple bindings created", func(t *testing.T) {
 		// given
 		instanceIDFirst := "1"
-		firstInstanceFirstBindingID := createBindingForInstance(instanceIDFirst, httpServer, t)
+		firstInstanceFirstBindingID, firstInstancefirstBinding := createBindingForInstance(instanceIDFirst, httpServer, t)
 
 		instanceIDSecond := "2"
-		secondInstanceBindingID := createBindingForInstance(instanceIDSecond, httpServer, t)
+		secondInstanceBindingID, secondInstanceFirstBinding := createBindingForInstance(instanceIDSecond, httpServer, t)
 
-		firstInstanceSecondBindingID := createBindingForInstance(instanceIDFirst, httpServer, t)
+		firstInstanceSecondBindingID, firstInstanceSecondBinding := createBindingForInstance(instanceIDFirst, httpServer, t)
 
 		// when - first binding to the first instance
 		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDFirst, firstInstanceFirstBindingID)
@@ -344,6 +344,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// then
 		assert.Equal(t, http.StatusOK, response.StatusCode)
 		binding := unmarshal(t, response)
+		assert.Equal(t, firstInstancefirstBinding, binding)
 		assertClusterAccess(t, response, "secret-to-check-first", binding)
 
 		// when - binding to the second instance
@@ -354,6 +355,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// then
 		assert.Equal(t, http.StatusOK, response.StatusCode)
 		binding = unmarshal(t, response)
+		assert.Equal(t, secondInstanceFirstBinding, binding)
 		assertClusterAccess(t, response, "secret-to-check-second", binding)
 
 		// when - second binding to the first instance
@@ -364,6 +366,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// then
 		assert.Equal(t, http.StatusOK, response.StatusCode)
 		binding = unmarshal(t, response)
+		assert.Equal(t, firstInstanceSecondBinding, binding)
 		assertClusterAccess(t, response, "secret-to-check-first", binding)
 	})
 }
@@ -398,7 +401,7 @@ func assertRolesExistence(t *testing.T, response *http.Response, bindingID strin
 	assert.NoError(t, err)
 }
 
-func createBindingForInstance(instanceID string, httpServer *httptest.Server, t *testing.T) string {
+func createBindingForInstance(instanceID string, httpServer *httptest.Server, t *testing.T) (string, domain.Binding) {
 	bindingID := uuid.New().String()
 	path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
 	body := fmt.Sprintf(`
@@ -414,7 +417,9 @@ func createBindingForInstance(instanceID string, httpServer *httptest.Server, t 
 	defer response.Body.Close()
 	require.Equal(t, http.StatusCreated, response.StatusCode)
 
-	return bindingID
+	createdBinding := unmarshal(t, response)
+
+	return bindingID, createdBinding
 }
 
 func createKubeconfigFileForRestConfig(restConfig rest.Config) []byte {
