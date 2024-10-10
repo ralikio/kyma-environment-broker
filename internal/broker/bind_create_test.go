@@ -329,11 +329,17 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// given
 		instanceIDFirst := "1"
 		firstInstanceFirstBindingID, firstInstancefirstBinding := createBindingForInstance(instanceIDFirst, httpServer, t)
+		firstInstanceFirstBindingDB, err := db.Bindings().Get(instanceIDFirst, firstInstanceFirstBindingID)
+		assert.NoError(t, err)
 
 		instanceIDSecond := "2"
 		secondInstanceBindingID, secondInstanceFirstBinding := createBindingForInstance(instanceIDSecond, httpServer, t)
+		secondInstanceFirstBindingDB, err := db.Bindings().Get(instanceIDSecond, secondInstanceBindingID)
+		assert.NoError(t, err)
 
 		firstInstanceSecondBindingID, firstInstanceSecondBinding := createBindingForInstance(instanceIDFirst, httpServer, t)
+		firstInstanceSecondBindingDB, err := db.Bindings().Get(instanceIDFirst, firstInstanceSecondBindingID)
+		assert.NoError(t, err)
 
 		// when - first binding to the first instance
 		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDFirst, firstInstanceFirstBindingID)
@@ -345,6 +351,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Equal(t, http.StatusOK, response.StatusCode)
 		binding := unmarshal(t, response)
 		assert.Equal(t, firstInstancefirstBinding, binding)
+		assert.Equal(t, firstInstanceFirstBindingDB.Kubeconfig, binding.Credentials.(map[string]interface{})["kubeconfig"])
 		assertClusterAccess(t, response, "secret-to-check-first", binding)
 
 		// when - binding to the second instance
@@ -356,6 +363,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Equal(t, http.StatusOK, response.StatusCode)
 		binding = unmarshal(t, response)
 		assert.Equal(t, secondInstanceFirstBinding, binding)
+		assert.Equal(t, secondInstanceFirstBindingDB.Kubeconfig, binding.Credentials.(map[string]interface{})["kubeconfig"])
 		assertClusterAccess(t, response, "secret-to-check-second", binding)
 
 		// when - second binding to the first instance
@@ -367,6 +375,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Equal(t, http.StatusOK, response.StatusCode)
 		binding = unmarshal(t, response)
 		assert.Equal(t, firstInstanceSecondBinding, binding)
+		assert.Equal(t, firstInstanceSecondBindingDB.Kubeconfig, binding.Credentials.(map[string]interface{})["kubeconfig"])
 		assertClusterAccess(t, response, "secret-to-check-first", binding)
 	})
 }
