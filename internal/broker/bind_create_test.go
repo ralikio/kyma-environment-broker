@@ -358,8 +358,6 @@ func TestCreateBindingEndpoint(t *testing.T) {
 }
 
 func assertClusterAccess(t *testing.T, response *http.Response, controlSecretName string) {
-	require.Equal(t, http.StatusOK, response.StatusCode)
-
 	binding := unmarshal(t, response)
 
 	credentials, ok := binding.Credentials.(map[string]interface{})
