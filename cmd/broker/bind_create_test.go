@@ -145,7 +145,12 @@ func TestCreateBindingEndpoint(t *testing.T) {
 
 	//// database
 	storageCleanup, db, err := GetStorageForE2ETests()
-	defer storageCleanup()
+	t.Cleanup(func() {
+		if storageCleanup != nil {
+			err := storageCleanup()
+			assert.NoError(t, err)
+		}
+	})
 	assert.NoError(t, err)
 
 	err = db.Instances().Insert(fixture.FixInstance("1"))
