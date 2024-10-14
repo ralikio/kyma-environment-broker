@@ -57,6 +57,7 @@ const minExpirationSeconds = 600
 const BINDINGS_PATH = "v2/service_instances/%s/service_bindings/%s"
 const GET_PARAMS = "?accepts_incomplete=false"
 const CREATE_PARAMS = "?accepts_incomplete=false&service_id=%s&plan_id=%s"
+const maxBindingsCount = 10
 
 func TestCreateBindingEndpoint(t *testing.T) {
 	t.Log("test create binding endpoint")
@@ -134,6 +135,15 @@ func TestCreateBindingEndpoint(t *testing.T) {
 					"config": kbcfgSecond,
 				},
 			},
+			&corev1.Secret{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "kubeconfig-runtime-max-bindings",
+					Namespace: "kcp-system",
+				},
+				Data: map[string][]byte{
+					"config": kbcfgSecond,
+				},
+			},
 		}...).
 		Build()
 
@@ -159,6 +169,9 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	err = db.Instances().Insert(fixture.FixInstance("2"))
 	require.NoError(t, err)
 
+	err = db.Instances().Insert(fixture.FixInstance("max-bindings"))
+	require.NoError(t, err)
+
 	skrK8sClientProvider := kubeconfig.NewK8sClientFromSecretProvider(kcpClient)
 
 	//// binding configuration
@@ -170,6 +183,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		ExpirationSeconds:    expirationSeconds,
 		MaxExpirationSeconds: maxExpirationSeconds,
 		MinExpirationSeconds: minExpirationSeconds,
+		MaxBindingsCount:     maxBindingsCount,
 	}
 
 	//// api handler
@@ -205,6 +219,10 @@ func TestCreateBindingEndpoint(t *testing.T) {
 			"plan_id": "%s",
 			"parameters": {
 				"service_account": true
+			},
+			"context": {
+				"email": "john.smith@email.com",
+				"origin": "origin"
 			}
 		}`, fixture.PlanId), t)
 		defer response.Body.Close()
@@ -454,6 +472,96 @@ func TestCreateBindingEndpoint(t *testing.T) {
 
 	})
 
+	t.Run("should return error when attempting to add a new binding when the maximum number of bindings has already been reached", func(t *testing.T) {
+		// given - create max number of bindings
+		instanceID := "max-bindings"
+		for i := 0; i < maxBindingsCount; i++ {
+			bindingID := uuid.New().String()
+			path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
+			body := fmt.Sprintf(`
+			{
+				"service_id": "123",
+				"plan_id": "%s",
+				"parameters": {
+					"service_account": true
+				}
+			}`, fixture.PlanId)
+
+			response := CallAPI(httpServer, http.MethodPut, path, body, t)
+			defer response.Body.Close()
+			require.Equal(t, http.StatusCreated, response.StatusCode)
+		}
+
+		// when - create one more binding
+		bindingID := uuid.New().String()
+		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
+		body := fmt.Sprintf(`
+		{
+			"service_id": "123",
+			"plan_id": "%s",
+			"parameters": {
+				"service_account": true
+			}
+		}`, fixture.PlanId)
+
+		response := CallAPI(httpServer, http.MethodPut, path, body, t)
+		defer response.Body.Close()
+		//then
+		require.Equal(t, http.StatusBadRequest, response.StatusCode)
+	})
+}
+
+func TestCreatedBy(t *testing.T) {
+	emptyStr := ""
+	email := "john.smith@email.com"
+	origin := "origin"
+	tests := []struct {
+		name     string
+		context  broker.BindingContext
+		expected string
+	}{
+		{
+			name:     "Both Email and Origin are nil",
+			context:  broker.BindingContext{Email: nil, Origin: nil},
+			expected: "",
+		},
+		{
+			name:     "Both Email and Origin are empty",
+			context:  broker.BindingContext{Email: &emptyStr, Origin: &emptyStr},
+			expected: "",
+		},
+		{
+			name:     "Origin is nil",
+			context:  broker.BindingContext{Email: &email, Origin: nil},
+			expected: "john.smith@email.com",
+		},
+		{
+			name:     "Origin is empty",
+			context:  broker.BindingContext{Email: &email, Origin: &emptyStr},
+			expected: "john.smith@email.com",
+		},
+		{
+			name:     "Email is nil",
+			context:  broker.BindingContext{Email: nil, Origin: &origin},
+			expected: "origin",
+		},
+		{
+			name:     "Email is empty",
+			context:  broker.BindingContext{Email: &emptyStr, Origin: &origin},
+			expected: "origin",
+		},
+		{
+			name:     "Both Email and Origin are set",
+			context:  broker.BindingContext{Email: &email, Origin: &origin},
+			expected: "john.smith@email.com origin",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.context.CreatedBy())
+		})
+	}
 }
 
 func assertExistsAndKubeconfigCreated(t *testing.T, actual domain.Binding, bindingID, instanceID string, httpServer *httptest.Server, db storage.BrokerStorage) {

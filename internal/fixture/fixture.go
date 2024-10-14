@@ -123,7 +123,6 @@ func FixInstanceDetails(id string) internal.InstanceDetails {
 	}
 
 	return internal.InstanceDetails{
-		Avs:                   internal.AvsLifecycleData{},
 		EventHub:              internal.EventHub{Deleted: false},
 		SubAccountID:          subAccountId,
 		RuntimeID:             runtimeId,
@@ -356,10 +355,12 @@ func FixBindingWithInstanceID(bindingID string, instanceID string) internal.Bind
 
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now().Add(time.Minute * 5),
+		ExpiresAt: time.Now().Add(time.Minute * 10),
 
 		Kubeconfig:        "kubeconfig",
 		ExpirationSeconds: 600,
 		BindingType:       internal.BINDING_TYPE_SERVICE_ACCOUNT,
+		CreatedBy:         "john.smith@email.com",
 	}
 }
 

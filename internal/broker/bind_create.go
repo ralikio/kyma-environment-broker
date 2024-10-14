@@ -26,6 +26,7 @@ type BindingConfig struct {
 	ExpirationSeconds    int         `envconfig:"default=600"`
 	MaxExpirationSeconds int         `envconfig:"default=7200"`
 	MinExpirationSeconds int         `envconfig:"default=600"`
+	MaxBindingsCount     int         `envconfig:"default=10"`
 }
 
 type BindEndpoint struct {
@@ -37,6 +38,33 @@ type BindEndpoint struct {
 	gardenerBindingsManager      broker.BindingsManager
 
 	log logrus.FieldLogger
+}
+
+type BindingContext struct {
+	Email  *string `json:"email,omitempty"`
+	Origin *string `json:"origin,omitempty"`
+}
+
+func (b *BindingContext) CreatedBy() string {
+	if b.Email == nil && b.Origin == nil {
+		return ""
+	}
+
+	email := ""
+	if b.Email != nil {
+		email = *b.Email
+	}
+
+	origin := ""
+	if b.Origin != nil {
+		origin = *b.Origin
+	}
+
+	if email != "" && origin != "" {
+		return email + " " + origin
+	}
+
+	return email + origin
 }
 
 type BindingParams struct {
@@ -95,12 +123,41 @@ func (b *BindEndpoint) Bind(ctx context.Context, instanceID, bindingID string, d
 		).WithErrorKey("BindingNotSupported").Build()
 	}
 
+	var bindingContext BindingContext
+	if len(details.RawContext) != 0 {
+		err = json.Unmarshal(details.RawContext, &bindingContext)
+		if err != nil {
+			message := fmt.Sprintf("failed to unmarshal context: %s", err)
+			return domain.Binding{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusBadRequest, message)
+		}
+	}
+
 	var parameters BindingParams
 	if len(details.RawParameters) != 0 {
 		err = json.Unmarshal(details.RawParameters, &parameters)
 		if err != nil {
 			message := fmt.Sprintf("failed to unmarshal parameters: %s", err)
 			return domain.Binding{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusInternalServerError, message)
+		}
+	}
+
+	bindingList, err := b.bindingsStorage.ListByInstanceID(instanceID)
+	if err != nil {
+		message := fmt.Sprintf("failed to list Kyma bindings: %s", err)
+		return domain.Binding{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusInternalServerError, message)
+	}
+
+	bindingCount := len(bindingList)
+	if bindingCount >= b.config.MaxBindingsCount {
+		expiredCount := 0
+		for _, binding := range bindingList {
+			if binding.ExpiresAt.Before(time.Now()) {
+				expiredCount++
+			}
+		}
+		if (bindingCount - expiredCount) >= b.config.MaxBindingsCount {
+			message := fmt.Sprintf("maximum number of bindings reached: %d", b.config.MaxBindingsCount)
+			return domain.Binding{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusBadRequest, message)
 		}
 	}
 
@@ -118,6 +175,7 @@ func (b *BindEndpoint) Bind(ctx context.Context, instanceID, bindingID string, d
 	}
 
 	var kubeconfig string
+	var expiresAt time.Time
 	binding := &internal.Binding{
 		ID:         bindingID,
 		InstanceID: instanceID,
@@ -126,17 +184,18 @@ func (b *BindEndpoint) Bind(ctx context.Context, instanceID, bindingID string, d
 		UpdatedAt: time.Now(),
 
 		ExpirationSeconds: int64(expirationSeconds),
+		CreatedBy:         bindingContext.CreatedBy(),
 	}
 	if parameters.ServiceAccount {
 		// get kubeconfig for the instance
-		kubeconfig, err = b.serviceAccountBindingManager.Create(ctx, instance, bindingID, expirationSeconds)
+		kubeconfig, expiresAt, err = b.serviceAccountBindingManager.Create(ctx, instance, bindingID, expirationSeconds)
 		if err != nil {
 			message := fmt.Sprintf("failed to create a Kyma binding using service account's kubeconfig: %s", err)
 			return domain.Binding{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusBadRequest, message)
 		}
 		binding.BindingType = internal.BINDING_TYPE_SERVICE_ACCOUNT
 	} else {
-		kubeconfig, err = b.gardenerBindingsManager.Create(ctx, instance, bindingID, expirationSeconds)
+		kubeconfig, expiresAt, err = b.gardenerBindingsManager.Create(ctx, instance, bindingID, expirationSeconds)
 		if err != nil {
 			message := fmt.Sprintf("failed to create a Kyma binding using adminkubeconfig gardener subresource: %s", err)
 			return domain.Binding{}, apiresponses.NewFailureResponse(fmt.Errorf(message), http.StatusBadRequest, message)
@@ -144,6 +203,7 @@ func (b *BindEndpoint) Bind(ctx context.Context, instanceID, bindingID string, d
 		binding.BindingType = internal.BINDING_TYPE_ADMIN_KUBECONFIG
 	}
 
+	binding.ExpiresAt = expiresAt
 	binding.Kubeconfig = kubeconfig
 
 	err = b.bindingsStorage.Insert(binding)
