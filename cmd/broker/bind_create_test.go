@@ -1,4 +1,4 @@
-package broker
+package main
 
 import (
 	"bytes"
@@ -18,6 +18,7 @@ import (
 	"code.cloudfoundry.org/lager"
 	"github.com/gorilla/mux"
 	"github.com/kyma-project/kyma-environment-broker/internal"
+	"github.com/kyma-project/kyma-environment-broker/internal/broker"
 	"github.com/kyma-project/kyma-environment-broker/internal/fixture"
 	"github.com/kyma-project/kyma-environment-broker/internal/kubeconfig"
 	"github.com/kyma-project/kyma-environment-broker/internal/storage"
@@ -35,7 +36,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
@@ -141,7 +141,10 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		Build()
 
 	//// database
-	db := storage.NewMemoryStorage()
+	storageCleanup, db, err := GetStorageForE2ETests()
+	defer storageCleanup()
+	assert.NoError(t, err)
+
 	err = db.Instances().Insert(fixture.FixInstance("1"))
 	require.NoError(t, err)
 
@@ -151,9 +154,9 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	skrK8sClientProvider := kubeconfig.NewK8sClientFromSecretProvider(kcpClient)
 
 	//// binding configuration
-	bindingCfg := &BindingConfig{
+	bindingCfg := &broker.BindingConfig{
 		Enabled: true,
-		BindablePlans: EnablePlans{
+		BindablePlans: broker.EnablePlans{
 			fixture.PlanName,
 		},
 		ExpirationSeconds:    expirationSeconds,
@@ -162,20 +165,20 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	}
 
 	//// api handler
-	bindEndpoint := NewBind(*bindingCfg, db.Instances(), db.Bindings(), logs, skrK8sClientProvider, skrK8sClientProvider, gardenerClient)
-	getBindingEndpoint := NewGetBinding(logs, db.Bindings())
-	unbindEndpoint := NewUnbind(logs, db.Bindings())
-	apiHandler := handlers.NewApiHandler(KymaEnvironmentBroker{
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		bindEndpoint,
-		unbindEndpoint,
-		getBindingEndpoint,
-		nil,
+	bindEndpoint := broker.NewBind(*bindingCfg, db.Instances(), db.Bindings(), logs, skrK8sClientProvider, skrK8sClientProvider, gardenerClient)
+	getBindingEndpoint := broker.NewGetBinding(logs, db.Bindings())
+	unbindEndpoint := broker.NewUnbind(logs, db.Bindings())
+	apiHandler := handlers.NewApiHandler(broker.KymaEnvironmentBroker{
+		ServicesEndpoint: nil,
+		ProvisionEndpoint: nil,
+		DeprovisionEndpoint: nil,
+		UpdateEndpoint: nil,
+		GetInstanceEndpoint: nil,
+		LastOperationEndpoint: nil,
+		BindEndpoint: bindEndpoint,
+		UnbindEndpoint: unbindEndpoint,
+		GetBindingEndpoint: getBindingEndpoint,
+		LastBindingOperationEndpoint: nil,
 	}, brokerLogger)
 
 	//// attach bindings api
@@ -402,6 +405,53 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Nil(t, createdBindingIDDB)
 	})
 
+	t.Run("should selectively delete created binding", func(t *testing.T) {
+		// given
+		instanceFirst := "1"
+		createdBindingIDInstanceFirstFirst, createdBindingInstanceFirstFirst := createBindingForInstance(instanceFirst, httpServer, t)
+
+		assertExistsAndKubeconfigCreated(t, createdBindingInstanceFirstFirst, createdBindingIDInstanceFirstFirst, instanceFirst, httpServer, db)
+
+		createdBindingIDInstanceFirstSecond, createdBindingInstanceFirstSecond := createBindingForInstance(instanceFirst, httpServer, t)
+
+		assertExistsAndKubeconfigCreated(t, createdBindingInstanceFirstSecond, createdBindingIDInstanceFirstSecond, instanceFirst, httpServer, db)
+
+		instanceSecond := "2"
+		createdBindingIDInstanceSecondFirst, createdBindingInstanceSecondFirst := createBindingForInstance(instanceSecond, httpServer, t)
+
+		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondFirst, createdBindingIDInstanceSecondFirst, instanceSecond, httpServer, db)
+
+		createdBindingIDInstanceSecondSecond, createdBindingInstanceSecondSecond := createBindingForInstance(instanceSecond, httpServer, t)
+		
+		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondSecond, createdBindingIDInstanceSecondSecond, instanceSecond, httpServer, db)
+
+		// when
+		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false&service_id=%s&plan_id=%s", instanceFirst, createdBindingIDInstanceFirstFirst, "123", fixture.PlanId)
+
+		response := CallAPI(httpServer, http.MethodDelete, path, "", t)
+		defer response.Body.Close()
+
+		// then
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+
+		assertExistsAndKubeconfigCreated(t, createdBindingInstanceFirstSecond, createdBindingIDInstanceFirstSecond, instanceFirst, httpServer, db)
+
+		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondFirst, createdBindingIDInstanceSecondFirst, instanceSecond, httpServer, db)
+
+		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondSecond, createdBindingIDInstanceSecondSecond, instanceSecond, httpServer, db)
+
+		removedbinding, err := db.Bindings().Get(instanceFirst, createdBindingIDInstanceFirstFirst)
+		assert.Error(t, err)
+		assert.Nil(t, removedbinding)
+		
+	})
+
+}
+
+func assertExistsAndKubeconfigCreated(t *testing.T, actual domain.Binding, bindingID, instanceID string, httpServer *httptest.Server, db storage.BrokerStorage) {
+	expected, err := db.Bindings().Get(instanceID, bindingID)
+	assert.NoError(t, err)
+	assert.Equal(t, actual.Credentials.(map[string]interface{})["kubeconfig"], expected.Kubeconfig)
 }
 
 func assertClusterAccess(t *testing.T, controlSecretName string, binding domain.Binding) {
@@ -499,27 +549,6 @@ func CallAPI(httpServer *httptest.Server, method string, path string, body strin
 	resp, err := cli.Do(req)
 	require.NoError(t, err)
 	return resp
-}
-
-func initClient(cfg *rest.Config) (client.Client, error) {
-	mapper, err := apiutil.NewDiscoveryRESTMapper(cfg)
-	if err != nil {
-		err = wait.Poll(time.Second, time.Minute, func() (bool, error) {
-			mapper, err = apiutil.NewDiscoveryRESTMapper(cfg)
-			if err != nil {
-				return false, nil
-			}
-			return true, nil
-		})
-		if err != nil {
-			return nil, fmt.Errorf("while waiting for client mapper: %w", err)
-		}
-	}
-	cli, err := client.New(cfg, client.Options{Mapper: mapper})
-	if err != nil {
-		return nil, fmt.Errorf("while creating a client: %w", err)
-	}
-	return cli, nil
 }
 
 func kubeconfigClient(t *testing.T, kubeconfig string) *kubernetes.Clientset {
