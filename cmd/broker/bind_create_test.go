@@ -54,9 +54,9 @@ type User struct {
 const expirationSeconds = 10000
 const maxExpirationSeconds = 7200
 const minExpirationSeconds = 600
-const BINDINGS_PATH = "v2/service_instances/%s/service_bindings/%s"
-const GET_PARAMS = "?accepts_incomplete=false"
-const CREATE_PARAMS = "?accepts_incomplete=false&service_id=%s&plan_id=%s"
+const bindingsPath = "v2/service_instances/%s/service_bindings/%s"
+const getParams = "?accepts_incomplete=false"
+const createParams = "?accepts_incomplete=false&service_id=%s&plan_id=%s"
 const maxBindingsCount = 10
 
 func TestCreateBindingEndpoint(t *testing.T) {
@@ -308,7 +308,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// given
 		instanceID := "1"
 		bindingID := uuid.New().String()
-		path := fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceID, bindingID)
+		path := fmt.Sprintf(bindingsPath+getParams, instanceID, bindingID)
 
 		// when
 		response := CallAPI(httpServer, http.MethodGet, path, "", t)
@@ -322,7 +322,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// given
 		instanceID := "1"
 		bindingID := uuid.New().String()
-		path := fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceID, bindingID)
+		path := fmt.Sprintf(bindingsPath+getParams, instanceID, bindingID)
 		body := fmt.Sprintf(`
 		{
 			"service_id": "123",
@@ -373,7 +373,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.NoError(t, err)
 
 		// when - first binding to the first instance
-		path := fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceIDFirst, firstInstanceFirstBindingID)
+		path := fmt.Sprintf(bindingsPath+getParams, instanceIDFirst, firstInstanceFirstBindingID)
 
 		response := CallAPI(httpServer, http.MethodGet, path, "", t)
 		defer response.Body.Close()
@@ -386,7 +386,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assertClusterAccess(t, "secret-to-check-first", binding)
 
 		// when - binding to the second instance
-		path = fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceIDSecond, secondInstanceBindingID)
+		path = fmt.Sprintf(bindingsPath+getParams, instanceIDSecond, secondInstanceBindingID)
 		response = CallAPI(httpServer, http.MethodGet, path, "", t)
 		defer response.Body.Close()
 
@@ -398,7 +398,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assertClusterAccess(t, "secret-to-check-second", binding)
 
 		// when - second binding to the first instance
-		path = fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceIDFirst, firstInstanceSecondBindingID)
+		path = fmt.Sprintf(bindingsPath+getParams, instanceIDFirst, firstInstanceSecondBindingID)
 		response = CallAPI(httpServer, http.MethodGet, path, "", t)
 		defer response.Body.Close()
 
@@ -419,7 +419,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Equal(t, createdBinding.Credentials.(map[string]interface{})["kubeconfig"], createdBindingIDDB.Kubeconfig)
 
 		// when
-		path := fmt.Sprintf(BINDINGS_PATH+CREATE_PARAMS, instanceID, createdBindingID, "123", fixture.PlanId)
+		path := fmt.Sprintf(bindingsPath+createParams, instanceID, createdBindingID, "123", fixture.PlanId)
 
 		response := CallAPI(httpServer, http.MethodDelete, path, "", t)
 		defer response.Body.Close()
@@ -452,7 +452,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondSecond, createdBindingIDInstanceSecondSecond, instanceSecond, httpServer, db)
 
 		// when
-		path := fmt.Sprintf(BINDINGS_PATH+CREATE_PARAMS, instanceFirst, createdBindingIDInstanceFirstFirst, "123", fixture.PlanId)
+		path := fmt.Sprintf(bindingsPath+createParams, instanceFirst, createdBindingIDInstanceFirstFirst, "123", fixture.PlanId)
 
 		response := CallAPI(httpServer, http.MethodDelete, path, "", t)
 		defer response.Body.Close()
@@ -602,7 +602,7 @@ func assertRolesExistence(t *testing.T, bindingID string, binding domain.Binding
 
 func createBindingForInstance(instanceID string, httpServer *httptest.Server, t *testing.T) (string, domain.Binding) {
 	bindingID := uuid.New().String()
-	path := fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceID, bindingID)
+	path := fmt.Sprintf(bindingsPath+getParams, instanceID, bindingID)
 	body := fmt.Sprintf(`
 	{
 		"service_id": "123",
