@@ -54,6 +54,9 @@ type User struct {
 const expirationSeconds = 10000
 const maxExpirationSeconds = 7200
 const minExpirationSeconds = 600
+const BINDINGS_PATH = "v2/service_instances/%s/service_bindings/%s"
+const GET_PARAMS = "?accepts_incomplete=false"
+const CREATE_PARAMS = "?accepts_incomplete=false&service_id=%s&plan_id=%s"
 
 func TestCreateBindingEndpoint(t *testing.T) {
 	t.Log("test create binding endpoint")
@@ -169,15 +172,15 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	getBindingEndpoint := broker.NewGetBinding(logs, db.Bindings())
 	unbindEndpoint := broker.NewUnbind(logs, db.Bindings())
 	apiHandler := handlers.NewApiHandler(broker.KymaEnvironmentBroker{
-		ServicesEndpoint: nil,
-		ProvisionEndpoint: nil,
-		DeprovisionEndpoint: nil,
-		UpdateEndpoint: nil,
-		GetInstanceEndpoint: nil,
-		LastOperationEndpoint: nil,
-		BindEndpoint: bindEndpoint,
-		UnbindEndpoint: unbindEndpoint,
-		GetBindingEndpoint: getBindingEndpoint,
+		ServicesEndpoint:             nil,
+		ProvisionEndpoint:            nil,
+		DeprovisionEndpoint:          nil,
+		UpdateEndpoint:               nil,
+		GetInstanceEndpoint:          nil,
+		LastOperationEndpoint:        nil,
+		BindEndpoint:                 bindEndpoint,
+		UnbindEndpoint:               unbindEndpoint,
+		GetBindingEndpoint:           getBindingEndpoint,
 		LastBindingOperationEndpoint: nil,
 	}, brokerLogger)
 
@@ -282,7 +285,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// given
 		instanceID := "1"
 		bindingID := uuid.New().String()
-		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
+		path := fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceID, bindingID)
 
 		// when
 		response := CallAPI(httpServer, http.MethodGet, path, "", t)
@@ -296,7 +299,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// given
 		instanceID := "1"
 		bindingID := uuid.New().String()
-		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
+		path := fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceID, bindingID)
 		body := fmt.Sprintf(`
 		{
 			"service_id": "123",
@@ -347,7 +350,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.NoError(t, err)
 
 		// when - first binding to the first instance
-		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDFirst, firstInstanceFirstBindingID)
+		path := fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceIDFirst, firstInstanceFirstBindingID)
 
 		response := CallAPI(httpServer, http.MethodGet, path, "", t)
 		defer response.Body.Close()
@@ -360,7 +363,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assertClusterAccess(t, "secret-to-check-first", binding)
 
 		// when - binding to the second instance
-		path = fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDSecond, secondInstanceBindingID)
+		path = fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceIDSecond, secondInstanceBindingID)
 		response = CallAPI(httpServer, http.MethodGet, path, "", t)
 		defer response.Body.Close()
 
@@ -372,7 +375,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assertClusterAccess(t, "secret-to-check-second", binding)
 
 		// when - second binding to the first instance
-		path = fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceIDFirst, firstInstanceSecondBindingID)
+		path = fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceIDFirst, firstInstanceSecondBindingID)
 		response = CallAPI(httpServer, http.MethodGet, path, "", t)
 		defer response.Body.Close()
 
@@ -393,7 +396,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Equal(t, createdBinding.Credentials.(map[string]interface{})["kubeconfig"], createdBindingIDDB.Kubeconfig)
 
 		// when
-		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false&service_id=%s&plan_id=%s", instanceID, createdBindingID, "123", fixture.PlanId)
+		path := fmt.Sprintf(BINDINGS_PATH+CREATE_PARAMS, instanceID, createdBindingID, "123", fixture.PlanId)
 
 		response := CallAPI(httpServer, http.MethodDelete, path, "", t)
 		defer response.Body.Close()
@@ -422,11 +425,11 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondFirst, createdBindingIDInstanceSecondFirst, instanceSecond, httpServer, db)
 
 		createdBindingIDInstanceSecondSecond, createdBindingInstanceSecondSecond := createBindingForInstance(instanceSecond, httpServer, t)
-		
+
 		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondSecond, createdBindingIDInstanceSecondSecond, instanceSecond, httpServer, db)
 
 		// when
-		path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false&service_id=%s&plan_id=%s", instanceFirst, createdBindingIDInstanceFirstFirst, "123", fixture.PlanId)
+		path := fmt.Sprintf(BINDINGS_PATH+CREATE_PARAMS, instanceFirst, createdBindingIDInstanceFirstFirst, "123", fixture.PlanId)
 
 		response := CallAPI(httpServer, http.MethodDelete, path, "", t)
 		defer response.Body.Close()
@@ -443,7 +446,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		removedbinding, err := db.Bindings().Get(instanceFirst, createdBindingIDInstanceFirstFirst)
 		assert.Error(t, err)
 		assert.Nil(t, removedbinding)
-		
+
 	})
 
 }
@@ -486,7 +489,7 @@ func assertRolesExistence(t *testing.T, bindingID string, binding domain.Binding
 
 func createBindingForInstance(instanceID string, httpServer *httptest.Server, t *testing.T) (string, domain.Binding) {
 	bindingID := uuid.New().String()
-	path := fmt.Sprintf("v2/service_instances/%s/service_bindings/%s?accepts_incomplete=false", instanceID, bindingID)
+	path := fmt.Sprintf(BINDINGS_PATH+GET_PARAMS, instanceID, bindingID)
 	body := fmt.Sprintf(`
 	{
 		"service_id": "123",
