@@ -48,7 +48,7 @@ func (b *UnbindEndpoint) Unbind(ctx context.Context, instanceID, bindingID strin
 
 	err = b.bindingsStorage.Delete(instanceID, bindingID)
 	if err != nil {
-		b.log.Errorf("Unbind error during removal of db entity: %s", err)
+		b.log.Errorf("Unbind error during removal of db entity: %v", err)
 		return domain.UnbindSpec{}, err
 	}
 
