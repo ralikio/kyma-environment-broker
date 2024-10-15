@@ -56,17 +56,16 @@ type User struct {
 	} `yaml:"user"`
 }
 
-const expirationSeconds = 10000
-const maxExpirationSeconds = 7200
-const minExpirationSeconds = 600
-const bindingsPath = "v2/service_instances/%s/service_bindings/%s"
-const deleteParams = "?accepts_incomplete=false&service_id=%s&plan_id=%s"
-const maxBindingsCount = 10
-
 const (
-	instanceID1 = "1"
-	instanceID2 = "2"
-	instanceID3 = "max-bindings"
+	instanceID1          = "1"
+	instanceID2          = "2"
+	instanceID3          = "max-bindings"
+	expirationSeconds    = 10000
+	maxExpirationSeconds = 7200
+	minExpirationSeconds = 600
+	bindingsPath         = "v2/service_instances/%s/service_bindings/%s"
+	deleteParams         = "?accepts_incomplete=false&service_id=%s&plan_id=%s"
+	maxBindingsCount     = 10
 )
 
 var httpServer *httptest.Server
@@ -231,7 +230,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 
 		//// verify connectivity using kubeconfig from the generated binding
 		assertClusterAccess(t, "secret-to-check-first", binding)
-		assertRolesExistence(t, "kyma-binding-binding-id", binding)
+		assertRolesExistence(t, fmt.Sprintf(brokerBindings.BindingNameFormat, "binding-id"), binding)
 	})
 
 	t.Run("should create a new service binding with custom token expiration time", func(t *testing.T) {
@@ -451,39 +450,37 @@ func TestCreateBindingEndpoint(t *testing.T) {
 }
 
 func assertResourcesExistence(t *testing.T, k8sClient client.Client, bindingID string) {
-	name := "kyma-binding-" + bindingID
-	namespace := "kyma-system"
+	name := fmt.Sprintf(brokerBindings.BindingNameFormat, bindingID)
 
 	serviceAccount := corev1.ServiceAccount{}
-	err := k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &serviceAccount)
+	err := k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: brokerBindings.BindingNamespace}, &serviceAccount)
 	assert.NoError(t, err)
 	assert.NotNil(t, serviceAccount)
 
 	clusterRole := rbacv1.ClusterRole{}
-	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &clusterRole)
+	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: brokerBindings.BindingNamespace}, &clusterRole)
 	assert.NoError(t, err)
 	assert.NotNil(t, clusterRole)
 
 	clusterRoleBinding := rbacv1.ClusterRoleBinding{}
-	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &clusterRoleBinding)
+	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: brokerBindings.BindingNamespace}, &clusterRoleBinding)
 	assert.NoError(t, err)
 	assert.NotNil(t, clusterRoleBinding)
 }
 
 func assertServiceAccountsNotExists(t *testing.T, k8sClient client.Client, bindingID string) {
-	name := "kyma-binding-" + bindingID
-	namespace := "kyma-namespace"
+	name := fmt.Sprintf(brokerBindings.BindingNameFormat, bindingID)
 
 	serviceAccount := corev1.ServiceAccount{}
-	err := k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &serviceAccount)
+	err := k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: brokerBindings.BindingNamespace}, &serviceAccount)
 	assert.True(t, apierrors.IsNotFound(err))
 
 	clusterRole := rbacv1.ClusterRole{}
-	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &clusterRole)
+	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: brokerBindings.BindingNamespace}, &clusterRole)
 	assert.True(t, apierrors.IsNotFound(err))
 
 	clusterRoleBinding := rbacv1.ClusterRoleBinding{}
-	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &clusterRoleBinding)
+	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: brokerBindings.BindingNamespace}, &clusterRoleBinding)
 	assert.True(t, apierrors.IsNotFound(err))
 }
 
@@ -566,7 +563,7 @@ func assertRolesExistence(t *testing.T, bindingID string, binding domain.Binding
 
 	newClient := kubeconfigClient(t, kubeconfig)
 
-	_, err := newClient.CoreV1().ServiceAccounts("kyma-system").Get(context.Background(), bindingID, v1.GetOptions{})
+	_, err := newClient.CoreV1().ServiceAccounts(brokerBindings.BindingNamespace).Get(context.Background(), bindingID, v1.GetOptions{})
 	assert.NoError(t, err)
 	_, err = newClient.RbacV1().ClusterRoles().Get(context.Background(), bindingID, v1.GetOptions{})
 	assert.NoError(t, err)
@@ -769,7 +766,7 @@ func createEnvTest(t *testing.T) (envtest.Environment, *rest.Config, client.Clie
 
 	err = skrClient.Create(context.Background(), &corev1.Namespace{
 		ObjectMeta: v1.ObjectMeta{
-			Name: "kyma-system",
+			Name: brokerBindings.BindingNamespace,
 		},
 	})
 	require.NoError(t, err)
