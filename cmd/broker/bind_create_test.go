@@ -16,6 +16,9 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v2"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	brokerBindings "github.com/kyma-project/kyma-environment-broker/internal/broker/bindings"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/gorilla/mux"
@@ -192,7 +195,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 	//// api handler
 	bindEndpoint := broker.NewBind(*bindingCfg, db.Instances(), db.Bindings(), logs, skrK8sClientProvider, skrK8sClientProvider)
 	getBindingEndpoint := broker.NewGetBinding(logs, db.Bindings())
-	unbindEndpoint := broker.NewUnbind(logs, db.Bindings())
+	unbindEndpoint := broker.NewUnbind(logs, db.Bindings(), db.Instances(), brokerBindings.NewServiceAccountBindingsManager(skrK8sClientProvider, skrK8sClientProvider))
 	apiHandler := handlers.NewApiHandler(broker.KymaEnvironmentBroker{
 		ServicesEndpoint:             nil,
 		ProvisionEndpoint:            nil,
@@ -366,25 +369,38 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		assert.Nil(t, createdBindingIDDB)
 	})
 
-	t.Run("should selectively delete created binding", func(t *testing.T) {
+	t.Run("should selectively delete created binding and its service account resources", func(t *testing.T) {
 		// given
 		instanceFirst := "1"
+
+		//// first instance first binding
 		createdBindingIDInstanceFirstFirst, createdBindingInstanceFirstFirst := createBindingForInstanceWithRandomBindingID(instanceFirst, httpServer, t)
 
 		assertExistsAndKubeconfigCreated(t, createdBindingInstanceFirstFirst, createdBindingIDInstanceFirstFirst, instanceFirst, httpServer, db)
 
+		assertResourcesExistence(t, clientFirst, createdBindingIDInstanceFirstFirst)
+
+		//// first instance second binding
 		createdBindingIDInstanceFirstSecond, createdBindingInstanceFirstSecond := createBindingForInstanceWithRandomBindingID(instanceFirst, httpServer, t)
 
 		assertExistsAndKubeconfigCreated(t, createdBindingInstanceFirstSecond, createdBindingIDInstanceFirstSecond, instanceFirst, httpServer, db)
 
+		assertResourcesExistence(t, clientFirst, createdBindingIDInstanceFirstSecond)
+
+		//// second instance first binding
 		instanceSecond := "2"
 		createdBindingIDInstanceSecondFirst, createdBindingInstanceSecondFirst := createBindingForInstanceWithRandomBindingID(instanceSecond, httpServer, t)
 
 		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondFirst, createdBindingIDInstanceSecondFirst, instanceSecond, httpServer, db)
 
+		assertResourcesExistence(t, clientSecond, createdBindingIDInstanceSecondFirst)
+
+		//// second instance second binding
 		createdBindingIDInstanceSecondSecond, createdBindingInstanceSecondSecond := createBindingForInstanceWithRandomBindingID(instanceSecond, httpServer, t)
 
 		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondSecond, createdBindingIDInstanceSecondSecond, instanceSecond, httpServer, db)
+
+		assertResourcesExistence(t, clientSecond, createdBindingIDInstanceSecondSecond)
 
 		// when
 		path := fmt.Sprintf(bindingsPath+deleteParams, instanceFirst, createdBindingIDInstanceFirstFirst, "123", fixture.PlanId)
@@ -395,11 +411,19 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		// then
 		assert.Equal(t, http.StatusOK, response.StatusCode)
 
+		assertServiceAccountsNotExists(t, clientFirst, createdBindingIDInstanceFirstFirst)
+
 		assertExistsAndKubeconfigCreated(t, createdBindingInstanceFirstSecond, createdBindingIDInstanceFirstSecond, instanceFirst, httpServer, db)
+
+		assertResourcesExistence(t, clientFirst, createdBindingIDInstanceFirstSecond)
 
 		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondFirst, createdBindingIDInstanceSecondFirst, instanceSecond, httpServer, db)
 
+		assertResourcesExistence(t, clientSecond, createdBindingIDInstanceSecondFirst)
+
 		assertExistsAndKubeconfigCreated(t, createdBindingInstanceSecondSecond, createdBindingIDInstanceSecondSecond, instanceSecond, httpServer, db)
+
+		assertResourcesExistence(t, clientSecond, createdBindingIDInstanceSecondSecond)
 
 		removedBinding, err := db.Bindings().Get(instanceFirst, createdBindingIDInstanceFirstFirst)
 		assert.Error(t, err)
@@ -424,6 +448,43 @@ func TestCreateBindingEndpoint(t *testing.T) {
 		//then
 		require.Equal(t, http.StatusBadRequest, response.StatusCode)
 	})
+}
+
+func assertResourcesExistence(t *testing.T, k8sClient client.Client, bindingID string) {
+	name := "kyma-binding-" + bindingID	
+	namespace := "kyma-system"	
+
+	serviceAccount := corev1.ServiceAccount{}
+	err := k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &serviceAccount)
+	assert.NoError(t, err)
+	assert.NotNil(t, serviceAccount)
+
+	clusterRole := rbacv1.ClusterRole{}
+	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &clusterRole)
+	assert.NoError(t, err)
+	assert.NotNil(t, clusterRole)
+
+	clusterRoleBinding := rbacv1.ClusterRoleBinding{}
+	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &clusterRoleBinding)
+	assert.NoError(t, err)
+	assert.NotNil(t, clusterRoleBinding)
+}
+
+func assertServiceAccountsNotExists(t *testing.T, k8sClient client.Client, bindingID string) {
+	name := "kyma-binding-" + bindingID	
+	namespace := "kyma-namespace"	
+
+	serviceAccount := corev1.ServiceAccount{}
+	err := k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &serviceAccount)
+	assert.True(t, apierrors.IsNotFound(err))
+
+	clusterRole := rbacv1.ClusterRole{}
+	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &clusterRole)
+	assert.True(t, apierrors.IsNotFound(err))
+
+	clusterRoleBinding := rbacv1.ClusterRoleBinding{}
+	err = k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &clusterRoleBinding)
+	assert.True(t, apierrors.IsNotFound(err))
 }
 
 func TestCreatedBy(t *testing.T) {
@@ -481,8 +542,8 @@ func TestCreatedBy(t *testing.T) {
 
 func assertExistsAndKubeconfigCreated(t *testing.T, actual domain.Binding, bindingID, instanceID string, httpServer *httptest.Server, db storage.BrokerStorage) {
 	expected, err := db.Bindings().Get(instanceID, bindingID)
-	assert.NoError(t, err)
-	assert.Equal(t, actual.Credentials.(map[string]interface{})["kubeconfig"], expected.Kubeconfig)
+	require.NoError(t, err)
+	require.Equal(t, actual.Credentials.(map[string]interface{})["kubeconfig"], expected.Kubeconfig)
 }
 
 func assertClusterAccess(t *testing.T, controlSecretName string, binding domain.Binding) {

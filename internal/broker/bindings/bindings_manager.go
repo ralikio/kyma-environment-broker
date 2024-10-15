@@ -22,6 +22,7 @@ type Credentials struct {
 
 type BindingsManager interface {
 	Create(ctx context.Context, instance *internal.Instance, bindingID string, expirationSeconds int) (string, time.Time, error)
+	Delete(ctx context.Context, instance *internal.Instance, bindingID string) (error)
 }
 
 type ClientProvider interface {
@@ -52,6 +53,7 @@ func (c *ServiceAccountBindingsManager) Create(ctx context.Context, instance *in
 	}
 
 	serviceBindingName := fmt.Sprintf("kyma-binding-%s", bindingID)
+	fmt.Printf("Creating a service account binding for runtime %s with name %s", instance.RuntimeID, serviceBindingName)
 
 	_, err = clientset.CoreV1().ServiceAccounts("kyma-system").Create(ctx,
 		&v1.ServiceAccount{
@@ -136,4 +138,37 @@ func (c *ServiceAccountBindingsManager) Create(ctx context.Context, instance *in
 	}
 
 	return string(kubeconfigContent), expiresAt, nil
+}
+
+func (c *ServiceAccountBindingsManager) Delete(ctx context.Context, instance *internal.Instance, bindingID string) error {
+	clientset, err := c.clientProvider.K8sClientSetForRuntimeID(instance.RuntimeID)
+
+	if err != nil {
+		return fmt.Errorf("while creating a runtime client for binding creation: %v", err)
+	}
+
+	serviceBindingName := fmt.Sprintf("kyma-binding-%s", bindingID)
+
+	// remove a binding
+	err = clientset.RbacV1().ClusterRoleBindings().Delete(ctx, serviceBindingName, mv1.DeleteOptions{})
+
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("while removing a cluster role binding: %v", err)
+	}
+
+	// remove a role
+	err = clientset.RbacV1().ClusterRoles().Delete(ctx, serviceBindingName, mv1.DeleteOptions{})
+
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("while removing a cluster role: %v", err)
+	}
+
+	// remove an account
+	err = clientset.CoreV1().ServiceAccounts("kyma-system").Delete(ctx, serviceBindingName, mv1.DeleteOptions{})
+
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("while creating a service account: %v", err)
+	}
+
+	return nil
 }
