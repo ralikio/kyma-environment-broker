@@ -22,7 +22,7 @@ type Credentials struct {
 
 type BindingsManager interface {
 	Create(ctx context.Context, instance *internal.Instance, bindingID string, expirationSeconds int) (string, time.Time, error)
-	Delete(ctx context.Context, instance *internal.Instance, bindingID string) (error)
+	Delete(ctx context.Context, instance *internal.Instance, bindingID string) error
 }
 
 type ClientProvider interface {

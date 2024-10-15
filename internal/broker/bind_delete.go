@@ -14,13 +14,13 @@ import (
 )
 
 type UnbindEndpoint struct {
-	log             logrus.FieldLogger
-	bindingsStorage storage.Bindings
+	log              logrus.FieldLogger
+	bindingsStorage  storage.Bindings
 	instancesStorage storage.Instances
-	bindingsManager broker.BindingsManager
+	bindingsManager  broker.BindingsManager
 }
 
-func NewUnbind(log logrus.FieldLogger, bindingsStorage storage.Bindings,instancesStorage storage.Instances, bindingsManager broker.BindingsManager) *UnbindEndpoint {
+func NewUnbind(log logrus.FieldLogger, bindingsStorage storage.Bindings, instancesStorage storage.Instances, bindingsManager broker.BindingsManager) *UnbindEndpoint {
 	return &UnbindEndpoint{log: log.WithField("service", "UnbindEndpoint"), bindingsStorage: bindingsStorage, instancesStorage: instancesStorage, bindingsManager: bindingsManager}
 }
 

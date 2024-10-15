@@ -15,10 +15,10 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	brokerBindings "github.com/kyma-project/kyma-environment-broker/internal/broker/bindings"
 	"gopkg.in/yaml.v2"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	brokerBindings "github.com/kyma-project/kyma-environment-broker/internal/broker/bindings"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/gorilla/mux"
@@ -451,8 +451,8 @@ func TestCreateBindingEndpoint(t *testing.T) {
 }
 
 func assertResourcesExistence(t *testing.T, k8sClient client.Client, bindingID string) {
-	name := "kyma-binding-" + bindingID	
-	namespace := "kyma-system"	
+	name := "kyma-binding-" + bindingID
+	namespace := "kyma-system"
 
 	serviceAccount := corev1.ServiceAccount{}
 	err := k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &serviceAccount)
@@ -471,8 +471,8 @@ func assertResourcesExistence(t *testing.T, k8sClient client.Client, bindingID s
 }
 
 func assertServiceAccountsNotExists(t *testing.T, k8sClient client.Client, bindingID string) {
-	name := "kyma-binding-" + bindingID	
-	namespace := "kyma-namespace"	
+	name := "kyma-binding-" + bindingID
+	namespace := "kyma-namespace"
 
 	serviceAccount := corev1.ServiceAccount{}
 	err := k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: namespace}, &serviceAccount)
