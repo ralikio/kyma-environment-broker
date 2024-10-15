@@ -57,7 +57,7 @@ func (c *ServiceAccountBindingsManager) Create(ctx context.Context, instance *in
 		return "", time.Time{}, fmt.Errorf("while creating a runtime client for binding creation: %v", err)
 	}
 
-	serviceBindingName := fmt.Sprintf(BindingNameFormat, bindingID)
+	serviceBindingName := BindingName(bindingID)
 	fmt.Printf("Creating a service account binding for runtime %s with name %s", instance.RuntimeID, serviceBindingName)
 
 	_, err = clientset.CoreV1().ServiceAccounts(BindingNamespace).Create(ctx,
@@ -152,7 +152,7 @@ func (c *ServiceAccountBindingsManager) Delete(ctx context.Context, instance *in
 		return fmt.Errorf("while creating a runtime client for binding creation: %v", err)
 	}
 
-	serviceBindingName := fmt.Sprintf(BindingNameFormat, bindingID)
+	serviceBindingName := BindingName(bindingID)
 
 	// remove a binding
 	err = clientset.RbacV1().ClusterRoleBindings().Delete(ctx, serviceBindingName, mv1.DeleteOptions{})
