@@ -177,3 +177,7 @@ func (c *ServiceAccountBindingsManager) Delete(ctx context.Context, instance *in
 
 	return nil
 }
+
+func BindingName(bindingID string) string {
+	return fmt.Sprintf(BindingNameFormat, bindingID)
+}

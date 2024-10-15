@@ -230,7 +230,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 
 		//// verify connectivity using kubeconfig from the generated binding
 		assertClusterAccess(t, "secret-to-check-first", binding)
-		assertRolesExistence(t, fmt.Sprintf(brokerBindings.BindingNameFormat, "binding-id"), binding)
+		assertRolesExistence(t, brokerBindings.BindingName("binding-id"), binding)
 	})
 
 	t.Run("should create a new service binding with custom token expiration time", func(t *testing.T) {
@@ -450,7 +450,7 @@ func TestCreateBindingEndpoint(t *testing.T) {
 }
 
 func assertResourcesExistence(t *testing.T, k8sClient client.Client, bindingID string) {
-	name := fmt.Sprintf(brokerBindings.BindingNameFormat, bindingID)
+	name := brokerBindings.BindingName(bindingID)
 
 	serviceAccount := corev1.ServiceAccount{}
 	err := k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: brokerBindings.BindingNamespace}, &serviceAccount)
@@ -469,7 +469,7 @@ func assertResourcesExistence(t *testing.T, k8sClient client.Client, bindingID s
 }
 
 func assertServiceAccountsNotExists(t *testing.T, k8sClient client.Client, bindingID string) {
-	name := fmt.Sprintf(brokerBindings.BindingNameFormat, bindingID)
+	name := brokerBindings.BindingName(bindingID)
 
 	serviceAccount := corev1.ServiceAccount{}
 	err := k8sClient.Get(context.Background(), client.ObjectKey{Name: name, Namespace: brokerBindings.BindingNamespace}, &serviceAccount)
