@@ -39,6 +39,9 @@ func TestGetBinding(t *testing.T) {
 		apiErr, ok := err.(*apiresponses.FailureResponse)
 		require.True(t, ok)
 		require.Equal(t, http.StatusNotFound, apiErr.ValidatedStatusCode(nil))
+        
+        errorResponse := apiErr.ErrorResponse().(apiresponses.ErrorResponse)
+        require.Equal(t, "Binding expired", errorResponse.Description)
 		mockBindings.AssertExpectations(t)
 	})
 }
