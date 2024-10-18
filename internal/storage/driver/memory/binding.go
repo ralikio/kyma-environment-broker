@@ -89,4 +89,3 @@ func (s *Binding) Get2(instanceID string, bindingID string) (*internal.Binding, 
 		return nil, dberr.NotFound("binding with id %s does not exist for given instance ID", bindingID)
 	}
 }
-

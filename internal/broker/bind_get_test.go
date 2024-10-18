@@ -21,19 +21,20 @@ func TestGetBinding(t *testing.T) {
 		bindingsMemory := memory.NewBinding()
 
 		expiredBinding := &internal.Binding{
-			ID:        "test-binding-id",
+			ID:         "test-binding-id",
 			InstanceID: "test-instance-id",
-			ExpiresAt: time.Now().Add(-1 * time.Hour),
+			ExpiresAt:  time.Now().Add(-1 * time.Hour),
 		}
-		bindingsMemory.Insert(expiredBinding)
+		err := bindingsMemory.Insert(expiredBinding)
+		require.NoError(t, err)
 
 		endpoint := &GetBindingEndpoint{
 			bindings: bindingsMemory,
-			log:      &logrus.Logger{}, 
+			log:      &logrus.Logger{},
 		}
 
 		// when
-		_, err := endpoint.GetBinding(context.Background(), "test-instance-id", "test-binding-id", domain.FetchBindingDetails{})
+		_, err = endpoint.GetBinding(context.Background(), "test-instance-id", "test-binding-id", domain.FetchBindingDetails{})
 
 		// then
 		require.NotNil(t, err)
