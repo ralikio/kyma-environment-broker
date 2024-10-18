@@ -41,26 +41,6 @@ func (s *Binding) Get(instanceID string, bindingID string) (*internal.Binding, e
 	return &binding, nil
 }
 
-func (s *Binding) Get2(instanceID string, bindingID string) (*internal.Binding, error) {
-	sess := s.NewReadSession()
-	bindingDTO := dbmodel.BindingDTO{}
-	bindingDTO, dbErr := sess.GetBinding(instanceID, bindingID)
-	if dbErr != nil {
-		if dberr.IsNotFound(dbErr) {
-			return nil, dberr.NotFound("Binding with id %s does not exist", bindingID)
-		}
-
-		return nil, fmt.Errorf("while getting bindingDTO by ID %s: %w", bindingID, dbErr)
-	}
-
-	binding, err := s.toBinding(bindingDTO)
-	if err != nil {
-		return nil, err
-	}
-
-	return &binding, nil
-}
-
 func (s *Binding) Insert(binding *internal.Binding) error {
 	dto, err := s.toBindingDTO(binding)
 	if err != nil {
