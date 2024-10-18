@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/kyma-project/kyma-environment-broker/internal"
-	mocks "github.com/kyma-project/kyma-environment-broker/internal/storage/automock"
+	"github.com/kyma-project/kyma-environment-broker/internal/storage/driver/memory"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 	"github.com/sirupsen/logrus"
@@ -18,17 +18,18 @@ func TestGetBinding(t *testing.T) {
 
 	t.Run("should return 404 code for the expired binding", func(t *testing.T) {
 		// given
-		mockBindings := new(mocks.Bindings)
+		bindingsMemory := memory.NewBinding()
 
 		expiredBinding := &internal.Binding{
+			ID:        "test-binding-id",
+			InstanceID: "test-instance-id",
 			ExpiresAt: time.Now().Add(-1 * time.Hour),
 		}
-
-		mockBindings.On("Get", "test-instance-id", "test-binding-id").Return(expiredBinding, nil)
+		bindingsMemory.Insert(expiredBinding)
 
 		endpoint := &GetBindingEndpoint{
-			bindings: mockBindings,
-			log:      &logrus.Logger{}, // Assuming you have a mock logger
+			bindings: bindingsMemory,
+			log:      &logrus.Logger{}, 
 		}
 
 		// when
@@ -42,6 +43,5 @@ func TestGetBinding(t *testing.T) {
 
 		errorResponse := apiErr.ErrorResponse().(apiresponses.ErrorResponse)
 		require.Equal(t, "Binding expired", errorResponse.Description)
-		mockBindings.AssertExpectations(t)
 	})
 }
