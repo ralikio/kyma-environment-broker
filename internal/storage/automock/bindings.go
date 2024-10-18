@@ -60,6 +60,36 @@ func (_m *Bindings) Get(instanceID string, bindingID string) (*internal.Binding,
 	return r0, r1
 }
 
+// Get2 provides a mock function with given fields: instanceID, bindingID
+func (_m *Bindings) Get2(instanceID string, bindingID string) (*internal.Binding, error) {
+	ret := _m.Called(instanceID, bindingID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Get2")
+	}
+
+	var r0 *internal.Binding
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, string) (*internal.Binding, error)); ok {
+		return rf(instanceID, bindingID)
+	}
+	if rf, ok := ret.Get(0).(func(string, string) *internal.Binding); ok {
+		r0 = rf(instanceID, bindingID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*internal.Binding)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string, string) error); ok {
+		r1 = rf(instanceID, bindingID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Insert provides a mock function with given fields: binding
 func (_m *Bindings) Insert(binding *internal.Binding) error {
 	ret := _m.Called(binding)

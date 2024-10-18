@@ -132,6 +132,7 @@ type SubaccountStates interface {
 type Bindings interface {
 	Insert(binding *internal.Binding) error
 	Get(instanceID string, bindingID string) (*internal.Binding, error)
+	Get2(instanceID string, bindingID string) (*internal.Binding, error)
 	ListByInstanceID(instanceID string) ([]internal.Binding, error)
 	Delete(instanceID, bindingID string) error
 }
